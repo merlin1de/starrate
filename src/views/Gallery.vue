@@ -41,6 +41,11 @@
       :loading="loading"
       :has-active-filter="hasActiveFilter"
       :current-index="currentIndex"
+      :thumbnail-size="settings.thumbnail_size"
+      :grid-columns="settings.grid_columns"
+      :show-filename="settings.show_filename"
+      :show-rating-info="settings.show_rating_overlay"
+      :show-color-info="settings.show_color_overlay"
       @rate="onRate"
       @open-loupe="openLoupe"
       @selection-change="onSelectionChange"
@@ -106,6 +111,17 @@ const router = useRouter()
 const mode         = ref('grid')       // 'grid' | 'loupe'
 const loading      = ref(false)
 const allImages    = ref([])
+
+const settings = ref({
+  default_sort:        'name',
+  default_sort_order:  'asc',
+  thumbnail_size:       280,
+  write_exif:           true,
+  show_filename:        true,
+  show_rating_overlay:  true,
+  show_color_overlay:   true,
+  grid_columns:        'auto',
+})
 const subFolders   = ref([])
 const currentIndex = ref(0)
 const selectedIds  = ref(new Set())
@@ -188,7 +204,7 @@ async function loadImages() {
   try {
     const url = generateUrl('/apps/starrate/api/images')
     const { data } = await axios.get(url, {
-      params: { path: currentPath.value, sort: 'name', order: 'asc' },
+      params: { path: currentPath.value, sort: settings.value.default_sort, order: settings.value.default_sort_order },
       timeout: 15000,
     })
     if (seq !== loadSeq) return  // veralteter Request – ignorieren
@@ -206,7 +222,8 @@ async function loadImages() {
   }
 }
 
-watch(currentPath, loadImages, { immediate: true })
+// Pfadwechsel → Bilder neu laden (kein immediate: erster Load passiert in onMounted nach Settings)
+watch(currentPath, loadImages)
 
 // ─── Bewertung setzen ─────────────────────────────────────────────────────────
 
@@ -343,8 +360,22 @@ function onDocKeydown(e) {
   }
 }
 
-onMounted(() => {
+async function loadSettings() {
+  try {
+    const url = generateUrl('/apps/starrate/api/settings')
+    const { data } = await axios.get(url)
+    Object.assign(settings.value, data)
+  } catch {
+    // Standardwerte behalten
+  }
+}
+
+onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown)
+
+  // Settings laden, dann erst Bilder (damit sort/order korrekt ist)
+  await loadSettings()
+
   // URL-Query-Params haben Priorität (geteilter Link), sonst localStorage
   const q = route.query
   const hasUrlFilter = ['r', 're', 'rm', 'c', 'p'].some(k => k in q)
@@ -356,6 +387,9 @@ onMounted(() => {
       try { Object.assign(activeFilter.value, JSON.parse(saved)) } catch {}
     }
   }
+
+  // Erster Bildladevorgang nach Settings & Filter
+  loadImages()
 })
 
 onUnmounted(() => {
