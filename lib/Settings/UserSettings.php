@@ -51,7 +51,6 @@ class UserSettings implements ISettings
      *   default_sort: string,
      *   default_sort_order: string,
      *   thumbnail_size: int,
-     *   write_exif: bool,
      *   show_filename: bool,
      *   show_rating_overlay: bool,
      *   show_color_overlay: bool,
@@ -64,7 +63,6 @@ class UserSettings implements ISettings
             'default_sort'          => $this->get($userId, 'default_sort', 'name'),
             'default_sort_order'    => $this->get($userId, 'default_sort_order', 'asc'),
             'thumbnail_size'        => (int) $this->get($userId, 'thumbnail_size', '280'),
-            'write_exif'            => $this->getBool($userId, 'write_exif', true),
             'show_filename'         => $this->getBool($userId, 'show_filename', true),
             'show_rating_overlay'   => $this->getBool($userId, 'show_rating_overlay', true),
             'show_color_overlay'    => $this->getBool($userId, 'show_color_overlay', true),
@@ -82,7 +80,7 @@ class UserSettings implements ISettings
     {
         $allowed = [
             'default_sort', 'default_sort_order', 'thumbnail_size',
-            'write_exif', 'show_filename', 'show_rating_overlay',
+            'show_filename', 'show_rating_overlay',
             'show_color_overlay', 'grid_columns',
         ];
 
@@ -122,7 +120,7 @@ class UserSettings implements ISettings
             'default_sort_order' => $this->assertIn($key, $value, ['asc', 'desc']),
             'thumbnail_size' => $this->assertRange($key, (int) $value, 120, 600),
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
-            'write_exif', 'show_filename', 'show_rating_overlay', 'show_color_overlay' => null,
+            'show_filename', 'show_rating_overlay', 'show_color_overlay' => null,
         };
     }
 

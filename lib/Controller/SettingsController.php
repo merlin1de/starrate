@@ -43,7 +43,7 @@ class SettingsController extends Controller
             return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
         }
 
-        $raw  = $this->request->getContent();
+        $raw  = file_get_contents('php://input');
         $data = json_decode($raw ?: '{}', true);
         if (!is_array($data)) {
             return new DataResponse(['error' => 'Ungültiger JSON-Body'], Http::STATUS_BAD_REQUEST);

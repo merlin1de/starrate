@@ -77,17 +77,6 @@
       </div>
     </div>
 
-    <div class="sr-settings__group">
-      <h3 class="sr-settings__heading">{{ t('starrate', 'Metadaten') }}</h3>
-
-      <div class="sr-settings__row">
-        <label class="sr-settings__label sr-settings__label--check">
-          <input type="checkbox" v-model="form.write_exif" @change="autosave" />
-          {{ t('starrate', 'Bewertung in XMP/EXIF schreiben') }}
-        </label>
-      </div>
-    </div>
-
     <!-- Status -->
     <Transition name="sr-fade">
       <span v-if="status" class="sr-settings__status" :class="`sr-settings__status--${status}`">
@@ -112,7 +101,6 @@ const DEFAULTS = {
   default_sort:        'name',
   default_sort_order:  'asc',
   thumbnail_size:       280,
-  write_exif:           true,
   show_filename:        true,
   show_rating_overlay:  true,
   show_color_overlay:   true,
