@@ -8,6 +8,15 @@
         <span class="sr-breadcrumb__sep">/</span>
         <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
       </template>
+      <button class="sr-breadcrumb__sync" @click="router.push('/sync')" :title="t('starrate', 'Lightroom Sync')">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="14" height="14">
+          <path d="M23 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Sync
+      </button>
+      <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
     </div>
 
     <!-- Filterleiste -->
@@ -43,6 +52,7 @@
       @rate="onRate"
       @open-loupe="openLoupe"
       @selection-change="onSelectionChange"
+      @clear-filter="resetFilter"
     />
 
     <!-- Lupenansicht -->
@@ -84,6 +94,9 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+
+/* global __APP_VERSION__ */
+const appVersion = __APP_VERSION__
 import { useRoute, useRouter } from 'vue-router'
 import { t, n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
@@ -91,10 +104,7 @@ import { generateUrl } from '@nextcloud/router'
 import GridView from '../components/GridView.vue'
 import FilterBar from '../components/FilterBar.vue'
 import SelectionBar from '../components/SelectionBar.vue'
-
-// Lazy imports für LoupeView (Code-Splitting)
-import { defineAsyncComponent } from 'vue'
-const LoupeView = defineAsyncComponent(() => import('../components/LoupeView.vue'))
+import LoupeView from '../components/LoupeView.vue'
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
@@ -112,8 +122,9 @@ const toasts       = ref([])
 let   toastCounter = 0
 
 const activeFilter = ref({
-  minRating: 0,     // 0 = alle
-  exactRating: null,// null = kein Exact-Filter
+  minRating: 0,     // 0 = alle  (>=)
+  exactRating: null,// null = kein Exact-Filter (=)
+  maxRating: null,  // null = kein Max-Filter    (<=)
   color: null,      // null = alle
   pick: null,       // null | 'pick' | 'reject'
 })
@@ -152,6 +163,8 @@ const filteredImages = computed(() => {
     imgs = imgs.filter(i => i.rating === f.exactRating)
   } else if (f.minRating > 0) {
     imgs = imgs.filter(i => i.rating >= f.minRating)
+  } else if (f.maxRating !== null) {
+    imgs = imgs.filter(i => i.rating <= f.maxRating)
   }
 
   if (f.color) {
@@ -168,19 +181,25 @@ const filteredImages = computed(() => {
 const hasActiveFilter = computed(() =>
   activeFilter.value.minRating > 0 ||
   activeFilter.value.exactRating !== null ||
+  activeFilter.value.maxRating !== null ||
   activeFilter.value.color !== null ||
   activeFilter.value.pick !== null
 )
 
 // ─── Bilder laden ─────────────────────────────────────────────────────────────
 
+let loadSeq = 0  // Sequenzzähler: verhindert dass alte Requests neuere überschreiben
+
 async function loadImages() {
+  const seq = ++loadSeq
   loading.value = true
   try {
     const url = generateUrl('/apps/starrate/api/images')
     const { data } = await axios.get(url, {
       params: { path: currentPath.value, sort: 'name', order: 'asc' },
+      timeout: 15000,
     })
+    if (seq !== loadSeq) return  // veralteter Request – ignorieren
     allImages.value = (data.images || []).map(img => ({
       ...img,
       thumbLoaded: false,
@@ -188,9 +207,10 @@ async function loadImages() {
     }))
     subFolders.value = data.folders || []
   } catch (e) {
+    if (seq !== loadSeq) return
     showToast(t('starrate', 'Bilder konnten nicht geladen werden'), 'error')
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -200,9 +220,9 @@ watch(currentPath, loadImages, { immediate: true })
 
 async function onRate(image, rating, color, pick) {
   const payload = {}
-  if (rating !== null && rating !== undefined) payload.rating = rating
-  if (color  !== null && color  !== undefined) payload.color  = color
-  if (pick   !== null && pick   !== undefined) payload.pick   = pick
+  if (rating !== undefined) payload.rating = rating
+  if (color  !== undefined) payload.color  = color
+  if (pick   !== undefined) payload.pick   = pick
 
   if (Object.keys(payload).length === 0) return
 
@@ -266,6 +286,34 @@ async function onBatchRate(rating, color) {
   }
 }
 
+// ─── Filter ↔ URL-Query-Params ────────────────────────────────────────────────
+
+function filterToQuery(f) {
+  const q = {}
+  if (f.minRating   > 0)      q.r  = String(f.minRating)
+  if (f.exactRating !== null)  q.re = String(f.exactRating)
+  if (f.maxRating   !== null)  q.rm = String(f.maxRating)
+  if (f.color)                 q.c  = f.color
+  if (f.pick)                  q.p  = f.pick
+  return q
+}
+
+function queryToFilter(q) {
+  return {
+    minRating:   q.r  !== undefined ? Number(q.r)  : 0,
+    exactRating: q.re !== undefined ? Number(q.re) : null,
+    maxRating:   q.rm !== undefined ? Number(q.rm) : null,
+    color:       q.c  || null,
+    pick:        q.p  || null,
+  }
+}
+
+// ─── Filter zurücksetzen ──────────────────────────────────────────────────────
+
+function resetFilter() {
+  activeFilter.value = { minRating: 0, exactRating: null, maxRating: null, color: null, pick: null }
+}
+
 // ─── Modus-Wechsel ────────────────────────────────────────────────────────────
 
 function toggleMode() {
@@ -274,6 +322,7 @@ function toggleMode() {
 
 function openLoupe(image, index) {
   currentIndex.value = index
+  selectedIds.value = new Set()
   mode.value = 'loupe'
 }
 
@@ -294,18 +343,28 @@ function showToast(message, type = 'success') {
 }
 
 onMounted(() => {
-  // Filter aus localStorage wiederherstellen
-  const saved = localStorage.getItem(`starrate_filter_${currentPath.value}`)
-  if (saved) {
-    try {
-      Object.assign(activeFilter.value, JSON.parse(saved))
-    } catch {}
+  // URL-Query-Params haben Priorität (geteilter Link), sonst localStorage
+  const q = route.query
+  const hasUrlFilter = ['r', 're', 'rm', 'c', 'p'].some(k => k in q)
+  if (hasUrlFilter) {
+    Object.assign(activeFilter.value, queryToFilter(q))
+  } else {
+    const saved = localStorage.getItem(`starrate_filter_${currentPath.value}`)
+    if (saved) {
+      try { Object.assign(activeFilter.value, JSON.parse(saved)) } catch {}
+    }
   }
 })
 
-// Filter in localStorage persistieren
+// Filter in localStorage + URL persistieren
 watch(activeFilter, val => {
   localStorage.setItem(`starrate_filter_${currentPath.value}`, JSON.stringify(val))
+  router.replace({ query: filterToQuery(val) })
+}, { deep: true })
+
+// Browser-Back/Forward: URL-Änderung → Filter aktualisieren
+watch(() => route.query, q => {
+  Object.assign(activeFilter.value, queryToFilter(q))
 }, { deep: true })
 </script>
 
@@ -313,6 +372,7 @@ watch(activeFilter, val => {
 .sr-app {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
   background: #1a1a2e;
   color: #e0e0e0;
@@ -327,9 +387,11 @@ watch(activeFilter, val => {
 /* Toasts */
 .sr-toasts {
   position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 60px;
+  right: 16px;
+  bottom: auto;
+  left: auto;
+  transform: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -359,5 +421,43 @@ watch(activeFilter, val => {
 .toast-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+
+/* Breadcrumb: scoped für höhere Spezifizität gegenüber NC-Styles */
+.sr-breadcrumb {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sr-breadcrumb__sync {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #666;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+.sr-breadcrumb__sync:hover {
+  color: #aaa;
+  border-color: #3a3a6a;
+}
+
+.sr-breadcrumb__version {
+  margin-left: 8px;
+  font-size: 10px;
+  color: #3a3a52;
+  user-select: none;
+  letter-spacing: 0.04em;
+  padding-left: 24px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 </style>

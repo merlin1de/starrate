@@ -176,7 +176,7 @@ describe('LoupeView – Zoom & Navigation', () => {
     const emitted = w.emitted('rate')
     expect(emitted).toBeTruthy()
     expect(emitted[0][1]).toBe(r)
-    expect(emitted[0][2]).toBeNull()
+    expect(emitted[0][2]).toBeUndefined()
   })
 
   it('Taste 6 emittiert Farbe Red', async () => {

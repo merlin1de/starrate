@@ -11,6 +11,7 @@ const makeRouter = () => createRouter({
 const defaultFilter = () => ({
   minRating:   0,
   exactRating: null,
+  maxRating:   null,
   color:       null,
   pick:        null,
 })
@@ -35,23 +36,24 @@ describe('FilterBar', () => {
 
   it('rendert alle Sterne-Optionen', () => {
     const w = factory()
-    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__pill--color)')
+    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__colordot)')
     expect(pills.length).toBeGreaterThanOrEqual(4) // ★5, ★4, ≥3★, Unbewertet
   })
 
-  it('rendert 5 Farb-Pills', () => {
+  it('rendert 5 Farb-Kreise', () => {
     const w = factory()
-    expect(w.findAll('.sr-filterbar__pill--color')).toHaveLength(5)
+    expect(w.findAll('.sr-filterbar__colordot')).toHaveLength(5)
   })
 
-  it('zeigt keinen Reset-Button wenn kein Filter aktiv', () => {
+  it('Status-Bereich ist versteckt wenn kein Filter aktiv', async () => {
     const w = factory()
-    expect(w.find('.sr-filterbar__reset').exists()).toBe(false)
+    await w.vm.$nextTick()
+    expect(w.find('.sr-filterbar__status').element.style.visibility).toBe('hidden')
   })
 
-  it('zeigt Reset-Button wenn Filter aktiv', () => {
+  it('Status-Bereich ist sichtbar wenn Filter aktiv', () => {
     const w = factory({ filter: { ...defaultFilter(), minRating: 3 } })
-    expect(w.find('.sr-filterbar__reset').exists()).toBe(true)
+    expect(w.find('.sr-filterbar__status').element.style.visibility).not.toBe('hidden')
   })
 
   it('zeigt Grid/Loupe Modus-Buttons', () => {
@@ -61,57 +63,82 @@ describe('FilterBar', () => {
 
   // ── Sterne-Filter ─────────────────────────────────────────────────────────
 
-  it('setzt exactRating=5 beim Klick auf ★★★★★', async () => {
+  it('setzt exactRating=5 beim Klick auf ★★★★★ (default op=)', async () => {
     const w = factory()
-    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__pill--color):not(.sr-filterbar__reset)')
-    await pills[0].trigger('click') // erste Sterne-Pill = ★★★★★
+    // Stern-Pills: ★★★★★ ★★★★ ★★★ ★★ ★ ○ → index 0 = ★★★★★
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[0].trigger('click')
     const emitted = w.emitted('update:filter')
     expect(emitted).toBeTruthy()
     expect(emitted[0][0].exactRating).toBe(5)
+    expect(emitted[0][0].minRating).toBe(0)
   })
 
-  it('setzt minRating=3 beim Klick auf ≥3★', async () => {
+  it('setzt minRating=5 beim Klick op=≥, dann ★★★★★', async () => {
     const w = factory()
-    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__pill--color):not(.sr-filterbar__reset)')
-    await pills[2].trigger('click') // 3. = ≥3★
+    await w.findAll('.sr-filterbar__op')[0].trigger('click') // ≥ Operator
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[0].trigger('click') // ★★★★★ = index 0
     const emitted = w.emitted('update:filter')
-    expect(emitted[0][0].minRating).toBe(3)
+    expect(emitted[0][0].minRating).toBe(5)
     expect(emitted[0][0].exactRating).toBeNull()
+  })
+
+  it('setzt exactRating=3 beim Klick auf ★★★ (default op=)', async () => {
+    const w = factory()
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[2].trigger('click') // ★★★ = index 2
+    const emitted = w.emitted('update:filter')
+    expect(emitted[0][0].exactRating).toBe(3)
+    expect(emitted[0][0].minRating).toBe(0)
   })
 
   it('deaktiviert Sterne-Filter bei nochmaligem Klick', async () => {
     const w = factory({ filter: { ...defaultFilter(), exactRating: 5 } })
-    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__pill--color):not(.sr-filterbar__reset)')
-    await pills[0].trigger('click')
+    // watch setzt selectedOp='=' → ★★★★★ (index 0) ist aktiv → Klick deaktiviert
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[0].trigger('click')
     const emitted = w.emitted('update:filter')
     expect(emitted[0][0].exactRating).toBeNull()
     expect(emitted[0][0].minRating).toBe(0)
   })
 
-  it('hat --active Klasse für aktive Sterne-Pill', () => {
+  it('hat --active Klasse für aktive Sterne-Pill (exactRating=5)', () => {
     const w = factory({ filter: { ...defaultFilter(), exactRating: 5 } })
-    const pills = w.findAll('.sr-filterbar__pill:not(.sr-filterbar__pill--color)')
-    expect(pills[0].classes()).toContain('sr-filterbar__pill--active')
+    // selectedOp wird durch watch auf '=' gesetzt → ★★★★★ (index 0) ist aktiv
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    expect(stars[0].classes()).toContain('sr-filterbar__pill--active')
+  })
+
+  it('setzt maxRating=3 beim Klick op=≤, dann ★★★', async () => {
+    const w = factory()
+    await w.findAll('.sr-filterbar__op')[2].trigger('click') // ≤ Operator
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[2].trigger('click') // ★★★ = index 2
+    const emitted = w.emitted('update:filter')
+    expect(emitted[0][0].maxRating).toBe(3)
+    expect(emitted[0][0].exactRating).toBeNull()
+    expect(emitted[0][0].minRating).toBe(0)
   })
 
   // ── Farb-Filter ───────────────────────────────────────────────────────────
 
   it('setzt Farb-Filter beim Klick auf Farb-Pill', async () => {
     const w = factory()
-    await w.findAll('.sr-filterbar__pill--color')[0].trigger('click') // Rot
+    await w.findAll('.sr-filterbar__colordot')[0].trigger('click') // Rot
     const emitted = w.emitted('update:filter')
     expect(emitted[0][0].color).toBe('Red')
   })
 
   it('entfernt Farb-Filter bei nochmaligem Klick', async () => {
     const w = factory({ filter: { ...defaultFilter(), color: 'Red' } })
-    await w.findAll('.sr-filterbar__pill--color')[0].trigger('click')
+    await w.findAll('.sr-filterbar__colordot')[0].trigger('click')
     expect(w.emitted('update:filter')[0][0].color).toBeNull()
   })
 
   it('kann Sterne- und Farb-Filter kombinieren', async () => {
     const w = factory({ filter: { ...defaultFilter(), exactRating: 4 } })
-    await w.findAll('.sr-filterbar__pill--color')[2].trigger('click') // Grün
+    await w.findAll('.sr-filterbar__colordot')[2].trigger('click') // Grün
     const emitted = w.emitted('update:filter')
     expect(emitted[0][0].exactRating).toBe(4)
     expect(emitted[0][0].color).toBe('Green')
@@ -141,7 +168,7 @@ describe('FilterBar', () => {
     })
     await w.find('.sr-filterbar__reset').trigger('click')
     const emitted = w.emitted('update:filter')
-    expect(emitted[0][0]).toEqual({ minRating: 0, exactRating: null, color: null, pick: null })
+    expect(emitted[0][0]).toEqual({ minRating: 0, exactRating: null, maxRating: null, color: null, pick: null })
   })
 
   // ── URL-Parameter ─────────────────────────────────────────────────────────
@@ -151,7 +178,7 @@ describe('FilterBar', () => {
     const replaceSpy = vi.spyOn(router, 'replace')
     const w = factory({}, router)
 
-    await w.findAll('.sr-filterbar__pill--color')[1].trigger('click') // Gelb
+    await w.findAll('.sr-filterbar__colordot')[1].trigger('click') // Gelb
     expect(replaceSpy).toHaveBeenCalledWith(expect.objectContaining({
       query: expect.objectContaining({ color: 'Yellow' }),
     }))

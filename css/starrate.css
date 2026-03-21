@@ -45,46 +45,43 @@
 
 /* ── App Container ────────────────────────────────────────────────────────── */
 
-#app-content-vue #sr-app {
+#starrate-root {
+  width: 100%;
   height: 100%;
-  background: var(--sr-bg);
-  color: var(--sr-text);
-  font-family: var(--sr-font);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 
-#sr-app ::-webkit-scrollbar {
+#starrate-root ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-#sr-app ::-webkit-scrollbar-track {
+#starrate-root ::-webkit-scrollbar-track {
   background: var(--sr-bg);
 }
-#sr-app ::-webkit-scrollbar-thumb {
+#starrate-root ::-webkit-scrollbar-thumb {
   background: var(--sr-border-focus);
   border-radius: 3px;
 }
-#sr-app ::-webkit-scrollbar-thumb:hover {
+#starrate-root ::-webkit-scrollbar-thumb:hover {
   background: var(--sr-text-dim);
 }
 
 /* ── Typography ───────────────────────────────────────────────────────────── */
 
-#sr-app h1, #sr-app h2, #sr-app h3 {
+#starrate-root h1, #starrate-root h2, #starrate-root h3 {
   color: #ffffff;
   font-weight: 600;
   margin: 0;
 }
 
-#sr-app a {
+#starrate-root a {
   color: var(--sr-accent);
   text-decoration: none;
 }
-#sr-app a:hover {
+#starrate-root a:hover {
   text-decoration: underline;
 }
 
@@ -224,7 +221,7 @@
 
 /* ── Focus ring ───────────────────────────────────────────────────────────── */
 
-#sr-app :focus-visible {
+#starrate-root :focus-visible {
   outline: 2px solid var(--sr-accent);
   outline-offset: 2px;
 }
@@ -262,6 +259,8 @@
   flex-wrap: wrap;
 }
 
+/* .sr-breadcrumb__version is styled in Gallery.vue (scoped) for higher specificity */
+
 .sr-breadcrumb__seg {
   background: none;
   border: none;
@@ -279,6 +278,209 @@
 
 .sr-breadcrumb__sep {
   color: var(--sr-text-dim);
+}
+
+/* ── GridView: kein Fokus-Rahmen auf dem Container ───────────────────────── */
+#starrate-root .sr-grid:focus,
+#starrate-root .sr-grid:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ── GridView CTA ─────────────────────────────────────────────────────────── */
+#starrate-root .sr-grid__empty-cta {
+  min-height: 0 !important;
+  padding: 6px 16px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+}
+#starrate-root .sr-grid__empty-cta:hover {
+  background: #3a2030 !important;
+  color: #e0a0b0 !important;
+}
+#starrate-root .sr-grid__empty-cta:focus,
+#starrate-root .sr-grid__empty-cta:focus-visible,
+#starrate-root .sr-grid__empty-cta:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ── FilterBar: NC-Override für Operator- und Pill-Buttons ───────────────── */
+#starrate-root .sr-filterbar__op:hover {
+  background: #2a2a4a !important;
+  color: #aaa !important;
+}
+#starrate-root .sr-filterbar__op:focus,
+#starrate-root .sr-filterbar__op:focus-visible,
+#starrate-root .sr-filterbar__op:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-filterbar__op--active:hover,
+#starrate-root .sr-filterbar__op--active:focus,
+#starrate-root .sr-filterbar__op--active:focus-visible,
+#starrate-root .sr-filterbar__op--active:active {
+  background: #7a1e30 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-filterbar__pill:hover {
+  background: #2a2a4a !important;
+  color: #ddd !important;
+}
+#starrate-root .sr-filterbar__pill:focus,
+#starrate-root .sr-filterbar__pill:focus-visible,
+#starrate-root .sr-filterbar__pill:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-filterbar__pill--active:hover,
+#starrate-root .sr-filterbar__pill--active:focus,
+#starrate-root .sr-filterbar__pill--active:focus-visible,
+#starrate-root .sr-filterbar__pill--active:active {
+  background: #3a2030 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ── Komponenten-Buttons: NC-Override mit #starrate-root Präfix ───────────── */
+/* NC-Selektoren wie "#app-content button" haben Spezifizität (1,0,1).         */
+/* Mit #starrate-root Klassen-Präfix haben wir (1,1,0) – das schlägt NC.       */
+
+/* RatingStars: Sterne-Buttons */
+#starrate-root .sr-stars__star {
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+#starrate-root .sr-stars__star:hover,
+#starrate-root .sr-stars__star:focus,
+#starrate-root .sr-stars__star:focus-visible,
+#starrate-root .sr-stars__star:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-stars__star:disabled {
+  background: transparent !important;
+  opacity: 1 !important;
+  cursor: default !important;
+}
+#starrate-root .sr-stars__clear {
+  min-height: 0 !important;
+  height: 16px !important;
+  width: 16px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+#starrate-root .sr-stars__clear:hover,
+#starrate-root .sr-stars__clear:focus,
+#starrate-root .sr-stars__clear:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ColorLabel: Farb-Punkte */
+#starrate-root .sr-color-label__dot {
+  width: 18px !important;
+  height: 18px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+/* Farben auf hover/focus erhalten (NC würde sonst weiß setzen) */
+#starrate-root .sr-color-label__dot--red    { background: #e05252 !important; }
+#starrate-root .sr-color-label__dot--yellow { background: #e0c252 !important; }
+#starrate-root .sr-color-label__dot--green  { background: #52a852 !important; }
+#starrate-root .sr-color-label__dot--blue   { background: #5277e0 !important; }
+#starrate-root .sr-color-label__dot--purple { background: #9b52e0 !important; }
+#starrate-root .sr-color-label__dot:focus,
+#starrate-root .sr-color-label__dot:focus-visible,
+#starrate-root .sr-color-label__dot:active {
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-color-label__dot--active:focus,
+#starrate-root .sr-color-label__dot--active:focus-visible,
+#starrate-root .sr-color-label__dot--active:active {
+  border-color: #fff !important;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.8), 0 0 0 4px rgba(0,0,0,0.4) !important;
+}
+#starrate-root .sr-color-label__clear {
+  min-height: 0 !important;
+  height: 14px !important;
+  width: 14px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+#starrate-root .sr-color-label__clear:hover,
+#starrate-root .sr-color-label__clear:focus,
+#starrate-root .sr-color-label__clear:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* LoupeView: Pick/Reject Buttons */
+#starrate-root .sr-loupe__pick-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+}
+#starrate-root .sr-loupe__pick-btn:hover {
+  background: transparent !important;
+}
+#starrate-root .sr-loupe__pick-btn:focus,
+#starrate-root .sr-loupe__pick-btn:focus-visible,
+#starrate-root .sr-loupe__pick-btn:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-loupe__pick-btn--active {
+  background: #2a4a2a !important;
+}
+#starrate-root .sr-loupe__pick-btn--active:hover {
+  background: #2a4a2a !important;
+}
+#starrate-root .sr-loupe__pick-btn--active:focus,
+#starrate-root .sr-loupe__pick-btn--active:focus-visible,
+#starrate-root .sr-loupe__pick-btn--active:active {
+  background: #2a4a2a !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#starrate-root .sr-loupe__pick-btn--reject.sr-loupe__pick-btn--active,
+#starrate-root .sr-loupe__pick-btn--reject.sr-loupe__pick-btn--active:hover,
+#starrate-root .sr-loupe__pick-btn--reject.sr-loupe__pick-btn--active:focus,
+#starrate-root .sr-loupe__pick-btn--reject.sr-loupe__pick-btn--active:active {
+  background: #4a1a1a !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 /* ── Unterordner ─────────────────────────────────────────────────────────── */

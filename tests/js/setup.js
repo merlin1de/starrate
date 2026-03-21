@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
 
+// Vite define-Konstanten für Tests bereitstellen
+globalThis.__APP_VERSION__ = '0.9.0-test'
+
 // localStorage mock
 const localStorageMock = (() => {
   let store = {}

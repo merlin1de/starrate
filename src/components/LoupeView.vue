@@ -2,8 +2,6 @@
   <div
     class="sr-loupe"
     ref="loupeEl"
-    tabindex="0"
-    @keydown="onKeydown"
     @wheel.prevent="onWheel"
     @dblclick="onDblClick"
     @mousedown="onMouseDown"
@@ -53,9 +51,20 @@
       <svg viewBox="0 0 24 24" fill="none"><polyline points="15 18 9 12 15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
 
-    <!-- Zoom-Anzeige (oben rechts) -->
-    <div class="sr-loupe__zoom-level" aria-live="polite">
-      {{ zoomLabel }}
+    <!-- Zoom-Anzeige + Schließen (oben rechts) -->
+    <div class="sr-loupe__top-right">
+      <div class="sr-loupe__zoom-level" aria-live="polite">{{ zoomLabel }}</div>
+      <button
+        class="sr-loupe__close"
+        type="button"
+        :title="t('starrate', 'Schließen')"
+        @click="$emit('close')"
+      >
+        <svg viewBox="0 0 24 24" fill="none">
+          <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Navigations-Pfeile -->
@@ -90,12 +99,12 @@
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
             :interactive="true"
-            @change="(r) => $emit('rate', currentImage, r, null)"
+            @change="(r) => $emit('rate', currentImage, r, undefined)"
           />
           <ColorLabel
             :model-value="currentImage?.color ?? null"
             :interactive="true"
-            @change="(c) => $emit('rate', currentImage, null, c)"
+            @change="(c) => $emit('rate', currentImage, undefined, c)"
           />
         </div>
         <div class="sr-loupe__footer-right">
@@ -105,14 +114,14 @@
             :class="{ 'sr-loupe__pick-btn--active': currentImage?.pick === 'pick' }"
             type="button"
             :title="t('starrate', 'Pick (P)')"
-            @click="$emit('rate', currentImage, null, null, currentImage?.pick === 'pick' ? 'none' : 'pick')"
+            @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'pick' ? 'none' : 'pick')"
           >P</button>
           <button
             class="sr-loupe__pick-btn sr-loupe__pick-btn--reject"
             :class="{ 'sr-loupe__pick-btn--active': currentImage?.pick === 'reject' }"
             type="button"
             :title="t('starrate', 'Ablehnen (X)')"
-            @click="$emit('rate', currentImage, null, null, currentImage?.pick === 'reject' ? 'none' : 'reject')"
+            @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'reject' ? 'none' : 'reject')"
           >X</button>
         </div>
       </div>
@@ -145,7 +154,7 @@ const emit = defineEmits(['rate', 'close', 'index-change'])
 const loupeEl      = ref(null)
 const imgEl        = ref(null)
 const currentIndex = ref(props.initialIndex)
-const loadingPreview = ref(false)
+const loadingPreview = ref(true)
 const showControls   = ref(true)
 let   hideControlsTimer = null
 
@@ -240,8 +249,8 @@ function setZoom(newZoom, pivot = null) {
     const dx      = pivot.x - rect.left - cx
     const dy      = pivot.y - rect.top  - cy
     const ratio   = newZoom / zoom.value
-    panX.value    = panX.value + (dx - panX.value) * (1 - 1 / ratio) * 0
-    panY.value    = panY.value + (dy - panY.value) * (1 - 1 / ratio) * 0
+    panX.value    = panX.value + (dx - panX.value) * (1 - 1 / ratio)
+    panY.value    = panY.value + (dy - panY.value) * (1 - 1 / ratio)
   }
 
   zoom.value = newZoom
@@ -249,10 +258,12 @@ function setZoom(newZoom, pivot = null) {
 }
 
 function resetZoom() {
+  isFit.value = true   // zuerst setzen damit constrainPan() überspringt
   zoom.value  = 1.0
-  isFit.value = true
   panX.value  = 0
   panY.value  = 0
+  showControls.value = true
+  clearTimeout(hideControlsTimer)
 }
 
 function zoomTo100() {
@@ -404,6 +415,10 @@ function getPinchDist(ts) {
 // ─── Tastatur ────────────────────────────────────────────────────────────────
 
 function onKeydown(e) {
+  // Eingabefelder in Ruhe lassen
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
   switch (e.key) {
     case 'ArrowLeft':
       e.preventDefault()
@@ -412,6 +427,14 @@ function onKeydown(e) {
     case 'ArrowRight':
       e.preventDefault()
       navigate(1)
+      break
+    case 'Home':
+      e.preventDefault()
+      navigate(-currentIndex.value)
+      break
+    case 'End':
+      e.preventDefault()
+      navigate(props.images.length - 1 - currentIndex.value)
       break
     case 'Escape':
       e.preventDefault()
@@ -442,25 +465,37 @@ function onKeydown(e) {
     case '3': case '4': case '5':
       if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault()
-        emit('rate', currentImage.value, parseInt(e.key), null)
+        emit('rate', currentImage.value, parseInt(e.key), undefined)
       }
       break
 
-    case '6': emit('rate', currentImage.value, null, 'Red');    e.preventDefault(); break
-    case '7': emit('rate', currentImage.value, null, 'Yellow'); e.preventDefault(); break
-    case '8': emit('rate', currentImage.value, null, 'Green');  e.preventDefault(); break
-    case '9': emit('rate', currentImage.value, null, 'Blue');   e.preventDefault(); break
+    case '6': case '7': case '8': case '9': {
+      e.preventDefault()
+      const colorMap = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue' }
+      const img = currentImage.value
+      if (img) {
+        const c = colorMap[e.key]
+        emit('rate', img, undefined, img.color === c ? null : c)
+      }
+      break
+    }
+    case 'v': case 'V': {
+      e.preventDefault()
+      const img = currentImage.value
+      if (img) emit('rate', img, undefined, img.color === 'Purple' ? null : 'Purple')
+      break
+    }
 
     case 'p': case 'P': {
       e.preventDefault()
       const img = currentImage.value
-      if (img) emit('rate', img, null, null, img.pick === 'pick' ? 'none' : 'pick')
+      if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       break
     }
     case 'x': case 'X': {
       e.preventDefault()
       const img = currentImage.value
-      if (img) emit('rate', img, null, null, img.pick === 'reject' ? 'none' : 'reject')
+      if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
       break
     }
   }
@@ -474,7 +509,7 @@ function resetControlsTimer() {
   showControls.value = true
   clearTimeout(hideControlsTimer)
   hideControlsTimer = setTimeout(() => {
-    if (isPanning.value) return
+    if (isPanning.value || isFit.value) return  // im Fit-Modus immer sichtbar
     showControls.value = false
   }, 3000)
 }
@@ -491,12 +526,13 @@ watch(previewUrl, () => {
 // ─── Mount / Unmount ──────────────────────────────────────────────────────────
 
 onMounted(() => {
-  nextTick(() => loupeEl.value?.focus())
+  document.addEventListener('keydown', onKeydown)
   preloadAdjacent(currentIndex.value)
   resetControlsTimer()
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown)
   clearTimeout(hideControlsTimer)
 })
 
@@ -572,20 +608,50 @@ watch(() => props.initialIndex, idx => {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Zoom-Anzeige ─────────────────────────────────────────────────────────── */
-.sr-loupe__zoom-level {
+/* ── Zoom + Schließen (oben rechts) ──────────────────────────────────────── */
+.sr-loupe__top-right {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+}
+
+.sr-loupe__zoom-level {
   padding: 4px 10px;
   background: rgba(0,0,0,0.6);
   color: #aaa;
   font-size: 12px;
   border-radius: 4px;
   pointer-events: none;
-  z-index: 10;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+
+.sr-loupe__close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #aaa;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms, color 150ms;
   backdrop-filter: blur(4px);
 }
+
+.sr-loupe__close:hover {
+  background: rgba(233,69,96,0.7);
+  color: #fff;
+}
+
+.sr-loupe__close svg { width: 16px; height: 16px; }
 
 /* ── Zurück-Button ────────────────────────────────────────────────────────── */
 .sr-loupe__back {
