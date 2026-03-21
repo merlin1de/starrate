@@ -23,6 +23,8 @@ module.exports = {
       NC_PASS:   process.env.CYPRESS_NC_PASS   || process.env.NC_PASS   || 'test',
       NC_USER_B: process.env.CYPRESS_NC_USER_B || process.env.NC_USER_B || 'test2',
       NC_PASS_B: process.env.CYPRESS_NC_USER_B || process.env.NC_PASS_B || 'test2',
+      // Opt-in: Multi-User-Tests nur ausführen wenn explizit gesetzt
+      NC_MULTI_USER: process.env.CYPRESS_NC_MULTI_USER || process.env.NC_MULTI_USER || '',
     },
   },
 }

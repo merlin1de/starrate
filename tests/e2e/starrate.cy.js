@@ -42,7 +42,10 @@ function openFolder(path = '/Fotos/E2E-Test') {
 
 describe('StarRate E2E', () => {
 
-  beforeEach(() => { login() }) // stellt Session vor jedem Test sicher (cached)
+  beforeEach(() => {
+    cy.clearLocalStorage() // verhindert stale Filter-State aus vorigen Läufen
+    login()
+  })
 
   // ── 1. Bild öffnen → Stern setzen → Filter → nur bewertete sichtbar ────────
 
@@ -57,8 +60,9 @@ describe('StarRate E2E', () => {
       // Toast erscheint
       cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
 
-      // Filter auf ≥4★ setzen
-      cy.get('.sr-filterbar__pill').contains('★★★★').click()
+      // Filter auf ≥4★ setzen (Operator ≥ aktivieren, dann 4-Stern-Pill = Index 1 in [5,4,3,2,1])
+      cy.get('.sr-filterbar__op').contains('≥').click()
+      cy.get('.sr-filterbar__pill--star').eq(1).click()
 
       // Nur noch bewertete Bilder sichtbar
       cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)').each($item => {
@@ -79,8 +83,8 @@ describe('StarRate E2E', () => {
       cy.get('.sr-grid__item').eq(1).find('.sr-color-label__dot--green').click({ force: true })
       cy.get('.sr-toast--success').should('be.visible')
 
-      // Nach Grün filtern
-      cy.get('.sr-filterbar__pill--color').eq(2).click() // Green
+      // Nach Grün filtern (colordot: Red=0, Yellow=1, Green=2)
+      cy.get('.sr-filterbar__colordot').eq(2).click()
 
       cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)').each($item => {
         cy.wrap($item).find('.sr-grid__info-color--green').should('exist')
@@ -112,12 +116,12 @@ describe('StarRate E2E', () => {
       cy.get('.sr-loupe').dblclick()
       cy.get('.sr-loupe__zoom-level').should('contain', 'Eingepasst')
 
-      // Tastatur: + zoomt rein
-      cy.get('.sr-loupe').type('{+}')
+      // Tastatur: + zoomt rein (Loupe nutzt document.addEventListener → body)
+      cy.get('body').type('+')
       cy.get('.sr-loupe__zoom-level').should('contain', '%')
 
       // Leertaste → Fit
-      cy.get('.sr-loupe').type(' ')
+      cy.get('body').type(' ')
       cy.get('.sr-loupe__zoom-level').should('contain', 'Eingepasst')
 
       // Esc wenn nicht fit → zurück zu fit
@@ -200,14 +204,16 @@ describe('StarRate E2E', () => {
     const PASS_B     = Cypress.env('NC_PASS_B') || 'user2'
     const SHARED_PATH = '/Fotos/Shared'
 
-    it('Benutzer A setzt Bewertung', () => {
+    it('Benutzer A setzt Bewertung', function() {
+      if (!Cypress.env('NC_MULTI_USER')) { cy.log('NC_MULTI_USER nicht gesetzt — Test übersprungen'); this.skip(); return }
       // Bereits als User A eingeloggt
       openFolder(SHARED_PATH)
       cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(4).click({ force: true })
       cy.get('.sr-toast--success').should('be.visible')
     })
 
-    it('Benutzer B sieht die Bewertung von Benutzer A via API', () => {
+    it('Benutzer B sieht die Bewertung von Benutzer A via API', function() {
+      if (!Cypress.env('NC_MULTI_USER')) { cy.log('NC_MULTI_USER nicht gesetzt — Test übersprungen'); this.skip(); return }
       // NC Collaborative Tags sind geteilt → via API prüfen
       cy.request({
         url:    `${NC_URL}/apps/starrate/api/images?path=${SHARED_PATH}`,
