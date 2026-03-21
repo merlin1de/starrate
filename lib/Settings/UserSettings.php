@@ -34,7 +34,7 @@ class UserSettings implements ISettings
 
     public function getSection(): string
     {
-        return 'additional';
+        return 'starrate';
     }
 
     public function getPriority(): int
