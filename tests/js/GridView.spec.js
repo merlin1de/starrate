@@ -47,9 +47,15 @@ describe('GridView', () => {
     expect(w.find('.sr-grid__empty').exists()).toBe(true)
   })
 
-  it('zeigt Filter-Hinweis wenn aktiver Filter und keine Bilder', () => {
+  it('zeigt CTA-Button wenn aktiver Filter und keine Bilder', () => {
     const w = factory({ images: [], loading: false, hasActiveFilter: true })
-    expect(w.find('.sr-grid__empty-sub').exists()).toBe(true)
+    expect(w.find('.sr-grid__empty-cta').exists()).toBe(true)
+  })
+
+  it('CTA-Button emittiert clear-filter', async () => {
+    const w = factory({ images: [], loading: false, hasActiveFilter: true })
+    await w.find('.sr-grid__empty-cta').trigger('click')
+    expect(w.emitted('clear-filter')).toBeTruthy()
   })
 
   it('zeigt Info-Leiste mit Dateinamen', () => {
@@ -124,12 +130,23 @@ describe('GridView', () => {
 
   // ── Tastatur ──────────────────────────────────────────────────────────────
 
-  it('ArrowRight bewegt Focus um 1 nach rechts', async () => {
+  it('ArrowRight ohne vorherigen Focus bewegt zu Index 1 (startet bei 0)', async () => {
     const w = factory()
     await w.trigger('keydown', { key: 'ArrowRight' })
-    // Nach initialem Focus-Index 0 → 1
-    // (Nur Smoke-Test — Index-Change ist intern)
-    expect(w.find('.sr-grid').exists()).toBe(true)
+    expect(w.findAll('.sr-grid__item')[1].classes()).toContain('sr-grid__item--focused')
+  })
+
+  it('ArrowRight mit currentIndex=2 bewegt zu Index 3', async () => {
+    const w = factory({ currentIndex: 2 })
+    await w.trigger('keydown', { key: 'ArrowRight' })
+    expect(w.findAll('.sr-grid__item')[3].classes()).toContain('sr-grid__item--focused')
+  })
+
+  it('ArrowRight nach Klick bewegt Focus', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[1].trigger('click')
+    await w.trigger('keydown', { key: 'ArrowRight' })
+    expect(w.findAll('.sr-grid__item')[2].classes()).toContain('sr-grid__item--focused')
   })
 
   it('Taste 0–5 emittiert rate für fokussiertes Bild', async () => {
@@ -148,6 +165,34 @@ describe('GridView', () => {
     await w.trigger('keydown', { key: '6' })
     const emitted = w.emitted('rate')
     expect(emitted[0][2]).toBe('Red')
+  })
+
+  it('Shift+ArrowRight selektiert mehrere Bilder', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[1].trigger('click') // Anker = 1
+    await w.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+    await w.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+    const lastSet = w.emitted('selection-change').at(-1)[0]
+    expect(lastSet.size).toBe(3) // Indizes 1, 2, 3
+  })
+
+  it('Shift+ArrowLeft verkleinert Selektion wieder', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[1].trigger('click')
+    await w.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+    await w.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+    await w.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
+    const lastSet = w.emitted('selection-change').at(-1)[0]
+    expect(lastSet.size).toBe(2) // Indizes 1, 2
+  })
+
+  it('normaler Klick zum Auswahl aufheben setzt fokussiertes Bild', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.findAll('.sr-grid__item')[2].trigger('click') // hebt Auswahl auf
+    // Focus sollte jetzt auf Index 2 sein
+    await w.trigger('keydown', { key: 'ArrowRight' })
+    expect(w.findAll('.sr-grid__item')[3].classes()).toContain('sr-grid__item--focused')
   })
 
   it('Strg+A wählt alle Bilder aus', async () => {

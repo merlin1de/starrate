@@ -164,9 +164,15 @@ class SyncController extends Controller
     // ─── POST /api/sync/run/{id} ──────────────────────────────────────────────
 
     /**
-     * Startet den Sync für eine bestimmte Zuordnung.
+     * Empfängt das Sync-Ergebnis vom lokalen sync-lr.ps1-Script.
+     * Aktualisiert Status + Log der Zuordnung in der App.
      *
-     * @return DataResponse<array{synced: int, skipped: int, errors: int, log: string[]}>
+     * Body (JSON): {
+     *   "synced":  5,
+     *   "skipped": 2,
+     *   "errors":  0,
+     *   "log":     ["NC→LR: IMG_0001 → ★4 Red", ...]
+     * }
      */
     #[NoAdminRequired]
     public function run(int $id): DataResponse
@@ -176,17 +182,17 @@ class SyncController extends Controller
             return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
         }
 
-        try {
-            $result = $this->syncService->runSync($userId, $id);
+        $body = $this->getJsonBody();
 
-            $statusCode = $result['errors'] > 0 ? Http::STATUS_MULTI_STATUS : Http::STATUS_OK;
-            return new DataResponse($result, $statusCode);
+        try {
+            $this->syncService->recordResult($userId, $id, $body);
+            return new DataResponse(['ok' => true]);
 
         } catch (\RuntimeException $e) {
             return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
         } catch (\Exception $e) {
             $this->logger->error("StarRate SyncController::run – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Sync fehlgeschlagen: ' . $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -24,14 +24,16 @@
       @keydown.prevent="onKeydown($event, color)"
     />
 
-    <!-- Farbe entfernen -->
+    <!-- Farbe entfernen (immer gerendert, damit Layout stabil bleibt) -->
     <button
-      v-if="interactive && modelValue !== null"
+      v-if="interactive"
       class="sr-color-label__clear"
+      :class="{ 'sr-color-label__clear--hidden': modelValue === null }"
       type="button"
+      :tabindex="modelValue !== null ? 0 : -1"
       :aria-label="t('starrate', 'Farbmarkierung entfernen')"
       :title="t('starrate', 'Farbmarkierung entfernen')"
-      @click="setColor(null)"
+      @click="modelValue !== null && setColor(null)"
     >
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -166,21 +168,28 @@ defineExpose({ setColor, setByShortcut, COLORS })
   height: 14px;
   padding: 0;
   border: none;
-  background: transparent;
+  background: transparent !important;
   color: #888;
   cursor: pointer;
   opacity: 0;
   margin-left: 2px;
   transition: opacity 150ms, color 150ms;
+  flex-shrink: 0;
 }
 
-.sr-color-label:hover .sr-color-label__clear,
-.sr-color-label:focus-within .sr-color-label__clear {
+.sr-color-label__clear--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sr-color-label:hover .sr-color-label__clear:not(.sr-color-label__clear--hidden),
+.sr-color-label:focus-within .sr-color-label__clear:not(.sr-color-label__clear--hidden) {
   opacity: 1;
 }
 
 .sr-color-label__clear:hover {
-  color: #e94560;
+  color: #b04060;
+  background: transparent !important;
 }
 
 .sr-color-label__clear svg {

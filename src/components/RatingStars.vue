@@ -136,6 +136,8 @@ defineExpose({ setRating })
 
 .sr-stars__star:disabled {
   cursor: default;
+  background: transparent !important;
+  opacity: 1 !important;
 }
 
 .sr-stars__star:not(:disabled):hover {

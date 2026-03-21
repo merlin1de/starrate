@@ -20,6 +20,18 @@
       </button>
     </div>
 
+    <!-- Info-Banner: Sync läuft lokal -->
+    <div class="sr-sync__info-banner">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class="sr-sync__info-icon">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div class="sr-sync__info-text">
+        <strong>{{ t('starrate', 'Sync läuft lokal auf deinem PC') }}</strong>
+        <span>{{ t('starrate', 'Führe das Script in PowerShell aus. Klicke auf „Befehl kopieren" um den Befehl in die Zwischenablage zu kopieren.') }}</span>
+      </div>
+    </div>
+
     <!-- Leer-Zustand -->
     <div v-if="!loading && mappings.length === 0" class="sr-sync__empty">
       <svg viewBox="0 0 64 64" fill="none">
@@ -79,17 +91,16 @@
         <!-- Aktionen -->
         <div class="sr-sync__actions">
           <button
-            class="sr-sync__btn sr-sync__btn--sync"
+            class="sr-sync__btn sr-sync__btn--copy"
             type="button"
-            :disabled="syncing[mapping.id]"
-            :title="t('starrate', 'Sync starten')"
-            @click="runSync(mapping)"
+            :title="t('starrate', 'PowerShell-Befehl kopieren')"
+            @click="copyCommand(mapping)"
           >
-            <svg viewBox="0 0 24 24" fill="none" :class="{ 'spinning': syncing[mapping.id] }">
-              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>{{ syncing[mapping.id] ? t('starrate', 'Lädt…') : t('starrate', 'Sync') }}</span>
+            <span>{{ copied === mapping.id ? t('starrate', 'Kopiert!') : t('starrate', 'Befehl') }}</span>
           </button>
 
           <button
@@ -276,8 +287,8 @@ const DIRECTION_LABELS = {
 
 const mappings = ref([])
 const loading  = ref(false)
-const syncing  = ref({})  // { [mappingId]: boolean }
 const openLog  = ref(null)
+const copied   = ref(null)  // ID des zuletzt kopierten Mappings
 
 const dialog = reactive({
   open:       false,
@@ -305,35 +316,35 @@ async function loadMappings() {
   }
 }
 
-// ─── Sync ausführen ───────────────────────────────────────────────────────────
+// ─── Befehl kopieren ──────────────────────────────────────────────────────────
 
-async function runSync(mapping) {
-  syncing.value = { ...syncing.value, [mapping.id]: true }
-  try {
-    const { data } = await axios.post(generateUrl(`/apps/starrate/api/sync/run/${mapping.id}`))
+const DIRECTION_PS = {
+  nc_to_lr:      'NcToLr',
+  lr_to_nc:      'LrToNc',
+  bidirectional: 'Both',
+}
 
-    // Status in der Liste sofort aktualisieren
-    const idx = mappings.value.findIndex(m => m.id === mapping.id)
-    if (idx >= 0) {
-      mappings.value[idx].status    = data.errors > 0 ? 'error' : 'ok'
-      mappings.value[idx].last_sync = Math.floor(Date.now() / 1000)
-      mappings.value[idx].log       = data.log ?? []
-    }
+function copyCommand(mapping) {
+  const dir  = DIRECTION_PS[mapping.direction] ?? 'Both'
+  const cmd  = `.\\scripts\\sync-lr.ps1 -Direction ${dir} -LrcPath "${mapping.local_path}" -NcPath "${mapping.nc_path}" -MappingId ${mapping.id}`
 
-    const msg = t('starrate', 'Sync abgeschlossen: {synced} synchronisiert, {errors} Fehler', {
-      synced: data.synced,
-      errors: data.errors,
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(cmd).then(() => {
+      copied.value = mapping.id
+      setTimeout(() => { if (copied.value === mapping.id) copied.value = null }, 2000)
     })
-    emit('toast', msg, data.errors > 0 ? 'warning' : 'success')
-
-    // Log automatisch öffnen wenn Fehler
-    if (data.errors > 0) openLog.value = mapping.id
-
-  } catch (e) {
-    emit('toast', t('starrate', 'Sync fehlgeschlagen'), 'error')
-  } finally {
-    syncing.value = { ...syncing.value, [mapping.id]: false }
+  } else {
+    // Fallback für ältere Browser
+    const el = document.createElement('textarea')
+    el.value = cmd
+    document.body.appendChild(el)
+    el.select()
+    document.execCommand('copy')
+    document.body.removeChild(el)
+    copied.value = mapping.id
+    setTimeout(() => { if (copied.value === mapping.id) copied.value = null }, 2000)
   }
+  emit('toast', t('starrate', 'Befehl in Zwischenablage kopiert'), 'info')
 }
 
 // ─── Dialog ───────────────────────────────────────────────────────────────────
@@ -486,6 +497,43 @@ function lastSyncFull(ts) {
 
 .sr-sync__add-btn:hover { background: #c73550; }
 .sr-sync__add-btn svg { width: 16px; height: 16px; }
+
+/* ── Info-Banner ──────────────────────────────────────────────────────────── */
+.sr-sync__info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #0e1a2e;
+  border: 1px solid #1a3a6a;
+  border-radius: 8px;
+  color: #7eaecf;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sr-sync__info-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.sr-sync__info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sr-sync__info-text strong {
+  color: #aacfef;
+  font-size: 12px;
+}
+
+.sr-sync__info-text span {
+  color: #5a8aaf;
+}
 
 /* ── Leer-Zustand ─────────────────────────────────────────────────────────── */
 .sr-sync__empty {
@@ -649,14 +697,15 @@ function lastSyncFull(ts) {
 .sr-sync__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sr-sync__btn--active { background: #1a2a3a; border-color: #2a4a6a; color: #7eaecf; }
 
-.sr-sync__btn--sync {
-  border-color: #e94560;
-  color: #e94560;
-  min-width: 70px;
+.sr-sync__btn--copy {
+  border-color: #4a6a9a;
+  color: #7eaecf;
+  min-width: 80px;
 }
-.sr-sync__btn--sync:hover:not(:disabled) {
-  background: #e94560;
-  color: #fff;
+.sr-sync__btn--copy:hover {
+  background: #1a2a4a;
+  border-color: #7eaecf;
+  color: #b0d0ef;
 }
 
 .sr-sync__btn--delete:hover { border-color: #e05252; color: #e05252; }

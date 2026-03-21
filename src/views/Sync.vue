@@ -1,5 +1,10 @@
 <template>
   <div class="sr-sync-view">
+    <div class="sr-sync-view__back">
+      <button class="sr-sync-view__back-btn" @click="router.push('/')">
+        ← {{ t('starrate', 'Zurück zur Galerie') }}
+      </button>
+    </div>
     <SyncPanel @toast="showToast" />
 
     <Teleport to="body">
@@ -19,7 +24,11 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { t } from '@nextcloud/l10n'
 import SyncPanel from '../components/SyncPanel.vue'
+
+const router = useRouter()
 
 const toasts   = ref([])
 let   toastCounter = 0
@@ -37,6 +46,22 @@ function showToast(message, type = 'success') {
   min-height: 100%;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+.sr-sync-view__back {
+  padding: 10px 24px 0;
+}
+
+.sr-sync-view__back-btn {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 150ms;
+}
+.sr-sync-view__back-btn:hover { color: #aaa; }
 
 .sr-toasts {
   position: fixed;

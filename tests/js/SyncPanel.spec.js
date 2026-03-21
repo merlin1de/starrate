@@ -65,44 +65,35 @@ describe('SyncPanel', () => {
     expect(items[0].classes()).toContain('sr-sync__item--never')
   })
 
-  // ── Sync starten ──────────────────────────────────────────────────────────
+  // ── Befehl kopieren ───────────────────────────────────────────────────────
 
-  it('startet Sync beim Klick auf Sync-Button', async () => {
+  it('zeigt Befehl-kopieren-Button für jede Zuordnung', async () => {
     const w = factory()
     await flushPromises()
-    const syncBtns = w.findAll('.sr-sync__btn--sync')
-    await syncBtns[0].trigger('click')
-    expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/sync/run/1'))
+    const copyBtns = w.findAll('.sr-sync__btn--copy')
+    expect(copyBtns.length).toBe(2)
   })
 
-  it('aktualisiert Status nach erfolgreichem Sync', async () => {
+  it('emittiert toast beim Klick auf Befehl-Button', async () => {
+    // clipboard API mocken
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
     const w = factory()
     await flushPromises()
-    await w.findAll('.sr-sync__btn--sync')[0].trigger('click')
-    await flushPromises()
-    const items = w.findAll('.sr-sync__item:not(.sr-sync__item--skeleton)')
-    expect(items[0].classes()).toContain('sr-sync__item--ok')
-  })
-
-  it('emittiert toast nach Sync', async () => {
-    const w = factory()
-    await flushPromises()
-    await w.findAll('.sr-sync__btn--sync')[0].trigger('click')
+    await w.findAll('.sr-sync__btn--copy')[0].trigger('click')
     await flushPromises()
     expect(w.emitted('toast')).toBeTruthy()
-    expect(w.emitted('toast')[0][0]).toContain('Sync abgeschlossen')
+    expect(w.emitted('toast')[0][0]).toContain('Zwischenablage')
   })
 
-  it('deaktiviert Sync-Button während Sync läuft', async () => {
-    let resolveFn
-    axios.post.mockReturnValue(new Promise(r => { resolveFn = r }))
+  it('Befehl enthält korrekten NC-Pfad und lokalen Pfad', async () => {
+    const written = []
+    Object.assign(navigator, { clipboard: { writeText: vi.fn(t => { written.push(t); return Promise.resolve() }) } })
     const w = factory()
     await flushPromises()
-    const btn = w.findAll('.sr-sync__btn--sync')[0]
-    await btn.trigger('click')
-    await w.vm.$nextTick()
-    expect(btn.attributes('disabled')).toBeDefined()
-    resolveFn({ data: { synced: 0, skipped: 0, errors: 0, log: [] } })
+    await w.findAll('.sr-sync__btn--copy')[0].trigger('click')
+    await flushPromises()
+    expect(written[0]).toContain('/Fotos/2024')
+    expect(written[0]).toContain('/Users/foto/2024')
   })
 
   // ── Log ───────────────────────────────────────────────────────────────────

@@ -40,13 +40,13 @@ return [
             'verb' => 'GET',
         ],
         [
-            'name' => 'rating#set',
-            'url'  => '/api/rating/{fileId}',
+            'name' => 'rating#setBatch',
+            'url'  => '/api/rating/batch',
             'verb' => 'POST',
         ],
         [
-            'name' => 'rating#setBatch',
-            'url'  => '/api/rating/batch',
+            'name' => 'rating#set',
+            'url'  => '/api/rating/{fileId}',
             'verb' => 'POST',
         ],
         [

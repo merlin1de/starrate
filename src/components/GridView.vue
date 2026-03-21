@@ -59,14 +59,14 @@
               :model-value="image.rating"
               :interactive="true"
               :compact="true"
-              @change="(r) => $emit('rate', image, r, null)"
+              @change="(r) => $emit('rate', image, r, undefined)"
               @click.stop
             />
             <ColorLabel
               :model-value="image.color"
               :interactive="true"
               :compact="false"
-              @change="(c) => $emit('rate', image, null, c)"
+              @change="(c) => $emit('rate', image, undefined, c)"
               @click.stop
             />
           </div>
@@ -101,9 +101,12 @@
           <path d="M8 40l12-10 8 8 8-6 12 8" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <p>{{ t('starrate', 'Keine Bilder in diesem Ordner') }}</p>
-        <p v-if="hasActiveFilter" class="sr-grid__empty-sub">
-          {{ t('starrate', 'Filter entfernen um alle Bilder zu sehen') }}
-        </p>
+        <button
+          v-if="hasActiveFilter"
+          class="sr-grid__empty-cta"
+          type="button"
+          @click="$emit('clear-filter')"
+        >{{ t('starrate', 'Alle Filter löschen') }}</button>
       </div>
     </template>
   </div>
@@ -144,6 +147,7 @@ const emit = defineEmits([
   'open-loupe',     // (image, index)
   'selection-change', // (selectedIds: Set)
   'batch-rate',     // (selectedIds: Set, rating|null, color|null)
+  'clear-filter',   // ()
 ])
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -162,8 +166,14 @@ const thumbCache = ref({})
 
 watch(() => props.images, (imgs) => {
   imgs.forEach(img => {
-    if (!img.thumbLoaded && !thumbCache.value[img.id]) {
-      loadThumb(img)
+    if (!img.thumbLoaded) {
+      if (thumbCache.value[img.id]) {
+        // Aus Cache: sofort ohne Netzwerkrequest setzen
+        img.thumbUrl    = thumbCache.value[img.id]
+        img.thumbLoaded = true
+      } else {
+        loadThumb(img)
+      }
     }
   })
 }, { immediate: true })
@@ -212,6 +222,7 @@ function onItemClick(event, image, index) {
     // Normaler Klick → Auswahl aufheben wenn vorhanden, sonst nur Focus setzen
     if (selectedIds.value.size > 0) {
       selectedIds.value.clear()
+      focusedIndex.value = index
       lastClickIdx.value = index
       emit('selection-change', new Set())
       return
@@ -241,22 +252,41 @@ function onGlobalKeydown(e) {
   const idx = focusedIndex.value
 
   switch (e.key) {
-    // Navigation
+    // Pos1 / Ende
+    case 'Home':
+      e.preventDefault()
+      if (props.images.length > 0) {
+        focusedIndex.value = 0
+        lastClickIdx.value  = 0
+        scrollItemIntoView(0)
+      }
+      break
+    case 'End':
+      e.preventDefault()
+      if (props.images.length > 0) {
+        const last = props.images.length - 1
+        focusedIndex.value = last
+        lastClickIdx.value  = last
+        scrollItemIntoView(last)
+      }
+      break
+
+    // Navigation (Shift+Arrow = Mehrfachauswahl)
     case 'ArrowRight':
       e.preventDefault()
-      moveFocus(1)
+      moveFocus(1, e.shiftKey)
       break
     case 'ArrowLeft':
       e.preventDefault()
-      moveFocus(-1)
+      moveFocus(-1, e.shiftKey)
       break
     case 'ArrowDown':
       e.preventDefault()
-      moveFocus(columnsEstimate())
+      moveFocus(columnsEstimate(), e.shiftKey)
       break
     case 'ArrowUp':
       e.preventDefault()
-      moveFocus(-columnsEstimate())
+      moveFocus(-columnsEstimate(), e.shiftKey)
       break
 
     // Enter / Doppelklick → Lupenansicht
@@ -272,34 +302,42 @@ function onGlobalKeydown(e) {
       if (idx >= 0 && !e.shiftKey) {
         e.preventDefault()
         const img = props.images[idx]
-        if (img) emit('rate', img, parseInt(e.key), null)
+        if (img) emit('rate', img, parseInt(e.key), undefined)
       }
       break
 
-    // Farben (6=Rot, 7=Gelb, 8=Grün, 9=Blau)
+    // Farben (6=Rot, 7=Gelb, 8=Grün, 9=Blau, V=Lila) — Toggle
     case '6': case '7': case '8': case '9': {
       e.preventDefault()
       const colorMap = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue' }
       if (idx >= 0) {
         const img = props.images[idx]
-        if (img) emit('rate', img, null, colorMap[e.key])
+        const c = colorMap[e.key]
+        if (img) emit('rate', img, undefined, img.color === c ? null : c)
       }
       break
     }
+    case 'v': case 'V':
+      if (idx >= 0 && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        const img = props.images[idx]
+        if (img) emit('rate', img, undefined, img.color === 'Purple' ? null : 'Purple')
+      }
+      break
 
     // P = Pick, X = Reject
     case 'p': case 'P':
       if (idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
-        if (img) emit('rate', img, null, null, img.pick === 'pick' ? 'none' : 'pick')
+        if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       }
       break
     case 'x': case 'X':
       if (idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
-        if (img) emit('rate', img, null, null, img.pick === 'reject' ? 'none' : 'reject')
+        if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
       }
       break
 
@@ -319,10 +357,35 @@ function onGlobalKeydown(e) {
   }
 }
 
-function moveFocus(delta) {
+function moveFocus(delta, extend = false) {
+  if (props.images.length === 0) return
+
+  // Kein Focus gesetzt → starte beim zuletzt bekannten Index oder 0
+  if (focusedIndex.value < 0) {
+    focusedIndex.value = (props.currentIndex >= 0 && props.currentIndex < props.images.length)
+      ? props.currentIndex : 0
+    lastClickIdx.value = focusedIndex.value
+  }
+
   const newIdx = Math.max(0, Math.min(props.images.length - 1, focusedIndex.value + delta))
+  if (newIdx === focusedIndex.value) return
+
   focusedIndex.value = newIdx
   scrollItemIntoView(newIdx)
+
+  if (extend) {
+    // Shift+Arrow: Bereich vom Anker (lastClickIdx) bis newIdx selektieren
+    const anchor = lastClickIdx.value >= 0 ? lastClickIdx.value : newIdx
+    selectedIds.value.clear()
+    const from = Math.min(anchor, newIdx)
+    const to   = Math.max(anchor, newIdx)
+    for (let i = from; i <= to; i++) {
+      selectedIds.value.add(props.images[i].id)
+    }
+    emit('selection-change', new Set(selectedIds.value))
+  } else {
+    lastClickIdx.value = newIdx
+  }
 }
 
 function columnsEstimate() {
@@ -345,6 +408,12 @@ watch(() => props.currentIndex, idx => {
     focusedIndex.value = idx
     scrollItemIntoView(idx)
   }
+}, { immediate: true })   // immediate: focusedIndex beim Mount sofort setzen
+
+// ─── Autofocus beim Mount ─────────────────────────────────────────────────────
+
+onMounted(() => {
+  nextTick(() => gridEl.value?.focus({ preventScroll: true }))
 })
 
 // ─── Expose für SelectionBar ─────────────────────────────────────────────────
@@ -359,8 +428,10 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   gap: 6px;
   padding: 8px;
   outline: none;
-  min-height: 200px;
   align-content: start;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* ── Item ─────────────────────────────────────────────────────────────────── */
@@ -544,6 +615,24 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 }
 
 /* ── Leer-Zustand ─────────────────────────────────────────────────────────── */
+.sr-grid__empty-cta {
+  margin-top: 4px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px dashed #7a3050;
+  background: transparent;
+  color: #c06070;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+.sr-grid__empty-cta:hover {
+  background: #3a2030;
+  border-color: #9a4060;
+  color: #e0a0b0;
+}
+
 .sr-grid__empty {
   grid-column: 1 / -1;
   display: flex;

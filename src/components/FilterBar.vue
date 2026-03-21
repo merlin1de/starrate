@@ -2,44 +2,56 @@
   <div class="sr-filterbar">
     <!-- Linke Seite: Filter -->
     <div class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
+      <span class="sr-filterbar__label">{{ t('starrate', 'Filter:') }}</span>
 
       <!-- Sterne-Filter -->
       <div class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Sterne')">
+        <!-- Operator-Auswahl -->
+        <div class="sr-filterbar__op-group">
+          <button
+            v-for="op in ['≥', '=', '≤']"
+            :key="op"
+            class="sr-filterbar__op"
+            :class="{ 'sr-filterbar__op--active': selectedOp === op }"
+            type="button"
+            :title="opTitle(op)"
+            @click="setOp(op)"
+          >{{ op }}</button>
+        </div>
+        <!-- Stern-Buttons 5→1, dann 0 -->
         <button
-          v-for="opt in ratingOptions"
-          :key="opt.value"
-          class="sr-filterbar__pill"
-          :class="{ 'sr-filterbar__pill--active': isRatingActive(opt) }"
+          v-for="n in [5, 4, 3, 2, 1]"
+          :key="n"
+          class="sr-filterbar__pill sr-filterbar__pill--star"
+          :class="{ 'sr-filterbar__pill--active': isStarActive(n) }"
           type="button"
-          :aria-pressed="isRatingActive(opt)"
-          :title="opt.label"
-          @click="setRatingFilter(opt)"
-        >
-          {{ opt.label }}
-        </button>
+          :title="`${selectedOp} ${n}★`"
+          @click="clickStars(n)"
+        >{{ '★'.repeat(n) }}</button>
+        <button
+          class="sr-filterbar__pill sr-filterbar__pill--star"
+          :class="{ 'sr-filterbar__pill--active': isStarActive(0) }"
+          type="button"
+          :title="t('starrate', 'Unbewertet')"
+          @click="clickStars(0)"
+        >○</button>
       </div>
 
       <div class="sr-filterbar__sep" aria-hidden="true" />
 
-      <!-- Farb-Filter -->
+      <!-- Farb-Filter: kleine Kreise -->
       <div class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Farben')">
         <button
           v-for="color in colorOptions"
           :key="color.key"
-          class="sr-filterbar__pill sr-filterbar__pill--color"
-          :class="{ 'sr-filterbar__pill--active': filter.color === color.key }"
+          class="sr-filterbar__colordot"
+          :class="{ 'sr-filterbar__colordot--active': filter.color === color.key }"
           type="button"
           :aria-pressed="filter.color === color.key"
           :title="color.label"
+          :style="{ background: color.hex }"
           @click="toggleColorFilter(color.key)"
-        >
-          <span
-            class="sr-filterbar__color-dot"
-            :style="{ background: color.hex }"
-            aria-hidden="true"
-          />
-          <span class="sr-filterbar__color-label">{{ color.label }}</span>
-        </button>
+        />
       </div>
 
       <div class="sr-filterbar__sep" aria-hidden="true" />
@@ -66,31 +78,26 @@
         </button>
       </div>
 
-      <!-- Reset: nur anzeigen wenn aktiver Filter -->
-      <Transition name="fade">
-        <button
-          v-if="hasActiveFilter"
-          class="sr-filterbar__reset"
-          type="button"
-          :aria-label="t('starrate', 'Alle Filter zurücksetzen')"
-          @click="resetFilters"
-        >
-          {{ t('starrate', 'Alle anzeigen') }}
-        </button>
-      </Transition>
+    </div>
 
-      <!-- Aktive Filter als Summary-Pills -->
-      <div v-if="hasActiveFilter" class="sr-filterbar__active-summary" aria-live="polite">
-        <span class="sr-filterbar__count">
+    <!-- Rechte Seite: Count + Reset + Modus -->
+    <div class="sr-filterbar__right">
+      <!-- Aktive Filter: Count + Reset (immer gerendert, nur sichtbar wenn aktiv) -->
+      <div class="sr-filterbar__status" :style="{ visibility: hasActiveFilter ? 'visible' : 'hidden' }">
+        <span class="sr-filterbar__count" aria-live="polite">
           {{ n('starrate', '%n Bild', '%n Bilder', filteredCount) }}
           <span class="sr-filterbar__count-sep">/</span>
           {{ n('starrate', '%n gesamt', '%n gesamt', total) }}
         </span>
+        <button
+          class="sr-filterbar__reset"
+          type="button"
+          :aria-label="t('starrate', 'Alle Filter zurücksetzen')"
+          :tabindex="hasActiveFilter ? 0 : -1"
+          @click="resetFilters"
+        >{{ t('starrate', 'Alle anzeigen') }}</button>
       </div>
-    </div>
 
-    <!-- Rechte Seite: Modus + Ordner-Info -->
-    <div class="sr-filterbar__right">
       <!-- Modus-Umschalter -->
       <div class="sr-filterbar__mode" role="group" :aria-label="t('starrate', 'Ansicht')">
         <button
@@ -129,7 +136,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { t, n } from '@nextcloud/l10n'
 
@@ -139,13 +146,6 @@ const COLOR_OPTIONS = [
   { key: 'Green',  label: t('starrate', 'Grün'),  hex: '#52a852' },
   { key: 'Blue',   label: t('starrate', 'Blau'),  hex: '#5277e0' },
   { key: 'Purple', label: t('starrate', 'Lila'),  hex: '#9b52e0' },
-]
-
-const RATING_OPTIONS = [
-  { label: '★★★★★', minRating: null, exactRating: 5 },
-  { label: '★★★★',  minRating: null, exactRating: 4 },
-  { label: '≥ 3★',  minRating: 3,    exactRating: null },
-  { label: t('starrate', 'Unbewertet'), minRating: null, exactRating: 0 },
 ]
 
 const props = defineProps({
@@ -172,39 +172,76 @@ const emit = defineEmits(['update:filter', 'toggle-mode'])
 const route  = useRoute()
 const router = useRouter()
 
-const ratingOptions = RATING_OPTIONS
-const colorOptions  = COLOR_OPTIONS
+const colorOptions = COLOR_OPTIONS
+
+// ─── Rating-Filter ────────────────────────────────────────────────────────────
+
+const selectedOp = ref('=')
+
+// selectedOp mit eingehendem Filter synchronisieren (z.B. aus localStorage)
+watch(() => props.filter, (f) => {
+  if (f.exactRating !== null)   selectedOp.value = '='
+  else if (f.minRating > 0)     selectedOp.value = '≥'
+  else if (f.maxRating !== null) selectedOp.value = '≤'
+}, { immediate: true })
+
+function opTitle(op) {
+  return op === '≥' ? t('starrate', 'Mindestens N Sterne')
+       : op === '=' ? t('starrate', 'Genau N Sterne')
+       :              t('starrate', 'Höchstens N Sterne')
+}
+
+// Aktuell aktive Sternzahl aus dem Filter ableiten
+const activeStars = computed(() => {
+  const f = props.filter
+  if (f.exactRating !== null) return f.exactRating
+  if (f.minRating > 0)        return f.minRating
+  if (f.maxRating !== null)   return f.maxRating
+  return null
+})
+
+function setOp(op) {
+  selectedOp.value = op
+  // Bereits aktiver Filter → sofort mit neuem Operator anwenden
+  if (activeStars.value !== null) {
+    applyRating(activeStars.value, op)
+  }
+}
+
+function clickStars(n) {
+  // Nochmals klicken → deaktivieren
+  if (isStarActive(n)) {
+    updateFilter({ ...props.filter, minRating: 0, exactRating: null, maxRating: null })
+    return
+  }
+  applyRating(n, selectedOp.value)
+}
+
+function applyRating(n, op) {
+  updateFilter({
+    ...props.filter,
+    minRating:   op === '≥' ? n    : 0,
+    exactRating: op === '=' ? n    : null,
+    maxRating:   op === '≤' ? n    : null,
+  })
+}
+
+function isStarActive(n) {
+  const f = props.filter
+  return (
+    (selectedOp.value === '≥' && f.minRating === n && n > 0) ||
+    (selectedOp.value === '=' && f.exactRating === n) ||
+    (selectedOp.value === '≤' && f.maxRating === n)
+  )
+}
 
 const hasActiveFilter = computed(() =>
   props.filter.minRating > 0 ||
   props.filter.exactRating !== null ||
+  props.filter.maxRating !== null ||
   props.filter.color !== null ||
   props.filter.pick !== null
 )
-
-// ─── Filter-Aktionen ──────────────────────────────────────────────────────────
-
-function setRatingFilter(opt) {
-  const current = props.filter
-  // Nochmals klicken → deaktivieren
-  const alreadyActive =
-    current.minRating    === (opt.minRating    ?? 0) &&
-    current.exactRating  === opt.exactRating
-
-  const newFilter = {
-    ...current,
-    minRating:   alreadyActive ? 0    : (opt.minRating ?? 0),
-    exactRating: alreadyActive ? null : opt.exactRating,
-  }
-  updateFilter(newFilter)
-}
-
-function isRatingActive(opt) {
-  return (
-    props.filter.minRating    === (opt.minRating ?? 0) &&
-    props.filter.exactRating  === opt.exactRating
-  )
-}
 
 function toggleColorFilter(colorKey) {
   updateFilter({
@@ -221,9 +258,11 @@ function togglePickFilter(pick) {
 }
 
 function resetFilters() {
+  selectedOp.value = '='
   updateFilter({
     minRating:   0,
     exactRating: null,
+    maxRating:   null,
     color:       null,
     pick:        null,
   })
@@ -238,8 +277,9 @@ function updateFilter(newFilter) {
 
 function syncUrlParams(filter) {
   const query = {}
-  if (filter.exactRating !== null) query.rating = String(filter.exactRating)
-  else if (filter.minRating > 0)   query.min_rating = String(filter.minRating)
+  if (filter.exactRating !== null)  query.rating     = String(filter.exactRating)
+  else if (filter.minRating > 0)    query.min_rating = String(filter.minRating)
+  else if (filter.maxRating !== null) query.max_rating = String(filter.maxRating)
   if (filter.color) query.color = filter.color
   if (filter.pick)  query.pick  = filter.pick
 
@@ -282,22 +322,97 @@ function syncUrlParams(filter) {
   flex-shrink: 0;
 }
 
+/* ── Label ────────────────────────────────────────────────────────────────── */
+.sr-filterbar__label {
+  font-size: 11px;
+  color: #555;
+  font-weight: 500;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+
+/* ── Operator-Selector ────────────────────────────────────────────────────── */
+.sr-filterbar__op-group {
+  display: flex;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sr-filterbar__op {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+}
+
+.sr-filterbar__op:focus,
+.sr-filterbar__op:focus-visible,
+.sr-filterbar__op:active {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.sr-filterbar__op:hover      { color: #aaa; background: #2a2a4a; }
+.sr-filterbar__op--active    { background: #7a1e30; color: #f0b0bb; border-color: #a03050; }
+
+.sr-filterbar__pill--star {
+  padding: 1px 6px;
+  min-width: 22px;
+  text-align: center;
+}
+
 /* ── Pills ────────────────────────────────────────────────────────────────── */
 .sr-filterbar__pill {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
+  gap: 4px;
+  padding: 1px 8px !important;
   border-radius: 20px;
   border: 1px solid #2a2a4a;
-  background: transparent;
+  background: transparent !important;
   color: #aaa;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1 !important;
   font-family: inherit;
   cursor: pointer;
   transition: background 150ms, color 150ms, border-color 150ms;
   white-space: nowrap;
+  min-height: 0 !important;
+  height: auto !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
 }
+
+.sr-filterbar__pill:focus,
+.sr-filterbar__pill:focus-visible,
+.sr-filterbar__pill:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.sr-filterbar__pill--active:focus,
+.sr-filterbar__pill--active:focus-visible,
+.sr-filterbar__pill--active:active {
+  background: #2e1a26 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 
 .sr-filterbar__pill:hover {
   background: #2a2a4a;
@@ -305,59 +420,81 @@ function syncUrlParams(filter) {
 }
 
 .sr-filterbar__pill--active {
-  background: #e94560;
-  border-color: #e94560;
-  color: #fff;
+  background: #2e1a26 !important;
+  border-color: #7a3050 !important;
+  color: #d08090 !important;
 }
 
 .sr-filterbar__pill--active:hover {
-  background: #c73550;
-  border-color: #c73550;
+  background: #3a2030 !important;
+  border-color: #9a4060 !important;
 }
 
 .sr-filterbar__pill--reject.sr-filterbar__pill--active {
-  background: #e05252;
-  border-color: #e05252;
+  background: #2e1a1a !important;
+  border-color: #7a3030 !important;
+  color: #d08080 !important;
 }
 
-/* Farb-Pills */
-.sr-filterbar__pill--color {
-  padding: 3px 8px;
-}
-
-.sr-filterbar__color-dot {
-  width: 9px;
-  height: 9px;
+/* ── Farb-Kreise ──────────────────────────────────────────────────────────── */
+.sr-filterbar__colordot {
+  width: 13px;
+  height: 13px !important;
+  min-height: 0 !important;
   border-radius: 50%;
+  border: 2px solid transparent !important;
+  padding: 0 !important;
+  cursor: pointer;
   flex-shrink: 0;
+  transition: transform 120ms, border-color 120ms, box-shadow 120ms;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+  background-clip: padding-box;
 }
 
-.sr-filterbar__color-label {
-  display: none; /* Im kompakten Modus nur Dot zeigen */
+.sr-filterbar__colordot:hover {
+  transform: scale(1.25);
+  border-color: rgba(255,255,255,0.45) !important;
 }
 
-@media (min-width: 900px) {
-  .sr-filterbar__color-label {
-    display: inline;
-  }
+.sr-filterbar__colordot--active {
+  border-color: #fff !important;
+  transform: scale(1.15);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5) !important;
+}
+
+.sr-filterbar__colordot:focus,
+.sr-filterbar__colordot:focus-visible,
+.sr-filterbar__colordot:active {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.sr-filterbar__colordot--active:focus,
+.sr-filterbar__colordot--active:focus-visible,
+.sr-filterbar__colordot--active:active {
+  border-color: #fff !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5) !important;
 }
 
 /* ── Reset ────────────────────────────────────────────────────────────────── */
 .sr-filterbar__reset {
-  padding: 3px 10px;
+  padding: 1px 8px;
   border-radius: 20px;
-  border: 1px dashed #e94560;
+  border: 1px dashed #7a3050;
   background: transparent;
-  color: #e94560;
-  font-size: 12px;
+  color: #c06070;
+  font-size: 11px;
   font-family: inherit;
   cursor: pointer;
   transition: background 150ms, color 150ms;
 }
 
 .sr-filterbar__reset:hover {
-  background: #e94560;
-  color: #fff;
+  background: #3a2030;
+  border-color: #9a4060;
+  color: #e0a0b0;
 }
 
 /* ── Anzahl ───────────────────────────────────────────────────────────────── */
@@ -379,6 +516,18 @@ function syncUrlParams(filter) {
   flex-shrink: 0;
 }
 
+.sr-filterbar__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 180px;
+  justify-content: flex-end;
+}
+
+.sr-filterbar__count {
+  font-variant-numeric: tabular-nums;
+}
+
 .sr-filterbar__mode {
   display: flex;
   background: #1a1a2e;
@@ -393,12 +542,22 @@ function syncUrlParams(filter) {
   justify-content: center;
   width: 34px;
   height: 30px;
-  padding: 0;
-  border: none;
+  padding: 0 !important;
+  border: none !important;
   background: transparent;
   color: #666;
   cursor: pointer;
   transition: background 150ms, color 150ms;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+}
+
+.sr-filterbar__mode-btn:focus,
+.sr-filterbar__mode-btn:focus-visible,
+.sr-filterbar__mode-btn:active {
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .sr-filterbar__mode-btn:hover {
@@ -407,8 +566,9 @@ function syncUrlParams(filter) {
 }
 
 .sr-filterbar__mode-btn--active {
-  background: #e94560;
-  color: #fff;
+  background: #3a1a28 !important;
+  color: #d08090 !important;
+  border: none !important;
 }
 
 .sr-filterbar__mode-btn svg {
