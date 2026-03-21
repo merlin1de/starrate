@@ -116,7 +116,6 @@ const settings = ref({
   default_sort:        'name',
   default_sort_order:  'asc',
   thumbnail_size:       280,
-  write_exif:           true,
   show_filename:        true,
   show_rating_overlay:  true,
   show_color_overlay:   true,
