@@ -1,0 +1,168 @@
+OC.L10N.register(
+    "starrate",
+    {
+        // ── App ───────────────────────────────────────────────────────────────
+        "StarRate" : "StarRate",
+        "Fotogalerie" : "Photo Gallery",
+        "Professionelles Foto-Bewertungs- und Lightroom-Sync-Tool für Fotografen" :
+            "Professional photo rating and Lightroom sync tool for photographers",
+
+        // ── Rating ────────────────────────────────────────────────────────────
+        "Bewertung" : "Rating",
+        "Bewertung entfernen" : "Remove rating",
+        "Bewertung:" : "Rating:",
+        "%n Stern" : ["%n star", "%n stars"],
+        "Bewertung konnte nicht gespeichert werden" : "Rating could not be saved",
+        "{name}: {stars}" : "{name}: {stars}",
+        "%n Bild bewertet %s" : ["%n image rated %s", "%n images rated %s"],
+        "Stapel-Bewertung fehlgeschlagen" : "Batch rating failed",
+
+        // ── Color labels ──────────────────────────────────────────────────────
+        "Farbmarkierung" : "Color label",
+        "Farbmarkierung entfernen" : "Remove color label",
+        "Farbe setzen" : "Set color",
+        "Farbe entfernen" : "Remove color",
+        "Farbe:" : "Color:",
+        "Rot" : "Red",
+        "Gelb" : "Yellow",
+        "Grün" : "Green",
+        "Blau" : "Blue",
+        "Lila" : "Purple",
+
+        // ── Filter ────────────────────────────────────────────────────────────
+        "Bildfilter" : "Image filters",
+        "Sterne" : "Stars",
+        "Farben" : "Colors",
+        "Auswahl" : "Selection",
+        "Unbewertet" : "Unrated",
+        "Alle anzeigen" : "Show all",
+        "Alle Filter zurücksetzen" : "Reset all filters",
+        "Nur Picks anzeigen" : "Show picks only",
+        "Nur Ablehnungen anzeigen" : "Show rejects only",
+        "%n Bild" : ["%n image", "%n images"],
+        "%n gesamt" : ["%n total", "%n total"],
+
+        // ── Gallery ───────────────────────────────────────────────────────────
+        "Bilder konnten nicht geladen werden" : "Images could not be loaded",
+        "Keine Bilder in diesem Ordner" : "No images in this folder",
+        "Filter entfernen um alle Bilder zu sehen" : "Remove filter to see all images",
+        "Ansicht" : "View",
+        "Rasteransicht" : "Grid view",
+        "Lupenansicht" : "Loupe view",
+
+        // ── Loupe ─────────────────────────────────────────────────────────────
+        "Zurück zur Rasteransicht (Esc)" : "Back to grid view (Esc)",
+        "Eingepasst" : "Fit",
+        "Vorheriges Bild" : "Previous image",
+        "Nächstes Bild" : "Next image",
+        "Pick (P)" : "Pick (P)",
+        "Ablehnen (X)" : "Reject (X)",
+
+        // ── Selection bar ─────────────────────────────────────────────────────
+        "Stapel-Bewertung" : "Batch rating",
+        "Bewertung setzen" : "Set rating",
+        "Auswahl aufheben (Esc)" : "Clear selection (Esc)",
+        "%n Bild ausgewählt" : ["%n image selected", "%n images selected"],
+        "%n Fehler" : ["%n error", "%n errors"],
+
+        // ── Sync panel ────────────────────────────────────────────────────────
+        "Lightroom Sync" : "Lightroom Sync",
+        "Zuordnung hinzufügen" : "Add mapping",
+        "Noch keine Sync-Zuordnungen" : "No sync mappings yet",
+        "Verbinde einen Nextcloud-Ordner mit deinem lokalen Lightroom-Ordner" :
+            "Connect a Nextcloud folder with your local Lightroom folder",
+        "Sync starten" : "Start sync",
+        "Lädt…" : "Loading…",
+        "Sync" : "Sync",
+        "Log anzeigen" : "Show log",
+        "Bearbeiten" : "Edit",
+        "Löschen" : "Delete",
+        "Letzter Sync-Log" : "Last sync log",
+        "Zuordnungen konnten nicht geladen werden" : "Mappings could not be loaded",
+        "Sync abgeschlossen: {synced} synchronisiert, {errors} Fehler" :
+            "Sync completed: {synced} synced, {errors} errors",
+        "Zuordnung aktualisiert" : "Mapping updated",
+        "Zuordnung hinzugefügt" : "Mapping added",
+        "Fehler beim Speichern" : "Error saving",
+        "Zuordnung \"{label}\" wirklich löschen?" : "Really delete mapping \"{label}\"?",
+        "Zuordnung gelöscht" : "Mapping deleted",
+        "Fehler beim Löschen" : "Error deleting",
+
+        // ── Sync status ───────────────────────────────────────────────────────
+        "Synchronisiert" : "Synchronized",
+        "Ausstehend" : "Pending",
+        "Fehler" : "Error",
+        "Noch nicht synchronisiert" : "Never synced",
+
+        // ── Time ──────────────────────────────────────────────────────────────
+        "Noch nie" : "Never",
+        "Gerade eben" : "Just now",
+        "Vor {m} Min." : "{m} min. ago",
+        "Vor {h} Std." : "{h} hrs. ago",
+        "Vor {d} Tagen" : "{d} days ago",
+
+        // ── Sync dialog ───────────────────────────────────────────────────────
+        "Zuordnung bearbeiten" : "Edit mapping",
+        "Neue Zuordnung" : "New mapping",
+        "Nextcloud-Ordner" : "Nextcloud folder",
+        "z. B. /Fotos/Shooting-2024" : "e.g. /Photos/Shooting-2024",
+        "Pfad relativ zu deinem Nextcloud-Home-Ordner" :
+            "Path relative to your Nextcloud home folder",
+        "Lokaler Lightroom-Ordner" : "Local Lightroom folder",
+        "z. B. /Users/foto/Pictures/2024" : "e.g. /Users/photo/Pictures/2024",
+        "Absoluter Pfad zum lokalen Ordner mit RAW- und JPEG-Dateien" :
+            "Absolute path to the local folder containing RAW and JPEG files",
+        "Sync-Richtung" : "Sync direction",
+        "Nextcloud → Lightroom" : "Nextcloud → Lightroom",
+        "Lightroom → Nextcloud" : "Lightroom → Nextcloud",
+        "Bidirektional (empfohlen)" : "Bidirectional (recommended)",
+        "Abbrechen" : "Cancel",
+        "Speichern" : "Save",
+        "Hinzufügen" : "Add",
+
+        // ── Share ─────────────────────────────────────────────────────────────
+        "Freigabe-Link erstellen" : "Create share link",
+        "Freigabe-Links verwalten" : "Manage share links",
+        "Passwortschutz (optional)" : "Password protection (optional)",
+        "Ablaufdatum (optional)" : "Expiry date (optional)",
+        "Mindest-Bewertung anzeigen" : "Minimum rating to show",
+        "Berechtigung" : "Permission",
+        "Nur ansehen" : "View only",
+        "Ansehen + Bewerten" : "View + Rate",
+        "Link kopieren" : "Copy link",
+        "Link deaktivieren" : "Disable link",
+        "Gast" : "Guest",
+        "Passwort eingeben" : "Enter password",
+        "Falsches Passwort" : "Wrong password",
+        "Dieser Link ist abgelaufen" : "This link has expired",
+        "Link ungültig" : "Invalid link",
+        "Bewertung gespeichert" : "Rating saved",
+
+        // ── Settings ──────────────────────────────────────────────────────────
+        "Einstellungen" : "Settings",
+        "Sortierung" : "Sort by",
+        "Dateiname" : "File name",
+        "Datum" : "Date",
+        "Dateigröße" : "File size",
+        "Aufsteigend" : "Ascending",
+        "Absteigend" : "Descending",
+        "Thumbnail-Größe" : "Thumbnail size",
+        "XMP in JPEG schreiben" : "Write XMP into JPEG",
+        "Dateiname auf Thumbnail anzeigen" : "Show filename on thumbnail",
+        "Sterne auf Thumbnail anzeigen" : "Show stars on thumbnail",
+        "Farbpunkt auf Thumbnail anzeigen" : "Show color dot on thumbnail",
+        "Spalten" : "Columns",
+        "Automatisch" : "Automatic",
+        "Einstellungen gespeichert" : "Settings saved",
+
+        // ── General ───────────────────────────────────────────────────────────
+        "Schließen" : "Close",
+        "OK" : "OK",
+        "Ja" : "Yes",
+        "Nein" : "No",
+        "Interner Fehler" : "Internal error",
+        "Nicht gefunden" : "Not found",
+        "Nicht authentifiziert" : "Not authenticated"
+    },
+    "nplurals=2; plural=(n != 1);"
+);
