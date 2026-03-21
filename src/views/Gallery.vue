@@ -85,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 /* global __APP_VERSION__ */
 const appVersion = __APP_VERSION__
@@ -226,10 +226,12 @@ async function onRate(image, rating, color, pick) {
     const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
     await axios.post(url, payload)
 
-    // Kurzes Toast nur bei Sternebewertung
     if (payload.rating !== undefined) {
       const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
       showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
+    } else if (payload.color !== undefined) {
+      const label = payload.color || '○'
+      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
     }
   } catch (e) {
     // Rollback
@@ -334,7 +336,15 @@ function showToast(message, type = 'success') {
   }, 3000)
 }
 
+// Escape auf Dokument-Ebene: klärt Auswahl unabhängig davon, welches Element Fokus hat
+function onDocKeydown(e) {
+  if (e.key === 'Escape' && selectedIds.value.size > 0) {
+    gridRef.value?.clearSelection()
+  }
+}
+
 onMounted(() => {
+  document.addEventListener('keydown', onDocKeydown)
   // URL-Query-Params haben Priorität (geteilter Link), sonst localStorage
   const q = route.query
   const hasUrlFilter = ['r', 're', 'rm', 'c', 'p'].some(k => k in q)
@@ -346,6 +356,10 @@ onMounted(() => {
       try { Object.assign(activeFilter.value, JSON.parse(saved)) } catch {}
     }
   }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocKeydown)
 })
 
 // Filter in localStorage + URL persistieren
