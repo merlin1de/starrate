@@ -1,0 +1,572 @@
+<template>
+  <div
+    class="sr-grid"
+    ref="gridEl"
+    tabindex="0"
+    @keydown="onGlobalKeydown"
+    @focus="gridFocused = true"
+    @blur="gridFocused = false"
+  >
+    <!-- Skeleton-Loader -->
+    <template v-if="loading">
+      <div v-for="i in skeletonCount" :key="`skel-${i}`" class="sr-grid__item sr-grid__item--skeleton">
+        <div class="sr-grid__skeleton-img" />
+        <div class="sr-grid__skeleton-bar" />
+      </div>
+    </template>
+
+    <!-- Bilder -->
+    <template v-else>
+      <div
+        v-for="(image, index) in images"
+        :key="image.id"
+        class="sr-grid__item"
+        :class="{
+          'sr-grid__item--selected': isSelected(image.id),
+          'sr-grid__item--focused':  focusedIndex === index,
+          'sr-grid__item--pick':     image.pick === 'pick',
+          'sr-grid__item--reject':   image.pick === 'reject',
+        }"
+        :data-index="index"
+        @click="onItemClick($event, image, index)"
+        @dblclick="$emit('open-loupe', image, index)"
+      >
+        <!-- Thumbnail -->
+        <div class="sr-grid__thumb-wrap">
+          <img
+            v-if="image.thumbLoaded"
+            class="sr-grid__thumb"
+            :src="image.thumbUrl"
+            :alt="image.name"
+            loading="lazy"
+            draggable="false"
+          />
+          <div v-else class="sr-grid__thumb-placeholder" />
+
+          <!-- Reject-Overlay -->
+          <div v-if="image.pick === 'reject'" class="sr-grid__reject-overlay">
+            <span>✕</span>
+          </div>
+
+          <!-- Auswahl-Indikator -->
+          <div v-if="isSelected(image.id)" class="sr-grid__select-badge">
+            <svg viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+
+          <!-- Hover-Overlay: Steuerelemente -->
+          <div class="sr-grid__hover-overlay">
+            <RatingStars
+              :model-value="image.rating"
+              :interactive="true"
+              :compact="true"
+              @change="(r) => $emit('rate', image, r, null)"
+              @click.stop
+            />
+            <ColorLabel
+              :model-value="image.color"
+              :interactive="true"
+              :compact="false"
+              @change="(c) => $emit('rate', image, null, c)"
+              @click.stop
+            />
+          </div>
+        </div>
+
+        <!-- Info-Leiste unten -->
+        <div class="sr-grid__info">
+          <!-- Sterne (linke Seite) -->
+          <RatingStars
+            :model-value="image.rating"
+            :interactive="false"
+            :compact="true"
+            class="sr-grid__info-stars"
+          />
+          <!-- Dateiname (Mitte) -->
+          <span class="sr-grid__info-name" :title="image.name">{{ image.name }}</span>
+          <!-- Farbpunkt (rechts) -->
+          <span
+            v-if="image.color"
+            class="sr-grid__info-color"
+            :class="`sr-grid__info-color--${image.color.toLowerCase()}`"
+            :title="image.color"
+          />
+        </div>
+      </div>
+
+      <!-- Leer-Zustand -->
+      <div v-if="!loading && images.length === 0" class="sr-grid__empty">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="16" width="48" height="36" rx="4" stroke="#555" stroke-width="2"/>
+          <circle cx="22" cy="28" r="4" stroke="#555" stroke-width="2"/>
+          <path d="M8 40l12-10 8 8 8-6 12 8" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p>{{ t('starrate', 'Keine Bilder in diesem Ordner') }}</p>
+        <p v-if="hasActiveFilter" class="sr-grid__empty-sub">
+          {{ t('starrate', 'Filter entfernen um alle Bilder zu sehen') }}
+        </p>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
+import RatingStars from './RatingStars.vue'
+import ColorLabel from './ColorLabel.vue'
+
+const props = defineProps({
+  /** Array von Bild-Objekten (von der API) */
+  images: {
+    type: Array,
+    default: () => [],
+  },
+  /** Lädt gerade */
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+  /** Aktiver Filter hat Ergebnisse gefiltert */
+  hasActiveFilter: {
+    type: Boolean,
+    default: false,
+  },
+  /** Aktuell fokussiertes Bild (Lupe-Sync) */
+  currentIndex: {
+    type: Number,
+    default: -1,
+  },
+})
+
+const emit = defineEmits([
+  'rate',           // (image, rating|null, color|null)
+  'open-loupe',     // (image, index)
+  'selection-change', // (selectedIds: Set)
+  'batch-rate',     // (selectedIds: Set, rating|null, color|null)
+])
+
+// ─── Zustand ──────────────────────────────────────────────────────────────────
+
+const gridEl       = ref(null)
+const gridFocused  = ref(false)
+const focusedIndex = ref(-1)
+const selectedIds  = ref(new Set())
+const lastClickIdx = ref(-1)
+const skeletonCount = 16
+
+// Lazy-Loading: Thumbnails werden nach dem Mount geladen
+const thumbCache = ref({})
+
+// ─── Thumbnail-Loading ────────────────────────────────────────────────────────
+
+watch(() => props.images, (imgs) => {
+  imgs.forEach(img => {
+    if (!img.thumbLoaded && !thumbCache.value[img.id]) {
+      loadThumb(img)
+    }
+  })
+}, { immediate: true })
+
+function loadThumb(image) {
+  const url = generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=280&height=280`)
+  const imgEl = new Image()
+  imgEl.onload = () => {
+    thumbCache.value[image.id] = url
+    // Reaktives Update
+    const found = props.images.find(i => i.id === image.id)
+    if (found) {
+      found.thumbUrl    = url
+      found.thumbLoaded = true
+    }
+  }
+  imgEl.onerror = () => {
+    const found = props.images.find(i => i.id === image.id)
+    if (found) found.thumbLoaded = true // trotzdem als geladen markieren
+  }
+  imgEl.src = url
+}
+
+// ─── Auswahl ──────────────────────────────────────────────────────────────────
+
+function isSelected(id) {
+  return selectedIds.value.has(id)
+}
+
+function onItemClick(event, image, index) {
+  if (event.shiftKey && lastClickIdx.value >= 0) {
+    // Shift+Klick → Bereich markieren
+    const from = Math.min(lastClickIdx.value, index)
+    const to   = Math.max(lastClickIdx.value, index)
+    for (let i = from; i <= to; i++) {
+      selectedIds.value.add(props.images[i].id)
+    }
+  } else if (event.ctrlKey || event.metaKey) {
+    // Strg/Cmd+Klick → einzelnes Bild togglen
+    if (selectedIds.value.has(image.id)) {
+      selectedIds.value.delete(image.id)
+    } else {
+      selectedIds.value.add(image.id)
+    }
+  } else {
+    // Normaler Klick → Auswahl aufheben wenn vorhanden, sonst nur Focus setzen
+    if (selectedIds.value.size > 0) {
+      selectedIds.value.clear()
+      lastClickIdx.value = index
+      emit('selection-change', new Set())
+      return
+    }
+    focusedIndex.value = index
+    lastClickIdx.value = index
+    return  // kein selection-change bei reinem Focus
+  }
+
+  lastClickIdx.value = index
+  emit('selection-change', new Set(selectedIds.value))
+}
+
+function clearSelection() {
+  selectedIds.value.clear()
+  emit('selection-change', new Set())
+}
+
+function selectAll() {
+  props.images.forEach(img => selectedIds.value.add(img.id))
+  emit('selection-change', new Set(selectedIds.value))
+}
+
+// ─── Tastatur ────────────────────────────────────────────────────────────────
+
+function onGlobalKeydown(e) {
+  const idx = focusedIndex.value
+
+  switch (e.key) {
+    // Navigation
+    case 'ArrowRight':
+      e.preventDefault()
+      moveFocus(1)
+      break
+    case 'ArrowLeft':
+      e.preventDefault()
+      moveFocus(-1)
+      break
+    case 'ArrowDown':
+      e.preventDefault()
+      moveFocus(columnsEstimate())
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      moveFocus(-columnsEstimate())
+      break
+
+    // Enter / Doppelklick → Lupenansicht
+    case 'Enter':
+      if (idx >= 0 && idx < props.images.length) {
+        emit('open-loupe', props.images[idx], idx)
+      }
+      break
+
+    // Sternebewertung (0–5)
+    case '0': case '1': case '2':
+    case '3': case '4': case '5':
+      if (idx >= 0 && !e.shiftKey) {
+        e.preventDefault()
+        const img = props.images[idx]
+        if (img) emit('rate', img, parseInt(e.key), null)
+      }
+      break
+
+    // Farben (6=Rot, 7=Gelb, 8=Grün, 9=Blau)
+    case '6': case '7': case '8': case '9': {
+      e.preventDefault()
+      const colorMap = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue' }
+      if (idx >= 0) {
+        const img = props.images[idx]
+        if (img) emit('rate', img, null, colorMap[e.key])
+      }
+      break
+    }
+
+    // P = Pick, X = Reject
+    case 'p': case 'P':
+      if (idx >= 0) {
+        e.preventDefault()
+        const img = props.images[idx]
+        if (img) emit('rate', img, null, null, img.pick === 'pick' ? 'none' : 'pick')
+      }
+      break
+    case 'x': case 'X':
+      if (idx >= 0) {
+        e.preventDefault()
+        const img = props.images[idx]
+        if (img) emit('rate', img, null, null, img.pick === 'reject' ? 'none' : 'reject')
+      }
+      break
+
+    // Strg+A = alle auswählen
+    case 'a':
+    case 'A':
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        selectAll()
+      }
+      break
+
+    // Escape = Auswahl aufheben
+    case 'Escape':
+      clearSelection()
+      break
+  }
+}
+
+function moveFocus(delta) {
+  const newIdx = Math.max(0, Math.min(props.images.length - 1, focusedIndex.value + delta))
+  focusedIndex.value = newIdx
+  scrollItemIntoView(newIdx)
+}
+
+function columnsEstimate() {
+  if (!gridEl.value) return 4
+  const itemWidth = 220 // ungefähre Thumbnail-Breite in px
+  return Math.max(1, Math.floor(gridEl.value.offsetWidth / itemWidth))
+}
+
+function scrollItemIntoView(index) {
+  nextTick(() => {
+    const el = gridEl.value?.querySelector(`[data-index="${index}"]`)
+    el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  })
+}
+
+// ─── Sync mit Lupenansicht ────────────────────────────────────────────────────
+
+watch(() => props.currentIndex, idx => {
+  if (idx >= 0) {
+    focusedIndex.value = idx
+    scrollItemIntoView(idx)
+  }
+})
+
+// ─── Expose für SelectionBar ─────────────────────────────────────────────────
+
+defineExpose({ clearSelection, selectAll, selectedIds })
+</script>
+
+<style scoped>
+.sr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+  padding: 8px;
+  outline: none;
+  min-height: 200px;
+  align-content: start;
+}
+
+/* ── Item ─────────────────────────────────────────────────────────────────── */
+.sr-grid__item {
+  position: relative;
+  background: #1e1e2e;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 100ms ease, box-shadow 100ms ease;
+  user-select: none;
+}
+
+.sr-grid__item:hover {
+  border-color: rgba(255,255,255,0.15);
+}
+
+.sr-grid__item--selected {
+  border-color: #e94560 !important;
+  box-shadow: 0 0 0 1px #e94560;
+}
+
+.sr-grid__item--focused {
+  box-shadow: 0 0 0 2px #e94560aa;
+}
+
+.sr-grid__item--reject {
+  opacity: 0.45;
+}
+
+/* ── Thumbnail ────────────────────────────────────────────────────────────── */
+.sr-grid__thumb-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 75%; /* 4:3 Aspektverhältnis */
+  background: #111;
+  overflow: hidden;
+}
+
+.sr-grid__thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 200ms ease;
+}
+
+.sr-grid__item:hover .sr-grid__thumb {
+  transform: scale(1.02);
+}
+
+.sr-grid__thumb-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1e1e2e 25%, #2a2a3e 50%, #1e1e2e 75%);
+  background-size: 400% 400%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Overlays ─────────────────────────────────────────────────────────────── */
+.sr-grid__reject-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.4);
+  color: #e94560;
+  font-size: 3rem;
+  font-weight: bold;
+  pointer-events: none;
+}
+
+.sr-grid__select-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  background: #e94560;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sr-grid__select-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sr-grid__hover-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 8px 6px;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+}
+
+.sr-grid__item:hover .sr-grid__hover-overlay {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* ── Info-Leiste ─────────────────────────────────────────────────────────── */
+.sr-grid__info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: #16162a;
+  min-height: 26px;
+}
+
+.sr-grid__info-stars {
+  flex-shrink: 0;
+}
+
+.sr-grid__info-name {
+  flex: 1;
+  font-size: 11px;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.sr-grid__info-color {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.sr-grid__info-color--red    { background: #e05252; }
+.sr-grid__info-color--yellow { background: #e0c252; }
+.sr-grid__info-color--green  { background: #52a852; }
+.sr-grid__info-color--blue   { background: #5277e0; }
+.sr-grid__info-color--purple { background: #9b52e0; }
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────── */
+.sr-grid__item--skeleton {
+  pointer-events: none;
+  border: none;
+}
+
+.sr-grid__skeleton-img {
+  width: 100%;
+  padding-top: 75%;
+  background: linear-gradient(135deg, #1e1e2e 25%, #2a2a3e 50%, #1e1e2e 75%);
+  background-size: 400% 400%;
+  animation: shimmer 1.5s infinite;
+}
+
+.sr-grid__skeleton-bar {
+  height: 26px;
+  background: #16162a;
+  margin-top: 2px;
+  border-radius: 0 0 4px 4px;
+}
+
+/* ── Leer-Zustand ─────────────────────────────────────────────────────────── */
+.sr-grid__empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #555;
+  gap: 12px;
+}
+
+.sr-grid__empty svg {
+  width: 64px;
+  height: 64px;
+}
+
+.sr-grid__empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.sr-grid__empty-sub {
+  font-size: 12px !important;
+  color: #444;
+}
+</style>

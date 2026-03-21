@@ -1,0 +1,8 @@
+StarRate – Last Test Run
+========================
+Run: never
+PHP:  -
+JS:   -
+E2E:  -
+
+Run `make test` to populate this file.

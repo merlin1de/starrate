@@ -1,0 +1,33 @@
+# Build output
+/js/
+/dist/
+/build/
+
+# Dependencies
+/node_modules/
+/vendor/
+
+# Test results & coverage
+/tests/results/coverage-php/
+/tests/results/coverage-js/
+/tests/results/cypress/
+/tests/results/junit-*.xml
+
+# Secrets – NIEMALS committen!
+docker/cypress.env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+*.log

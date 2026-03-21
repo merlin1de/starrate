@@ -1,0 +1,311 @@
+/**
+ * StarRate – Base Dark Theme
+ *
+ * Loaded by Nextcloud for the main app (NC injects app CSS automatically).
+ * Component-scoped styles live in the Vue SFCs.
+ * This file provides global CSS custom properties, resets, and shared utilities.
+ */
+
+/* ── CSS Custom Properties ────────────────────────────────────────────────── */
+
+:root {
+  --sr-bg:           #1a1a2e;
+  --sr-bg-surface:   #16213e;
+  --sr-bg-elevated:  #0f3460;
+  --sr-accent:       #e94560;
+  --sr-accent-hover: #c73652;
+  --sr-text:         #d4d4d8;
+  --sr-text-muted:   #a1a1aa;
+  --sr-text-dim:     #71717a;
+  --sr-border:       #2a2a3e;
+  --sr-border-focus: #3f3f5a;
+
+  --sr-color-red:    #e94560;
+  --sr-color-yellow: #f5c518;
+  --sr-color-green:  #4caf50;
+  --sr-color-blue:   #2196f3;
+  --sr-color-purple: #9c27b0;
+
+  --sr-star-filled:  #f5c518;
+  --sr-star-empty:   #3f3f5a;
+
+  --sr-radius-sm:    4px;
+  --sr-radius:       8px;
+  --sr-radius-lg:    12px;
+
+  --sr-shadow:       0 4px 16px rgba(0, 0, 0, 0.4);
+  --sr-shadow-lg:    0 8px 32px rgba(0, 0, 0, 0.6);
+
+  --sr-font:         'Inter', system-ui, -apple-system, sans-serif;
+  --sr-mono:         'JetBrains Mono', 'Fira Code', monospace;
+
+  --sr-transition:   0.15s ease;
+  --sr-transition-slow: 0.3s ease;
+}
+
+/* ── App Container ────────────────────────────────────────────────────────── */
+
+#app-content-vue #sr-app {
+  height: 100%;
+  background: var(--sr-bg);
+  color: var(--sr-text);
+  font-family: var(--sr-font);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+
+#sr-app ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+#sr-app ::-webkit-scrollbar-track {
+  background: var(--sr-bg);
+}
+#sr-app ::-webkit-scrollbar-thumb {
+  background: var(--sr-border-focus);
+  border-radius: 3px;
+}
+#sr-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--sr-text-dim);
+}
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
+
+#sr-app h1, #sr-app h2, #sr-app h3 {
+  color: #ffffff;
+  font-weight: 600;
+  margin: 0;
+}
+
+#sr-app a {
+  color: var(--sr-accent);
+  text-decoration: none;
+}
+#sr-app a:hover {
+  text-decoration: underline;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.sr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  background: var(--sr-bg-elevated);
+  border: 1px solid var(--sr-border);
+  border-radius: var(--sr-radius-sm);
+  color: var(--sr-text);
+  cursor: pointer;
+  font-family: var(--sr-font);
+  font-size: 0.875rem;
+  padding: 0.35rem 0.75rem;
+  transition: background var(--sr-transition), border-color var(--sr-transition);
+  white-space: nowrap;
+}
+.sr-btn:hover:not(:disabled) {
+  background: var(--sr-bg-surface);
+  border-color: var(--sr-border-focus);
+}
+.sr-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.sr-btn--primary {
+  background: var(--sr-accent);
+  border-color: transparent;
+  color: #fff;
+}
+.sr-btn--primary:hover:not(:disabled) {
+  background: var(--sr-accent-hover);
+}
+.sr-btn--icon {
+  padding: 0.4rem;
+  aspect-ratio: 1;
+}
+
+/* ── Inputs ───────────────────────────────────────────────────────────────── */
+
+.sr-input {
+  background: #0f0f1a;
+  border: 1px solid var(--sr-border-focus);
+  border-radius: var(--sr-radius-sm);
+  color: var(--sr-text);
+  font-family: var(--sr-font);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--sr-transition);
+}
+.sr-input:focus {
+  border-color: var(--sr-accent);
+  outline: none;
+}
+.sr-input::placeholder {
+  color: var(--sr-text-dim);
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+.sr-toast {
+  background: var(--sr-bg-surface);
+  border: 1px solid var(--sr-border);
+  border-radius: var(--sr-radius);
+  color: var(--sr-text);
+  font-size: 0.875rem;
+  padding: 0.65rem 1.1rem;
+  min-width: 220px;
+  max-width: 380px;
+  box-shadow: var(--sr-shadow);
+  pointer-events: none;
+}
+.sr-toast--success { border-left: 3px solid var(--sr-color-green); }
+.sr-toast--error   { border-left: 3px solid var(--sr-accent); }
+.sr-toast--warning { border-left: 3px solid var(--sr-color-yellow); }
+
+/* Toast container (rendered via Teleport in Gallery.vue) */
+.sr-toasts {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 10000;
+}
+
+/* ── Skeleton / shimmer ───────────────────────────────────────────────────── */
+
+@keyframes sr-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+.sr-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--sr-bg-surface)  25%,
+    var(--sr-border)       50%,
+    var(--sr-bg-surface)  75%
+  );
+  background-size: 800px 100%;
+  animation: sr-shimmer 1.4s infinite linear;
+  border-radius: var(--sr-radius-sm);
+}
+
+/* ── Transitions ──────────────────────────────────────────────────────────── */
+
+/* Fade */
+.sr-fade-enter-active,
+.sr-fade-leave-active { transition: opacity var(--sr-transition-slow); }
+.sr-fade-enter-from,
+.sr-fade-leave-to     { opacity: 0; }
+
+/* Toast slide-up */
+.sr-toast-enter-active { transition: all 0.25s ease; }
+.sr-toast-leave-active { transition: all 0.2s ease; }
+.sr-toast-enter-from   { opacity: 0; transform: translateY(8px); }
+.sr-toast-leave-to     { opacity: 0; transform: translateX(24px); }
+
+/* Dialog bounce */
+.sr-dialog-enter-active { transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sr-dialog-leave-active { transition: all 0.15s ease; }
+.sr-dialog-enter-from   { opacity: 0; transform: scale(0.92) translateY(-8px); }
+.sr-dialog-leave-to     { opacity: 0; transform: scale(0.95); }
+
+/* SelectionBar slide-up */
+.sr-selbar-enter-active { transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sr-selbar-leave-active { transition: all 0.15s ease; }
+.sr-selbar-enter-from   { opacity: 0; transform: translateY(100%); }
+.sr-selbar-leave-to     { opacity: 0; transform: translateY(100%); }
+
+/* ── Focus ring ───────────────────────────────────────────────────────────── */
+
+#sr-app :focus-visible {
+  outline: 2px solid var(--sr-accent);
+  outline-offset: 2px;
+}
+
+/* ── Utility classes ──────────────────────────────────────────────────────── */
+
+.sr-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Breadcrumb ──────────────────────────────────────────────────────────── */
+
+.sr-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--sr-bg-surface);
+  border-bottom: 1px solid var(--sr-border);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.sr-breadcrumb__seg {
+  background: none;
+  border: none;
+  color: var(--sr-text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sr-breadcrumb__seg:hover {
+  color: var(--sr-text);
+  background: var(--sr-bg-elevated);
+}
+
+.sr-breadcrumb__sep {
+  color: var(--sr-text-dim);
+}
+
+/* ── Unterordner ─────────────────────────────────────────────────────────── */
+
+.sr-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sr-border);
+}
+
+.sr-folders__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--sr-bg-surface);
+  border: 1px solid var(--sr-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--sr-text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sr-folders__item:hover {
+  border-color: var(--sr-accent);
+  background: var(--sr-bg-elevated);
+}

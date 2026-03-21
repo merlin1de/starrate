@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# StarRate – Cypress E2E Container
+# Läuft auf: donkeykong  (docker compose -f docker/cypress.yml up)
+#
+# Voraussetzungen auf donkeykong:
+#   - docker + docker compose installiert
+#   - Dieses Repository geklont unter /opt/starrate  (oder beliebiger Pfad)
+#   - docker/cypress.env angelegt (Kopie von docker/cypress.env.example)
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  cypress:
+    image: cypress/included:13.17.0
+    container_name: starrate-cypress
+    working_dir: /e2e
+
+    # Repo-Root ins /e2e-Verzeichnis mounten
+    volumes:
+      - ..:/e2e
+
+    # Credentials aus .env-Datei lesen (nie committen!)
+    env_file:
+      - cypress.env
+
+    environment:
+      # Kein Sandbox-Problem in Docker (Linux-Container auf Windows-Host)
+      ELECTRON_EXTRA_LAUNCH_ARGS: "--no-sandbox"
+      # Cypress findet Node in PATH
+      NODE_PATH: /usr/local/lib/node_modules
+
+    # NC intern via LAN-IP erreichbar (SSL-Zert ist fuer cloud.mischler.info)
+    extra_hosts:
+      - "cloud.mischler.info:192.168.2.205"
+
+    # Ergebnisse landen im gemounteten Repo-Ordner
+    # tests/results/cypress/screenshots & videos
+
+    # Container entfernt sich nach dem Lauf automatisch
+    restart: "no"

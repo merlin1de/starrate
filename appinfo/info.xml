@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+
+    <id>starrate</id>
+    <name>StarRate</name>
+    <summary>Professionelles Foto-Bewertungs- und Lightroom-Sync-Tool für Fotografen</summary>
+    <description><![CDATA[
+StarRate ist ein professionelles Foto-Bewertungs-Tool für Fotografen, direkt in Nextcloud integriert.
+
+**Features:**
+- Vollbild-Galerie im Raster- und Lupen-Modus (wie Adobe Lightroom)
+- Sternebewertungen (0–5) und Farbmarkierungen (Rot/Gelb/Grün/Blau/Lila)
+- Bewertungen werden direkt in JPEG/XMP-Metadaten geschrieben
+- Lightroom-Sync: XMP-Sidecar für Canon CR3 und andere RAW-Formate
+- Stapel-Bewertung mit Mehrfachauswahl (Shift+Klick, Strg+Klick)
+- Freigabe-Links für Modelle (ohne Nextcloud-Login)
+- Tastaturkürzel wie in Lightroom (0–5 Sterne, 6–9 Farben, P/X)
+- Stufenloser Zoom bis 400%, Pan und Pinch-to-Zoom
+- Filterbarkait nach Sternen und Farben, kombinierbar
+- Dunkles, professionelles UI-Theme
+    ]]></description>
+
+    <version>0.9.0</version>
+    <licence>agpl</licence>
+
+    <author mail="info@starrate.app" homepage="https://github.com/starrate-app/starrate">
+        StarRate Team
+    </author>
+
+    <namespace>StarRate</namespace>
+
+    <category>multimedia</category>
+    <category>files</category>
+
+    <website>https://github.com/starrate-app/starrate</website>
+    <bugs>https://github.com/starrate-app/starrate/issues</bugs>
+    <repository type="git">https://github.com/starrate-app/starrate</repository>
+
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid-small.jpg">
+        https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid.jpg
+    </screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/loupe-small.jpg">
+        https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/loupe.jpg
+    </screenshot>
+
+    <dependencies>
+        <php min-version="8.1" max-version="8.4"/>
+        <database>sqlite</database>
+        <database>mysql</database>
+        <database>pgsql</database>
+        <nextcloud min-version="31" max-version="32"/>
+    </dependencies>
+
+    <navigations>
+        <navigation>
+            <name>StarRate</name>
+            <route>starrate.gallery.index</route>
+            <icon>app.svg</icon>
+            <order>10</order>
+        </navigation>
+    </navigations>
+
+    <settings>
+        <personal>OCA\StarRate\Settings\UserSettings</personal>
+    </settings>
+
+</info>
