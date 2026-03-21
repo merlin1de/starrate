@@ -62,6 +62,7 @@ StarRate ist ein professionelles Foto-Bewertungs-Tool für Fotografen, direkt in
     </navigations>
 
     <settings>
+        <personal-section>OCA\StarRate\Settings\PersonalSection</personal-section>
         <personal>OCA\StarRate\Settings\UserSettings</personal>
     </settings>
 
