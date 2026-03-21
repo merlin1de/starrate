@@ -3,6 +3,7 @@
     class="sr-grid"
     ref="gridEl"
     tabindex="0"
+    :style="gridStyle"
     @keydown="onGlobalKeydown"
     @focus="gridFocused = true"
     @blur="gridFocused = false"
@@ -76,16 +77,17 @@
         <div class="sr-grid__info">
           <!-- Sterne (linke Seite) -->
           <RatingStars
+            v-if="showRatingInfo"
             :model-value="image.rating"
             :interactive="false"
             :compact="true"
             class="sr-grid__info-stars"
           />
           <!-- Dateiname (Mitte) -->
-          <span class="sr-grid__info-name" :title="image.name">{{ image.name }}</span>
+          <span v-if="showFilename" class="sr-grid__info-name" :title="image.name">{{ image.name }}</span>
           <!-- Farbpunkt (rechts) -->
           <span
-            v-if="image.color"
+            v-if="showColorInfo && image.color"
             class="sr-grid__info-color"
             :class="`sr-grid__info-color--${image.color.toLowerCase()}`"
             :title="image.color"
@@ -140,6 +142,16 @@ const props = defineProps({
     type: Number,
     default: -1,
   },
+  /** Thumbnail-Größe in Pixeln (aus Settings) */
+  thumbnailSize: { type: Number,  default: 280 },
+  /** Grid-Spalten: 'auto' | '2' | '3' | '4' | '5' | '6' | '8' */
+  gridColumns:   { type: String,  default: 'auto' },
+  /** Dateiname in der Info-Leiste anzeigen */
+  showFilename:      { type: Boolean, default: true },
+  /** Sterne in der Info-Leiste anzeigen */
+  showRatingInfo:    { type: Boolean, default: true },
+  /** Farbpunkt in der Info-Leiste anzeigen */
+  showColorInfo:     { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
@@ -149,6 +161,13 @@ const emit = defineEmits([
   'batch-rate',     // (selectedIds: Set, rating|null, color|null)
   'clear-filter',   // ()
 ])
+
+const gridStyle = computed(() => {
+  const cols = props.gridColumns === 'auto'
+    ? 'repeat(auto-fill, minmax(200px, 1fr))'
+    : `repeat(${props.gridColumns}, 1fr)`
+  return { '--sr-grid-columns': cols }
+})
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
@@ -179,7 +198,8 @@ watch(() => props.images, (imgs) => {
 }, { immediate: true })
 
 function loadThumb(image) {
-  const url = generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=280&height=280`)
+  const sz  = props.thumbnailSize
+  const url = generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
   const imgEl = new Image()
   imgEl.onload = () => {
     thumbCache.value[image.id] = url
@@ -424,7 +444,7 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 <style scoped>
 .sr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: var(--sr-grid-columns, repeat(auto-fill, minmax(200px, 1fr)));
   gap: 6px;
   padding: 8px;
   outline: none;

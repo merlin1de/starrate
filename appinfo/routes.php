@@ -120,47 +120,5 @@ return [
             'url'  => '/api/settings',
             'verb' => 'POST',
         ],
-
-        // ─── Sync ─────────────────────────────────────────────────────────────
-        [
-            'name' => 'sync#index',
-            'url'  => '/sync',
-            'verb' => 'GET',
-        ],
-        [
-            'name' => 'sync#getMappings',
-            'url'  => '/api/sync/mappings',
-            'verb' => 'GET',
-        ],
-        [
-            'name' => 'sync#addMapping',
-            'url'  => '/api/sync/mappings',
-            'verb' => 'POST',
-        ],
-        [
-            'name' => 'sync#updateMapping',
-            'url'  => '/api/sync/mappings/{id}',
-            'verb' => 'PUT',
-        ],
-        [
-            'name' => 'sync#deleteMapping',
-            'url'  => '/api/sync/mappings/{id}',
-            'verb' => 'DELETE',
-        ],
-        [
-            'name' => 'sync#run',
-            'url'  => '/api/sync/run/{id}',
-            'verb' => 'POST',
-        ],
-        [
-            'name' => 'sync#getLog',
-            'url'  => '/api/sync/log/{id}',
-            'verb' => 'GET',
-        ],
-        [
-            'name' => 'sync#getStatus',
-            'url'  => '/api/sync/status/{id}',
-            'verb' => 'GET',
-        ],
     ],
 ];
