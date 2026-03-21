@@ -20,12 +20,15 @@ Cypress.on('uncaught:exception', (err) => {
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────
 
+// cy.session() cached login — schnell ab dem 2. Test
 function login() {
-  cy.visit(`${NC_URL}/login`)
-  cy.get('#user').clear().type(NC_USER)
-  cy.get('#password').clear().type(NC_PASS)
-  cy.get('[type=submit]').click()
-  cy.url().should('include', '/apps/')
+  cy.session([NC_USER, NC_PASS], () => {
+    cy.visit(`${NC_URL}/login`)
+    cy.get('#user').clear().type(NC_USER)
+    cy.get('#password').clear().type(NC_PASS)
+    cy.get('[type=submit]').click()
+    cy.url().should('include', '/apps/')
+  })
 }
 
 function openFolder(path = '/Fotos/E2E-Test') {
@@ -39,8 +42,7 @@ function openFolder(path = '/Fotos/E2E-Test') {
 
 describe('StarRate E2E', () => {
 
-  before(() => { login() })
-  beforeEach(() => { cy.wait(300) }) // kurze Pause zwischen Tests
+  beforeEach(() => { login() }) // stellt Session vor jedem Test sicher (cached)
 
   // ── 1. Bild öffnen → Stern setzen → Filter → nur bewertete sichtbar ────────
 
@@ -49,9 +51,8 @@ describe('StarRate E2E', () => {
     it('setzt Sternebewertung und filtert danach', () => {
       openFolder()
 
-      // Rating 4 auf erstes Bild setzen
-      cy.get('.sr-grid__item').first().trigger('mouseenter')
-      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(3).click()
+      // Rating 4 auf erstes Bild setzen (force: hover-overlay hat pointer-events:none in headless)
+      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(3).click({ force: true })
 
       // Toast erscheint
       cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
@@ -75,8 +76,7 @@ describe('StarRate E2E', () => {
       openFolder()
 
       // Green auf zweites Bild setzen
-      cy.get('.sr-grid__item').eq(1).trigger('mouseenter')
-      cy.get('.sr-grid__item').eq(1).find('.sr-color-label__dot--green').click()
+      cy.get('.sr-grid__item').eq(1).find('.sr-color-label__dot--green').click({ force: true })
       cy.get('.sr-toast--success').should('be.visible')
 
       // Nach Grün filtern
@@ -203,8 +203,7 @@ describe('StarRate E2E', () => {
     it('Benutzer A setzt Bewertung', () => {
       // Bereits als User A eingeloggt
       openFolder(SHARED_PATH)
-      cy.get('.sr-grid__item').first().trigger('mouseenter')
-      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(4).click()
+      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(4).click({ force: true })
       cy.get('.sr-toast--success').should('be.visible')
     })
 
