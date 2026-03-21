@@ -8,14 +8,6 @@
         <span class="sr-breadcrumb__sep">/</span>
         <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
       </template>
-      <button class="sr-breadcrumb__sync" @click="router.push('/sync')" :title="t('starrate', 'Lightroom Sync')">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="14" height="14">
-          <path d="M23 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Sync
-      </button>
       <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
     </div>
 
@@ -430,28 +422,8 @@ watch(() => route.query, q => {
   width: 100%;
 }
 
-.sr-breadcrumb__sync {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  background: transparent;
-  border: 1px solid #2a2a4a;
-  border-radius: 4px;
-  color: #666;
-  font-size: 11px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: color 150ms, border-color 150ms;
-}
-.sr-breadcrumb__sync:hover {
-  color: #aaa;
-  border-color: #3a3a6a;
-}
-
 .sr-breadcrumb__version {
-  margin-left: 8px;
+  margin-left: auto;
   font-size: 10px;
   color: #3a3a52;
   user-select: none;
