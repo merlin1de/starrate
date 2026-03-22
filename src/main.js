@@ -27,6 +27,12 @@ function resolveInitialPath() {
   return null
 }
 
+// viewport-fit=cover: ermöglicht env(safe-area-inset-bottom) für Android-Navigationsleiste
+const viewportMeta = document.querySelector('meta[name="viewport"]')
+if (viewportMeta && !viewportMeta.content.includes('viewport-fit')) {
+  viewportMeta.content += ', viewport-fit=cover'
+}
+
 const app = createApp(App)
 app.use(router)
 router.isReady().then(async () => {

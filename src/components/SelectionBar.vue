@@ -102,7 +102,7 @@ function applyColor(colorKey) {
 <style scoped>
 .sr-selbar {
   position: fixed;
-  bottom: 28px;
+  bottom: max(28px, calc(20px + env(safe-area-inset-bottom)));
   left: 50%;
   transform: translateX(-50%);
   display: flex;

@@ -719,7 +719,7 @@ watch(() => props.initialIndex, idx => {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 16px 20px 20px;
+  padding: 16px 20px max(20px, env(safe-area-inset-bottom));
   background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
   display: flex;
   align-items: center;
