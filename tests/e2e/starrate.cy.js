@@ -168,35 +168,63 @@ describe('StarRate E2E', () => {
     })
   })
 
-  // ── 4. Gast-Galerie direkt per Token aufrufen ────────────────────────────
-  // Share-UI (Token erstellen) ist noch nicht implementiert.
-  // Dieser Test setzt einen manuell erstellten Token voraus (NC_SHARE_TOKEN env).
+  // ── 4. Gast-Galerie: Share erstellen, als Gast bewerten, aufräumen ─────────
 
   describe('Gast-Freigabe', () => {
 
-    const shareToken = Cypress.env('NC_SHARE_TOKEN')
+    let createdToken = null
 
-    it('öffnet Gast-Galerie ohne Login und bewertet', () => {
-      if (!shareToken) {
-        cy.log('NC_SHARE_TOKEN nicht gesetzt — Test übersprungen')
-        return
-      }
+    before(() => {
+      // Share via API erstellen (als eingeloggter User)
+      cy.session([NC_USER, NC_PASS], () => {
+        cy.visit(`${NC_URL}/login`)
+        cy.get('#user').clear().type(NC_USER)
+        cy.get('#password').clear().type(NC_PASS)
+        cy.get('[type=submit]').click()
+        cy.url().should('include', '/apps/')
+      })
+      cy.request({
+        method: 'POST',
+        url:    `${NC_URL}/index.php/apps/starrate/api/share`,
+        body:   { nc_path: '/Fotos/E2E-Test', permissions: 'rate', guest_name: 'E2E-Tester' },
+        headers: { 'Content-Type': 'application/json' },
+      }).then(resp => {
+        createdToken = resp.body.share.token
+      })
+    })
 
-      cy.visit(`${NC_URL}/logout`)
-      cy.wait(1000)
+    after(() => {
+      // Share wieder löschen
+      if (!createdToken) return
+      cy.session([NC_USER, NC_PASS], () => {})
+      cy.request({
+        method: 'DELETE',
+        url:    `${NC_URL}/index.php/apps/starrate/api/share/${createdToken}`,
+      })
+    })
 
-      cy.visit(`${APP_URL}/guest/${shareToken}`)
-      cy.get('.sr-guest', { timeout: 10000 }).should('be.visible')
-      cy.get('.sr-guest__item', { timeout: 10000 }).should('have.length.greaterThan', 0)
+    it('öffnet Gast-Galerie ohne Login und zeigt Bilder', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${createdToken}`)
 
-      cy.get('.sr-guest__item').first().find('.sr-stars__star').eq(4).click()
-      cy.get('.sr-guest__toast', { timeout: 5000 }).should('contain', 'Bewertung')
+      // Gallery rendert (echtes StarRate-UI)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+    })
 
-      login()
+    it('Gast kann Bild bewerten (canRate=true)', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${createdToken}`)
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+
+      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(3).click({ force: true })
+      cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
     })
   })
 
-  // ── 6. Multi-User: Benutzer A bewertet, Benutzer B sieht Bewertung ────────
+  // ── 5. Multi-User: Benutzer A bewertet, Benutzer B sieht Bewertung ────────
 
   describe('Multi-User Bewertung', () => {
 
