@@ -58,10 +58,11 @@
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
 
-/* FilterBar in Loupe-Ansicht ausblenden: spart ~3 Zeilen, Bild nutzt Platz */
+/* In Loupe-Ansicht auf Mobile: Nav-Zeile + FilterBar ausblenden */
 @media (pointer: coarse) {
-  #starrate-root .sr-app--loupe .sr-filterbar {
-    display: none;
+  #starrate-root .sr-app--loupe .sr-filterbar,
+  #starrate-root .sr-app--loupe .sr-nav-row {
+    display: none !important;
   }
 }
 

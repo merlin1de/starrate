@@ -1,18 +1,19 @@
 <template>
   <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }">
 
-    <!-- Breadcrumb-Navigation -->
-    <div class="sr-breadcrumb">
-      <button class="sr-breadcrumb__seg" @click="navigateTo('/')">⌂</button>
-      <template v-for="(seg, i) in pathSegments" :key="i">
-        <span class="sr-breadcrumb__sep">/</span>
-        <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
-      </template>
-      <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
-    </div>
+    <!-- Nav-Zeile: Breadcrumb + Unterordner (auf Mobile eine scrollbare Zeile) -->
+    <div class="sr-nav-row">
+      <div class="sr-breadcrumb">
+        <button class="sr-breadcrumb__seg" @click="navigateTo('/')">⌂</button>
+        <template v-for="(seg, i) in pathSegments" :key="i">
+          <span class="sr-breadcrumb__sep">/</span>
+          <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
+        </template>
+        <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
+      </div>
 
-    <!-- Unterordner (Navigation, direkt unter Pfad; in Loupe nicht nötig) -->
-    <div v-if="subFolders.length && mode !== 'loupe'" class="sr-folders">
+      <!-- Unterordner (in Loupe ausgeblendet) -->
+      <div v-if="subFolders.length && mode !== 'loupe'" class="sr-folders">
       <button
         v-for="f in subFolders"
         :key="f.path"
@@ -23,6 +24,7 @@
         <span class="sr-folders__name">{{ f.name }}</span>
       </button>
     </div>
+    </div><!-- /.sr-nav-row -->
 
     <!-- Filterleiste -->
     <FilterBar
@@ -465,6 +467,11 @@ watch(() => route.query, q => {
   transform: translateY(12px);
 }
 
+/* Nav-Zeile: Breadcrumb + SubFolders */
+.sr-nav-row {
+  display: contents; /* Desktop: transparent, Kinder nehmen am sr-app-Flex teil */
+}
+
 /* Breadcrumb: scoped für höhere Spezifizität gegenüber NC-Styles */
 .sr-breadcrumb {
   display: flex;
@@ -486,5 +493,32 @@ watch(() => route.query, q => {
   padding-left: 24px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* ── Mobile: Nav-Zeile als einzelne scrollbare Reihe ─────────────────────── */
+@media (pointer: coarse) {
+  .sr-nav-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+    gap: 0;
+  }
+  .sr-nav-row::-webkit-scrollbar { display: none; }
+
+  .sr-nav-row .sr-breadcrumb {
+    flex-shrink: 0;
+    width: auto;
+    padding: 4px 8px;
+  }
+  .sr-nav-row .sr-folders {
+    flex-shrink: 0;
+    padding: 4px 8px 4px 0;
+    border: none;
+    background: transparent;
+  }
+  .sr-breadcrumb__version { display: none; }
 }
 </style>

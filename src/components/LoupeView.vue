@@ -831,6 +831,17 @@ watch(() => props.initialIndex, idx => {
   display: none;
 }
 
+/* ── Mobile: Stage + Pfeile über Footer-Bereich zentrieren ───────────────── */
+/* Footer auf Mobile: ~150px (padding 16+72 + 2 Zeilen Controls ~44+18+gap6) */
+@media (pointer: coarse) {
+  .sr-loupe__stage {
+    bottom: 150px; /* Stage endet oberhalb des Footers → Bild zentriert sich korrekt */
+  }
+  .sr-loupe__nav {
+    top: calc(50% - 75px); /* 150px/2 Korrektur damit Pfeile in sichtbarer Fläche liegen */
+  }
+}
+
 /* ── Mobile: zweizeiliger Footer + Android-Navigationsleiste ─────────────── */
 @media (pointer: coarse) {
   .sr-loupe__footer {
