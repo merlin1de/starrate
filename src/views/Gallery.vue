@@ -11,17 +11,8 @@
       <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
     </div>
 
-    <!-- Filterleiste -->
-    <FilterBar
-      v-model:filter="activeFilter"
-      :total="allImages.length"
-      :filtered-count="filteredImages.length"
-      :mode="mode"
-      @toggle-mode="toggleMode"
-    />
-
-    <!-- Unterordner -->
-    <div v-if="subFolders.length" class="sr-folders">
+    <!-- Unterordner (Navigation, direkt unter Pfad; in Loupe nicht nötig) -->
+    <div v-if="subFolders.length && mode !== 'loupe'" class="sr-folders">
       <button
         v-for="f in subFolders"
         :key="f.path"
@@ -32,6 +23,15 @@
         <span class="sr-folders__name">{{ f.name }}</span>
       </button>
     </div>
+
+    <!-- Filterleiste -->
+    <FilterBar
+      v-model:filter="activeFilter"
+      :total="allImages.length"
+      :filtered-count="filteredImages.length"
+      :mode="mode"
+      @toggle-mode="toggleMode"
+    />
 
     <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
     <div class="sr-view-wrap">
