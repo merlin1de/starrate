@@ -179,7 +179,7 @@ async function verifyPassword() {
 .sr-guest-pw__brand-link:hover,
 .sr-guest-pw__brand-link:active {
   color: #8a8aa8 !important;
-  text-decoration: underline;
+  text-decoration: underline !important;
 }
 
 .sr-guest-pw__title {
