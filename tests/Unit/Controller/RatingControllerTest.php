@@ -83,7 +83,7 @@ class RatingControllerTest extends TestCase
 
     private function mockJsonBody(array $data): void
     {
-        $this->request->method('getContent')->willReturn(json_encode($data));
+        $this->request->method('getParams')->willReturn($data);
     }
 
     // ─── Tests: GET /api/rating/{fileId} ─────────────────────────────────────

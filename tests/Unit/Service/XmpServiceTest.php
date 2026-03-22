@@ -279,16 +279,13 @@ XMP;
         $written  = null;
         $filename = null;
 
-        $newFile = $this->createMock(File::class);
-        $newFile->expects($this->once())->method('putContent');
-
         $folder = $this->createMock(Folder::class);
         $folder->method('nodeExists')->willReturn(false);
         $folder->method('newFile')
-               ->willReturnCallback(function (string $name, string $content) use ($newFile, &$filename, &$written) {
+               ->willReturnCallback(function (string $name, string $content) use (&$filename, &$written) {
                    $filename = $name;
                    $written  = $content;
-                   return $newFile;
+                   return $this->createMock(File::class);
                });
 
         $this->service->writeSidecar($folder, 'IMG_1234', 3, 'Yellow');
