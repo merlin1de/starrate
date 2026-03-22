@@ -614,15 +614,6 @@ function updateFilter(newFilter) {
   height: 16px;
 }
 
-/* ── Transitions ──────────────────────────────────────────────────────────── */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 200ms;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 
 /* Desktop: Toggle ist in der Nav-Zeile, hier ausblenden */
 @media (pointer: fine) {
