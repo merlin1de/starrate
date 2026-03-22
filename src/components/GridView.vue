@@ -23,8 +23,8 @@
         :class="{
           'sr-grid__item--selected': isSelected(image.id),
           'sr-grid__item--focused':  focusedIndex === index,
-          'sr-grid__item--pick':     image.pick === 'pick',
-          'sr-grid__item--reject':   image.pick === 'reject',
+          'sr-grid__item--pick':     enablePickUi && image.pick === 'pick',
+          'sr-grid__item--reject':   enablePickUi && image.pick === 'reject',
         }"
         :data-index="index"
         @click="onItemClick($event, image, index)"
@@ -43,7 +43,7 @@
           <div v-else class="sr-grid__thumb-placeholder" />
 
           <!-- Reject-Overlay -->
-          <div v-if="image.pick === 'reject'" class="sr-grid__reject-overlay">
+          <div v-if="enablePickUi && image.pick === 'reject'" class="sr-grid__reject-overlay">
             <span>✕</span>
           </div>
 
@@ -136,6 +136,8 @@ const props = defineProps({
   showRatingInfo:    { type: Boolean, default: true },
   /** Farbpunkt in der Info-Leiste anzeigen */
   showColorInfo:     { type: Boolean, default: true },
+  /** Pick/Reject-UI anzeigen */
+  enablePickUi:      { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -378,14 +380,14 @@ function onGlobalKeydown(e) {
 
     // P = Pick, X = Reject
     case 'p': case 'P':
-      if (idx >= 0) {
+      if (props.enablePickUi && idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
         if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       }
       break
     case 'x': case 'X':
-      if (idx >= 0) {
+      if (props.enablePickUi && idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
         if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')

@@ -120,11 +120,18 @@
                 >
                   <span class="sr-share-list__log-name">{{ entry.guest_name }}</span>
                   <span class="sr-share-list__log-rating">
-                    {{ entry.rating !== null ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0)) : '–' }}
+                    {{ entry.rating !== null
+                        ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0))
+                        : (entry.pick && entry.pick !== 'none' ? '' : '–') }}
                   </span>
                   <span v-if="entry.color" class="sr-share-list__log-color" :class="`sr-share-list__log-color--${entry.color.toLowerCase()}`">
                     ●
                   </span>
+                  <span
+                    v-if="entry.pick && entry.pick !== 'none'"
+                    class="sr-share-list__log-pick"
+                    :class="`sr-share-list__log-pick--${entry.pick}`"
+                  >{{ entry.pick === 'pick' ? '✓' : '⊘' }}</span>
                   <span class="sr-share-list__log-file">{{ entry.filename ?? `#${entry.file_id}` }}</span>
                   <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
                 </div>
@@ -519,6 +526,9 @@ defineExpose({ loadShares })
 .sr-share-list__log-color--green  { color: #4caf50; }
 .sr-share-list__log-color--blue   { color: #2196f3; }
 .sr-share-list__log-color--purple { color: #9c27b0; }
+.sr-share-list__log-pick          { font-size: 0.85rem; flex-shrink: 0; }
+.sr-share-list__log-pick--pick    { color: #80c080; }
+.sr-share-list__log-pick--reject  { color: #e94560; }
 .sr-share-list__log-file {
   color: #52525b;
   flex: 1;

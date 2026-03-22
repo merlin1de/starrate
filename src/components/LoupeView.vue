@@ -107,7 +107,7 @@
             @change="(c) => $emit('rate', currentImage, undefined, c)"
           />
         </div>
-        <div class="sr-loupe__footer-right">
+        <div v-if="enablePickUi" class="sr-loupe__footer-right">
           <!-- Pick / Reject Badges -->
           <button
             class="sr-loupe__pick-btn"
@@ -156,6 +156,10 @@ const props = defineProps({
   previewUrlFn: {
     type: Function,
     default: null,
+  },
+  enablePickUi: {
+    type: Boolean,
+    default: false,
   },
 })
 
@@ -504,12 +508,14 @@ function onKeydown(e) {
     }
 
     case 'p': case 'P': {
+      if (!props.enablePickUi) break
       e.preventDefault()
       const img = currentImage.value
       if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       break
     }
     case 'x': case 'X': {
+      if (!props.enablePickUi) break
       e.preventDefault()
       const img = currentImage.value
       if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')

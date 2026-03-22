@@ -77,6 +77,16 @@
       </div>
     </div>
 
+    <div class="sr-settings__group">
+      <h3 class="sr-settings__heading">{{ t('starrate', 'Funktionen') }}</h3>
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.enable_pick_ui" @change="autosave" />
+          {{ t('starrate', 'Pick / Reject aktivieren') }}
+        </label>
+      </div>
+    </div>
+
     <!-- Status -->
     <Transition name="sr-fade">
       <span v-if="status" class="sr-settings__status" :class="`sr-settings__status--${status}`">
@@ -105,6 +115,7 @@ const DEFAULTS = {
   show_rating_overlay:  true,
   show_color_overlay:   true,
   grid_columns:        'auto',
+  enable_pick_ui:       false,
 }
 
 const form   = reactive({ ...DEFAULTS, ...props.initial })
