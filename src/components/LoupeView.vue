@@ -719,7 +719,7 @@ watch(() => props.initialIndex, idx => {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+  padding: 16px 20px 20px;
   background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
   display: flex;
   align-items: center;
@@ -824,4 +824,11 @@ watch(() => props.initialIndex, idx => {
 .fade-leave-active { transition: opacity 200ms; }
 .fade-enter-from,
 .fade-leave-to     { opacity: 0; }
+
+/* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */
+@media (pointer: coarse) {
+  .sr-loupe__footer {
+    padding-bottom: max(72px, env(safe-area-inset-bottom));
+  }
+}
 </style>
