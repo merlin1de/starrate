@@ -390,7 +390,7 @@ async function refreshImageRating(image) {
 
 // ─── Background-Sync: alle 60s stiller Reload wenn Tab sichtbar ───────────────
 
-const SYNC_INTERVAL_MS = 60_000
+const SYNC_INTERVAL_MS = 5 * 60_000  // 5 Minuten
 let syncTimer = null
 
 function startBackgroundSync() {
