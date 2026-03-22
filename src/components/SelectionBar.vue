@@ -108,8 +108,8 @@ function applyColor(colorKey) {
   display: flex;
   align-items: center;
   gap: 0;
-  background: #12122a;
-  border: 1px solid #e9456040;
+  background: #12122a !important;
+  border: 1px solid #e9456040 !important;
   border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(233,69,96,0.15);
   padding: 8px 14px;
@@ -180,25 +180,26 @@ function applyColor(colorKey) {
   min-width: 30px;
   height: 28px;
   padding: 0 6px;
-  border: 1px solid #2a2a4a;
+  border: 1px solid #2a2a4a !important;
   border-radius: 5px;
-  background: transparent;
-  color: #888;
+  background: transparent !important;
+  color: #888 !important;
   font-size: 12px;
   cursor: pointer;
   transition: background 120ms, color 120ms, border-color 120ms;
+  box-shadow: none !important;
 }
 
 .sr-selbar__btn:hover {
-  background: #2a2a4a;
-  color: #ddd;
-  border-color: #3a3a5a;
+  background: #2a2a4a !important;
+  color: #ddd !important;
+  border-color: #3a3a5a !important;
 }
 
 .sr-selbar__btn--active {
-  background: #e94560;
-  border-color: #e94560;
-  color: #fff;
+  background: #e94560 !important;
+  border-color: #e94560 !important;
+  color: #fff !important;
 }
 
 .sr-selbar__btn--star {
@@ -227,9 +228,9 @@ function applyColor(colorKey) {
 }
 
 .sr-selbar__btn--color.sr-selbar__btn--active {
-  background: transparent;
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--dot-color, #888);
+  background: transparent !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 0 2px var(--dot-color, #888) !important;
 }
 
 /* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */

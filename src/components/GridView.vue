@@ -52,23 +52,6 @@
             <svg viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
 
-          <!-- Hover-Overlay: Steuerelemente -->
-          <div class="sr-grid__hover-overlay">
-            <RatingStars
-              :model-value="image.rating"
-              :interactive="true"
-              :compact="true"
-              @change="(r) => $emit('rate', image, r, undefined)"
-              @click.stop
-            />
-            <ColorLabel
-              :model-value="image.color"
-              :interactive="true"
-              :compact="false"
-              @change="(c) => $emit('rate', image, undefined, c)"
-              @click.stop
-            />
-          </div>
         </div>
 
         <!-- Info-Leiste unten -->
@@ -525,12 +508,12 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 }
 
 .sr-grid__item--selected {
-  border-color: #e94560 !important;
-  box-shadow: 0 0 0 1px #e94560;
+  border-color: #4a90d9 !important;
+  box-shadow: 0 0 0 1px #4a90d9;
 }
 
 .sr-grid__item--focused {
-  box-shadow: 0 0 0 2px #e94560aa;
+  box-shadow: 0 0 0 2px #4a90d9aa;
 }
 
 .sr-grid__item--reject {
@@ -593,7 +576,7 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   left: 6px;
   width: 22px;
   height: 22px;
-  background: #e94560;
+  background: #4a90d9;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -607,27 +590,6 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   height: 14px;
 }
 
-.sr-grid__hover-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 8px 8px 6px;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 150ms ease, transform 150ms ease;
-  pointer-events: none;
-}
-
-.sr-grid__item:hover .sr-grid__hover-overlay {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
 
 /* ── Info-Leiste ─────────────────────────────────────────────────────────── */
 .sr-grid__info {
