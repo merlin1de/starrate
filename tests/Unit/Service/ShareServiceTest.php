@@ -229,11 +229,12 @@ class ShareServiceTest extends TestCase
         $this->config->method('setUserValue')
             ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
 
-        $result = $this->service->saveGuestRating($share, 42, 4, 'Green', 'Anna');
+        $result = $this->service->saveGuestRating($share, 42, 4, 'Green', null, 'Anna');
 
         $this->assertSame(42,      $result['file_id']);
         $this->assertSame(4,       $result['rating']);
         $this->assertSame('Green', $result['color']);
+        $this->assertNull($result['pick']);
         $this->assertSame('Anna',  $result['guest_name']);
         $this->assertGreaterThan(0, $result['timestamp']);
 
@@ -242,17 +243,48 @@ class ShareServiceTest extends TestCase
         $this->assertSame('Anna', $saved['42'][0]['guest_name']);
     }
 
+    public function testSaveGuestRatingPersistsPickField(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $result = $this->service->saveGuestRating($share, 99, null, null, 'pick', 'Bob');
+
+        $this->assertSame('pick', $result['pick']);
+        $this->assertNull($result['rating']);
+        $this->assertSame('pick', $saved['99'][0]['pick']);
+    }
+
+    public function testSaveGuestRatingRejectPersisted(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $result = $this->service->saveGuestRating($share, 7, null, null, 'reject', 'Anna');
+
+        $this->assertSame('reject', $result['pick']);
+        $this->assertSame('reject', $saved['7'][0]['pick']);
+    }
+
     public function testSaveGuestRatingOverwritesExistingGuestEntry(): void
     {
         $share    = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
-        $existing = ['42' => [['file_id' => 42, 'rating' => 2, 'color' => null, 'guest_name' => 'Anna', 'timestamp' => 100]]];
+        $existing = ['42' => [['file_id' => 42, 'rating' => 2, 'color' => null, 'pick' => null, 'guest_name' => 'Anna', 'timestamp' => 100]]];
 
         $saved = null;
         $this->config->method('getUserValue')->willReturn(json_encode($existing));
         $this->config->method('setUserValue')
             ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
 
-        $this->service->saveGuestRating($share, 42, 5, 'Red', 'Anna');
+        $this->service->saveGuestRating($share, 42, 5, 'Red', null, 'Anna');
 
         // Nur ein Eintrag für Anna, jetzt mit Rating 5
         $this->assertCount(1, $saved['42']);
@@ -263,14 +295,14 @@ class ShareServiceTest extends TestCase
     public function testSaveGuestRatingMultipleGuestsDontOverwrite(): void
     {
         $share    = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
-        $existing = ['42' => [['file_id' => 42, 'rating' => 3, 'color' => null, 'guest_name' => 'Anna', 'timestamp' => 100]]];
+        $existing = ['42' => [['file_id' => 42, 'rating' => 3, 'color' => null, 'pick' => null, 'guest_name' => 'Anna', 'timestamp' => 100]]];
 
         $saved = null;
         $this->config->method('getUserValue')->willReturn(json_encode($existing));
         $this->config->method('setUserValue')
             ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
 
-        $this->service->saveGuestRating($share, 42, 5, 'Blue', 'Bob');
+        $this->service->saveGuestRating($share, 42, 5, 'Blue', null, 'Bob');
 
         // Zwei Einträge: Anna (3) und Bob (5)
         $this->assertCount(2, $saved['42']);
@@ -282,7 +314,7 @@ class ShareServiceTest extends TestCase
         $this->config->method('getUserValue')->willReturn('{}');
         $this->config->method('setUserValue');
 
-        $result = $this->service->saveGuestRating($share, 1, 3, null, '');
+        $result = $this->service->saveGuestRating($share, 1, 3, null, null, '');
         $this->assertSame('Gast', $result['guest_name']);
     }
 
