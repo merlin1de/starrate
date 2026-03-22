@@ -110,6 +110,11 @@ return [
             'verb' => 'GET',
         ],
         [
+            'name' => 'share#guestPreview',
+            'url'  => '/api/guest/{token}/preview/{fileId}',
+            'verb' => 'GET',
+        ],
+        [
             'name' => 'share#guestRate',
             'url'  => '/api/guest/{token}/rate',
             'verb' => 'POST',

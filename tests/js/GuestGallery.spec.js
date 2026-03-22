@@ -1,239 +1,243 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { defineComponent, ref } from 'vue'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import { defineComponent } from 'vue'
 import axios from '@nextcloud/axios'
+import GuestGallery from '../../src/views/GuestGallery.vue'
 
-// ── Minimal GuestGallery-Komponente für Tests ─────────────────────────────
-// (Die echte GuestGallery.vue wird in Schritt 10 mit dem Build erstellt)
-// Diese Tests testen das erwartete Verhalten anhand eines Mock-Komponenten.
-
-const GuestGalleryStub = defineComponent({
-  name: 'GuestGallery',
+// Gallery stub — verhindert Mount der kompletten Gallery-Komponente
+const GalleryStub = defineComponent({
+  name: 'Gallery',
   props: {
-    token:      { type: String, required: true },
-    canRate:    { type: Boolean, default: false },
-    minRating:  { type: Number, default: 0 },
+    guestMode:      { type: Boolean, default: false },
+    guestLabel:     { type: String,  default: '' },
+    loadImagesFn:   { type: Function, default: null },
+    rateFn:         { type: Function, default: null },
+    batchRateFn:    { type: Function, default: null },
+    thumbnailUrlFn: { type: Function, default: null },
+    previewUrlFn:   { type: Function, default: null },
   },
-  setup(props) {
-    const images       = ref([])
-    const loading      = ref(false)
-    const passwordDlg  = ref(false)
-    const password     = ref('')
-    const passwordErr  = ref('')
-    const authenticated = ref(false)
-    const toasts        = ref([])
-
-    async function loadImages() {
-      loading.value = true
-      try {
-        const { data } = await axios.get(`/apps/starrate/api/guest/${props.token}/images`)
-        images.value = data.images ?? []
-      } catch (e) {
-        if (e?.response?.status === 401) {
-          passwordDlg.value = true
-        }
-      } finally {
-        loading.value = false
-      }
-    }
-
-    async function verifyPassword() {
-      try {
-        await axios.post(`/apps/starrate/api/guest/${props.token}/verify`, { password: password.value })
-        authenticated.value = true
-        passwordDlg.value   = false
-        passwordErr.value   = ''
-        await loadImages()
-      } catch {
-        passwordErr.value = 'Falsches Passwort'
-      }
-    }
-
-    async function rateImage(fileId, rating, color) {
-      await axios.post(`/apps/starrate/api/guest/${props.token}/rate`, {
-        file_id: fileId, rating, color, guest_name: 'Testgast',
-      })
-      toasts.value.push('Bewertung gespeichert')
-    }
-
-    loadImages()
-
-    return { images, loading, passwordDlg, password, passwordErr, authenticated, toasts, verifyPassword, rateImage }
-  },
-  template: `
-    <div class="sr-guest">
-      <div v-if="passwordDlg" class="sr-guest__password-dialog">
-        <input v-model="password" class="sr-guest__password-input" type="password" placeholder="Passwort" />
-        <button class="sr-guest__password-submit" @click="verifyPassword">OK</button>
-        <span v-if="passwordErr" class="sr-guest__password-error">{{ passwordErr }}</span>
-      </div>
-      <div v-if="loading" class="sr-guest__loading">Lädt…</div>
-      <div v-else class="sr-guest__gallery">
-        <div
-          v-for="img in images"
-          :key="img.id"
-          class="sr-guest__item"
-          :data-id="img.id"
-        >
-          <span class="sr-guest__name">{{ img.name }}</span>
-          <div v-if="canRate" class="sr-guest__rate-controls">
-            <button
-              v-for="star in 5"
-              :key="star"
-              class="sr-guest__star"
-              @click="rateImage(img.id, star, null)"
-            >{{ star }}</button>
-          </div>
-        </div>
-      </div>
-      <div class="sr-guest__toasts">
-        <div v-for="(msg, i) in toasts" :key="i" class="sr-guest__toast">{{ msg }}</div>
-      </div>
-    </div>
-  `,
+  template: '<div class="gallery-stub" />',
 })
 
-describe('GuestGallery', () => {
-  const TOKEN = 'TestToken123'
+function makeRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: {} },
+      { path: '/folder/:path(.*)', component: {} },
+    ],
+  })
+}
 
+function factory(props = {}) {
+  return mount(GuestGallery, {
+    props: { token: 'tok123', canRate: false, guestName: 'Testgast', ...props },
+    global: {
+      plugins: [makeRouter()],
+      stubs: { Gallery: GalleryStub },
+    },
+  })
+}
+
+// ── Hilfsfunktion: Gallery-Stub-Props auslesen ─────────────────────────────────
+function galleryProps(w) {
+  return w.findComponent(GalleryStub).props()
+}
+
+describe('GuestGallery', () => {
   beforeEach(() => {
     vi.resetAllMocks()
   })
 
-  // ── Rendering ohne Passwortschutz ─────────────────────────────────────────
+  // ── Initiales Rendering ──────────────────────────────────────────────────────
 
-  it('lädt Bilder beim Mount', async () => {
-    axios.get.mockResolvedValue({
-      data: { images: [
-        { id: 1, name: 'IMG_0001.jpg' },
-        { id: 2, name: 'IMG_0002.jpg' },
-      ]},
-    })
-
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: false } })
-    await flushPromises()
-
-    expect(axios.get).toHaveBeenCalledWith(expect.stringContaining(`/guest/${TOKEN}/images`))
-    expect(w.findAll('.sr-guest__item')).toHaveLength(2)
+  it('rendert Gallery (kein Passwort-Dialog) beim ersten Mount', () => {
+    const w = factory()
+    expect(w.find('.gallery-stub').exists()).toBe(true)
+    expect(w.find('.sr-guest-pw__overlay').exists()).toBe(false)
   })
 
-  it('zeigt Dateinamen der Bilder', async () => {
-    axios.get.mockResolvedValue({
-      data: { images: [{ id: 1, name: 'Foto_001.jpg' }] },
-    })
-
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: false } })
-    await flushPromises()
-
-    expect(w.find('.sr-guest__name').text()).toBe('Foto_001.jpg')
+  it('übergibt guestMode=true und guestLabel an Gallery', () => {
+    const w = factory({ guestName: 'Max' })
+    const p = galleryProps(w)
+    expect(p.guestMode).toBe(true)
+    expect(p.guestLabel).toBe('Max')
   })
 
-  it('zeigt keine Bewertungs-Controls wenn canRate=false', async () => {
-    axios.get.mockResolvedValue({ data: { images: [{ id: 1, name: 'test.jpg' }] } })
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: false } })
-    await flushPromises()
-    expect(w.find('.sr-guest__rate-controls').exists()).toBe(false)
+  it('übergibt alle Callback-Props an Gallery', () => {
+    const w = factory()
+    const p = galleryProps(w)
+    expect(typeof p.loadImagesFn).toBe('function')
+    expect(typeof p.rateFn).toBe('function')
+    expect(typeof p.batchRateFn).toBe('function')
+    expect(typeof p.thumbnailUrlFn).toBe('function')
+    expect(typeof p.previewUrlFn).toBe('function')
   })
 
-  it('zeigt Bewertungs-Controls wenn canRate=true', async () => {
-    axios.get.mockResolvedValue({ data: { images: [{ id: 1, name: 'test.jpg' }] } })
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: true } })
-    await flushPromises()
-    expect(w.find('.sr-guest__rate-controls').exists()).toBe(true)
-    expect(w.findAll('.sr-guest__star')).toHaveLength(5)
-  })
+  // ── loadImagesFn ─────────────────────────────────────────────────────────────
 
-  // ── Bewertung als Gast setzen ─────────────────────────────────────────────
+  it('loadImagesFn ruft korrekte API-URL auf', async () => {
+    axios.get.mockResolvedValue({ data: { images: [], folders: [] } })
+    const w = factory()
+    const { loadImagesFn } = galleryProps(w)
 
-  it('Klick auf Stern sendet Bewertungs-Request', async () => {
-    axios.get.mockResolvedValue({ data: { images: [{ id: 42, name: 'test.jpg' }] } })
-    axios.post.mockResolvedValue({ data: { file_id: 42, rating: 3, guest_name: 'Testgast' } })
-
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: true } })
-    await flushPromises()
-
-    await w.findAll('.sr-guest__star')[2].trigger('click') // Stern 3
-    await flushPromises()
-
-    expect(axios.post).toHaveBeenCalledWith(
-      expect.stringContaining(`/guest/${TOKEN}/rate`),
-      expect.objectContaining({ file_id: 42, rating: 3 })
+    await loadImagesFn('/Fotos')
+    expect(axios.get).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/images'),
+      expect.objectContaining({ params: { path: '/Fotos' } })
     )
   })
 
-  it('zeigt Toast nach Bewertung', async () => {
-    axios.get.mockResolvedValue({ data: { images: [{ id: 1, name: 'test.jpg' }] } })
+  it('loadImagesFn zeigt Passwort-Dialog bei 401', async () => {
+    axios.get.mockRejectedValue({ response: { status: 401 } })
+    const w = factory()
+    const { loadImagesFn } = galleryProps(w)
+
+    await expect(loadImagesFn('/')).rejects.toBeDefined()
+    await flushPromises()
+    expect(w.find('.sr-guest-pw__overlay').exists()).toBe(true)
+    expect(w.find('.gallery-stub').exists()).toBe(false)
+  })
+
+  it('loadImagesFn gibt Daten zurück bei Erfolg', async () => {
+    const data = { images: [{ id: 1, name: 'foto.jpg' }], folders: [] }
+    axios.get.mockResolvedValue({ data })
+    const w = factory()
+    const { loadImagesFn } = galleryProps(w)
+
+    const result = await loadImagesFn('/')
+    expect(result).toEqual(data)
+  })
+
+  // ── Passwort-Dialog ──────────────────────────────────────────────────────────
+
+  it('verifyPassword sendet Passwort an korrekten Endpunkt', async () => {
+    // 401 triggert Dialog
+    axios.get.mockRejectedValue({ response: { status: 401 } })
     axios.post.mockResolvedValue({ data: {} })
 
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: true } })
-    await flushPromises()
-    await w.findAll('.sr-guest__star')[4].trigger('click')
-    await flushPromises()
-
-    expect(w.find('.sr-guest__toast').text()).toContain('Bewertung')
-  })
-
-  // ── Passwortschutz ────────────────────────────────────────────────────────
-
-  it('zeigt Passwort-Dialog wenn Server 401 zurückgibt', async () => {
-    const error = { response: { status: 401 } }
-    axios.get.mockRejectedValue(error)
-
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: false } })
+    const w = factory()
+    await expect(galleryProps(w).loadImagesFn('/')).rejects.toBeDefined()
     await flushPromises()
 
-    expect(w.find('.sr-guest__password-dialog').exists()).toBe(true)
-  })
-
-  it('sendet Passwort beim Klick auf OK', async () => {
-    const error = { response: { status: 401 } }
-    axios.get.mockRejectedValueOnce(error)
-    axios.get.mockResolvedValue({ data: { images: [] } }) // nach Verify
-    axios.post.mockResolvedValue({ data: { ok: true } })
-
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN, canRate: false } })
-    await flushPromises()
-
-    await w.find('.sr-guest__password-input').setValue('geheim')
-    await w.find('.sr-guest__password-submit').trigger('click')
+    await w.find('.sr-guest-pw__input').setValue('geheim')
+    await w.find('.sr-guest-pw__btn').trigger('click')
     await flushPromises()
 
     expect(axios.post).toHaveBeenCalledWith(
-      expect.stringContaining(`/guest/${TOKEN}/verify`),
+      expect.stringContaining('/guest/tok123/verify'),
       { password: 'geheim' }
     )
   })
 
-  it('zeigt Fehler bei falschem Passwort', async () => {
-    const error401 = { response: { status: 401 } }
-    axios.get.mockRejectedValue(error401)
-    axios.post.mockRejectedValue(new Error('Falsches Passwort'))
+  it('schließt Passwort-Dialog nach korrektem Passwort', async () => {
+    axios.get.mockRejectedValue({ response: { status: 401 } })
+    axios.post.mockResolvedValue({ data: {} })
 
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN } })
+    const w = factory()
+    await expect(galleryProps(w).loadImagesFn('/')).rejects.toBeDefined()
     await flushPromises()
 
-    await w.find('.sr-guest__password-input').setValue('falsch')
-    await w.find('.sr-guest__password-submit').trigger('click')
+    await w.find('.sr-guest-pw__input').setValue('richtig')
+    await w.find('.sr-guest-pw__btn').trigger('click')
     await flushPromises()
 
-    expect(w.find('.sr-guest__password-error').text()).toBeTruthy()
+    expect(w.find('.sr-guest-pw__overlay').exists()).toBe(false)
+    expect(w.find('.gallery-stub').exists()).toBe(true)
   })
 
-  it('lädt Galerie nach korrektem Passwort', async () => {
-    const error401 = { response: { status: 401 } }
-    axios.get
-      .mockRejectedValueOnce(error401)
-      .mockResolvedValue({ data: { images: [{ id: 1, name: 'foto.jpg' }] } })
-    axios.post.mockResolvedValue({ data: { ok: true } })
+  it('zeigt Fehlermeldung bei falschem Passwort', async () => {
+    axios.get.mockRejectedValue({ response: { status: 401 } })
+    axios.post.mockRejectedValue(new Error('Forbidden'))
 
-    const w = mount(GuestGalleryStub, { props: { token: TOKEN } })
+    const w = factory()
+    await expect(galleryProps(w).loadImagesFn('/')).rejects.toBeDefined()
     await flushPromises()
 
-    await w.find('.sr-guest__password-input').setValue('richtig')
-    await w.find('.sr-guest__password-submit').trigger('click')
+    await w.find('.sr-guest-pw__input').setValue('falsch')
+    await w.find('.sr-guest-pw__btn').trigger('click')
     await flushPromises()
 
-    expect(w.findAll('.sr-guest__item')).toHaveLength(1)
-    expect(w.find('.sr-guest__password-dialog').exists()).toBe(false)
+    expect(w.find('.sr-guest-pw__error').text()).toBeTruthy()
+    expect(w.find('.sr-guest-pw__overlay').exists()).toBe(true)
+  })
+
+  it('Bestätigen-Button ist disabled solange Eingabe leer', async () => {
+    axios.get.mockRejectedValue({ response: { status: 401 } })
+    const w = factory()
+    await expect(galleryProps(w).loadImagesFn('/')).rejects.toBeDefined()
+    await flushPromises()
+
+    expect(w.find('.sr-guest-pw__btn').attributes('disabled')).toBeDefined()
+  })
+
+  // ── rateFn ───────────────────────────────────────────────────────────────────
+
+  it('rateFn sendet Request wenn canRate=true', async () => {
+    axios.post.mockResolvedValue({ data: {} })
+    const w = factory({ canRate: true })
+    const { rateFn } = galleryProps(w)
+
+    await rateFn(99, { rating: 4 })
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/rate'),
+      expect.objectContaining({ file_id: 99, rating: 4, guest_name: 'Testgast' })
+    )
+  })
+
+  it('rateFn sendet keinen Request wenn canRate=false', async () => {
+    const w = factory({ canRate: false })
+    const { rateFn } = galleryProps(w)
+
+    await rateFn(99, { rating: 4 })
+    expect(axios.post).not.toHaveBeenCalled()
+  })
+
+  // ── batchRateFn ──────────────────────────────────────────────────────────────
+
+  it('batchRateFn sendet Request für jede ID', async () => {
+    axios.post.mockResolvedValue({ data: {} })
+    const w = factory({ canRate: true })
+    const { batchRateFn } = galleryProps(w)
+
+    await batchRateFn([1, 2, 3], { rating: 5 })
+    expect(axios.post).toHaveBeenCalledTimes(3)
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/rate'),
+      expect.objectContaining({ file_id: 1, rating: 5 })
+    )
+  })
+
+  it('batchRateFn sendet keinen Request wenn canRate=false', async () => {
+    const w = factory({ canRate: false })
+    const { batchRateFn } = galleryProps(w)
+
+    await batchRateFn([1, 2, 3], { rating: 5 })
+    expect(axios.post).not.toHaveBeenCalled()
+  })
+
+  // ── URL-Funktionen ────────────────────────────────────────────────────────────
+
+  it('thumbnailUrlFn gibt korrekte URL zurück', () => {
+    const w = factory()
+    const { thumbnailUrlFn } = galleryProps(w)
+
+    const url = thumbnailUrlFn(42, 320)
+    expect(url).toContain('/guest/tok123/thumbnail/42')
+    expect(url).toContain('width=320')
+    expect(url).toContain('height=320')
+  })
+
+  it('thumbnailUrlFn verwendet 280px als Standard-Größe', () => {
+    const w = factory()
+    const url = galleryProps(w).thumbnailUrlFn(7)
+    expect(url).toContain('width=280')
+  })
+
+  it('previewUrlFn gibt korrekte URL zurück', () => {
+    const w = factory()
+    const url = galleryProps(w).previewUrlFn(55)
+    expect(url).toContain('/guest/tok123/preview/55')
   })
 })
