@@ -34,14 +34,16 @@
       </svg>
     </button>
 
-    <!-- Löschen-Button (nur wenn Bewertung > 0 und interaktiv) -->
+    <!-- Löschen-Button (immer gerendert um Layout-Shift zu vermeiden, wie ColorLabel) -->
     <button
-      v-if="interactive && modelValue > 0"
+      v-if="interactive"
       class="sr-stars__clear"
+      :class="{ 'sr-stars__clear--hidden': modelValue === 0 }"
       type="button"
+      :tabindex="modelValue > 0 ? 0 : -1"
       :aria-label="t('starrate', 'Bewertung entfernen')"
       :title="t('starrate', 'Bewertung entfernen')"
-      @click="setRating(0)"
+      @click="modelValue > 0 && setRating(0)"
     >
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -191,6 +193,11 @@ defineExpose({ setRating })
 .sr-stars:hover .sr-stars__clear,
 .sr-stars:focus-within .sr-stars__clear {
   opacity: 1;
+}
+
+.sr-stars__clear--hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .sr-stars__clear:hover {

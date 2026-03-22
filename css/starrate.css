@@ -56,6 +56,15 @@
   overflow: hidden;
 }
 
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+
+/* FilterBar in Loupe-Ansicht ausblenden: spart ~3 Zeilen, Bild nutzt Platz */
+@media (pointer: coarse) {
+  #starrate-root .sr-app--loupe .sr-filterbar {
+    display: none;
+  }
+}
+
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 
 #starrate-root ::-webkit-scrollbar {
