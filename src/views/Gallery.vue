@@ -388,6 +388,22 @@ async function refreshImageRating(image) {
   }
 }
 
+// ─── Background-Sync: alle 60s stiller Reload wenn Tab sichtbar ───────────────
+
+const SYNC_INTERVAL_MS = 60_000
+let syncTimer = null
+
+function startBackgroundSync() {
+  syncTimer = setInterval(() => {
+    if (!document.hidden && !loading.value) loadImages()
+  }, SYNC_INTERVAL_MS)
+}
+
+function stopBackgroundSync() {
+  clearInterval(syncTimer)
+  syncTimer = null
+}
+
 // ─── Visibility-Refresh: Tab kommt in Vordergrund → Ordner neu laden ──────────
 
 function onVisibilityChange() {
@@ -397,6 +413,7 @@ function onVisibilityChange() {
 onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  startBackgroundSync()
 
   // Settings laden, dann erst Bilder (damit sort/order korrekt ist)
   await loadSettings()
@@ -420,6 +437,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKeydown)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  stopBackgroundSync()
 })
 
 // Filter in localStorage + URL persistieren
