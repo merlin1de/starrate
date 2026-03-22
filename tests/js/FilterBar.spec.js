@@ -136,18 +136,34 @@ describe('FilterBar', () => {
 
   // ── Pick/Reject-Filter ────────────────────────────────────────────────────
 
-  it('aktiviert Pick-Filter', async () => {
+  it('Pick/Reject-Buttons nicht sichtbar wenn enablePickUi=false (default)', () => {
     const w = factory()
-    const pickBtn = w.findAll('.sr-filterbar__group')[2].find('button:first-child')
-    await pickBtn.trigger('click')
+    expect(w.find('.sr-filterbar__pill--pick').exists()).toBe(false)
+    expect(w.find('.sr-filterbar__pill--reject').exists()).toBe(false)
+  })
+
+  it('Pick/Reject-Buttons sichtbar wenn enablePickUi=true', () => {
+    const w = factory({ enablePickUi: true })
+    expect(w.find('.sr-filterbar__pill--pick').exists()).toBe(true)
+    expect(w.find('.sr-filterbar__pill--reject').exists()).toBe(true)
+  })
+
+  it('aktiviert Pick-Filter', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-filterbar__pill--pick').trigger('click')
     expect(w.emitted('update:filter')[0][0].pick).toBe('pick')
   })
 
   it('deaktiviert Pick-Filter bei nochmaligem Klick', async () => {
-    const w = factory({ filter: { ...defaultFilter(), pick: 'pick' } })
-    const pickBtn = w.findAll('.sr-filterbar__group')[2].find('button:first-child')
-    await pickBtn.trigger('click')
+    const w = factory({ filter: { ...defaultFilter(), pick: 'pick' }, enablePickUi: true })
+    await w.find('.sr-filterbar__pill--pick').trigger('click')
     expect(w.emitted('update:filter')[0][0].pick).toBeNull()
+  })
+
+  it('aktiviert Reject-Filter', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-filterbar__pill--reject').trigger('click')
+    expect(w.emitted('update:filter')[0][0].pick).toBe('reject')
   })
 
   // ── Reset ─────────────────────────────────────────────────────────────────
