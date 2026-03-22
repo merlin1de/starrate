@@ -241,16 +241,66 @@ describe('GridView', () => {
     expect(w.findAll('.sr-grid__item')[1].classes()).not.toContain('sr-grid__item--selected')
   })
 
-  // ── Rate-Event von Hover-Overlay ──────────────────────────────────────────
+  // ── Pick / Reject ─────────────────────────────────────────────────────────
 
-  it('emittiert rate wenn RatingStars im Hover-Overlay geändert wird', async () => {
+  it('Reject-Overlay nicht sichtbar wenn enablePickUi=false (default)', () => {
+    const images = makeImages()
+    images[0].pick = 'reject'
+    const w = factory({ images })
+    expect(w.find('.sr-grid__reject-overlay').exists()).toBe(false)
+  })
+
+  it('Reject-Overlay sichtbar wenn enablePickUi=true und pick=reject', () => {
+    const images = makeImages()
+    images[0].pick = 'reject'
+    const w = factory({ images, enablePickUi: true })
+    expect(w.find('.sr-grid__reject-overlay').exists()).toBe(true)
+  })
+
+  it('sr-grid__item--reject CSS-Klasse nur wenn enablePickUi=true', () => {
+    const images = makeImages()
+    images[0].pick = 'reject'
+    const wOff = factory({ images })
+    expect(wOff.findAll('.sr-grid__item')[0].classes()).not.toContain('sr-grid__item--reject')
+    const wOn  = factory({ images, enablePickUi: true })
+    expect(wOn.findAll('.sr-grid__item')[0].classes()).toContain('sr-grid__item--reject')
+  })
+
+  it('sr-grid__item--pick CSS-Klasse nur wenn enablePickUi=true', () => {
+    const images = makeImages()
+    images[0].pick = 'pick'
+    const wOff = factory({ images })
+    expect(wOff.findAll('.sr-grid__item')[0].classes()).not.toContain('sr-grid__item--pick')
+    const wOn  = factory({ images, enablePickUi: true })
+    expect(wOn.findAll('.sr-grid__item')[0].classes()).toContain('sr-grid__item--pick')
+  })
+
+  it('P-Taste ohne enablePickUi emittiert kein rate', async () => {
     const w = factory()
-    // RatingStars-Komponente im Hover-Overlay direkt triggern
-    const ratingStars = w.findAll('.sr-grid__hover-overlay .sr-stars')[0]
-    await ratingStars.trigger('change', 3)
-    // Das Event wird via @change weitergeleitet
-    // (Smoke-Test — Event-Propagation ist intern)
-    expect(w.find('.sr-grid__hover-overlay').exists()).toBe(true)
+    await w.findAll('.sr-grid__item')[0].trigger('click')
+    await w.trigger('keydown', { key: 'p' })
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('P-Taste mit enablePickUi emittiert rate mit pick=pick', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.findAll('.sr-grid__item')[0].trigger('click')
+    await w.trigger('keydown', { key: 'p' })
+    expect(w.emitted('rate')?.[0][3]).toBe('pick')
+  })
+
+  it('X-Taste ohne enablePickUi emittiert kein rate', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click')
+    await w.trigger('keydown', { key: 'x' })
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('X-Taste mit enablePickUi emittiert rate mit pick=reject', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.findAll('.sr-grid__item')[0].trigger('click')
+    await w.trigger('keydown', { key: 'x' })
+    expect(w.emitted('rate')?.[0][3]).toBe('reject')
   })
 
   // ── Expose ────────────────────────────────────────────────────────────────
