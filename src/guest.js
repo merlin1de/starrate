@@ -8,7 +8,7 @@
 import { createApp } from 'vue'
 import GuestGallery from './views/GuestGallery.vue'
 
-const el = document.getElementById('sr-guest-app')
+const el = document.getElementById('starrate-guest-root')
 
 if (el) {
   const token     = el.dataset.token     ?? ''
