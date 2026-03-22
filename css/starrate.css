@@ -47,9 +47,13 @@
 
 #starrate-root {
   width: 100%;
-  height: 100%;
+  /* NC-Header ist 50px (hardcoded in NC31). height:100% greift nicht weil
+     #app-content keine gebundene Höhe hat (flex-basis:100vw, kein height).
+     vh statt dvh – dvh ist in älteren Chromium-Versionen nicht verfügbar. */
+  height: calc(100vh - 50px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */

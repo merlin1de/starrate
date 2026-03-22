@@ -33,34 +33,36 @@
       </button>
     </div>
 
-    <!-- Rasteransicht -->
-    <GridView
-      v-if="mode === 'grid'"
-      ref="gridRef"
-      :images="filteredImages"
-      :loading="loading"
-      :has-active-filter="hasActiveFilter"
-      :current-index="currentIndex"
-      :thumbnail-size="settings.thumbnail_size"
-      :grid-columns="settings.grid_columns"
-      :show-filename="settings.show_filename"
-      :show-rating-info="settings.show_rating_overlay"
-      :show-color-info="settings.show_color_overlay"
-      @rate="onRate"
-      @open-loupe="openLoupe"
-      @selection-change="onSelectionChange"
-      @clear-filter="resetFilter"
-    />
+    <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
+    <div class="sr-view-wrap">
+      <GridView
+        v-if="mode === 'grid'"
+        ref="gridRef"
+        :images="filteredImages"
+        :loading="loading"
+        :has-active-filter="hasActiveFilter"
+        :current-index="currentIndex"
+        :thumbnail-size="settings.thumbnail_size"
+        :grid-columns="settings.grid_columns"
+        :show-filename="settings.show_filename"
+        :show-rating-info="settings.show_rating_overlay"
+        :show-color-info="settings.show_color_overlay"
+        @rate="onRate"
+        @open-loupe="openLoupe"
+        @selection-change="onSelectionChange"
+        @clear-filter="resetFilter"
+      />
 
-    <!-- Lupenansicht -->
-    <LoupeView
-      v-else
-      :images="filteredImages"
-      :initial-index="currentIndex"
-      @rate="onRate"
-      @close="mode = 'grid'"
-      @index-change="currentIndex = $event"
-    />
+      <!-- Lupenansicht -->
+      <LoupeView
+        v-else
+        :images="filteredImages"
+        :initial-index="currentIndex"
+        @rate="onRate"
+        @close="mode = 'grid'"
+        @index-change="currentIndex = $event"
+      />
+    </div>
 
     <!-- Stapel-Bewertungsleiste -->
     <SelectionBar
@@ -412,7 +414,8 @@ watch(() => route.query, q => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  flex: 1;        /* height:100% ist in Flex-Kontext unzuverlässig → flex:1 */
+  min-height: 0;  /* erlaubt Flex-Kind zu schrumpfen und intern zu scrollen */
   background: #1a1a2e;
   color: #e0e0e0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -467,6 +470,11 @@ watch(() => route.query, q => {
   display: flex;
   align-items: center;
   width: 100%;
+}
+
+.sr-view-wrap {
+  flex: 1;
+  min-height: 0;
 }
 
 .sr-breadcrumb__version {
