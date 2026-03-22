@@ -340,6 +340,7 @@ class ShareService
         int     $fileId,
         ?int    $rating,
         ?string $color,
+        ?string $pick,
         string  $guestName,
     ): array {
         $token     = $share['token'];
@@ -353,6 +354,9 @@ class ShareService
         }
         if ($color !== null) {
             $metadata['color'] = $color;
+        }
+        if ($pick !== null) {
+            $metadata['pick'] = $pick;
         }
         if (!empty($metadata)) {
             $this->tagService->setMetadata($fileIdStr, $metadata);
@@ -375,6 +379,7 @@ class ShareService
             'filename'   => $filename,
             'rating'     => $rating,
             'color'      => $color,
+            'pick'       => $pick,
             'guest_name' => $guestName ?: 'Gast',
             'timestamp'  => time(),
         ];
@@ -388,9 +393,14 @@ class ShareService
         $log[] = $entry;
         $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($log));
 
+        $parts = [];
+        if ($rating !== null)  $parts[] = "Rating {$rating}";
+        if ($color  !== null)  $parts[] = "Farbe {$color}";
+        if ($pick   !== null)  $parts[] = "Pick {$pick}";
+        $action = $parts ? implode(', ', $parts) : 'keine Änderung';
+
         $this->logger->info(
-            "StarRate: Gast '{$entry['guest_name']}' hat Datei {$fileId} mit "
-            . "Rating " . ($rating ?? 'null') . " bewertet (Share {$token})."
+            "StarRate: Gast '{$entry['guest_name']}' hat Datei {$fileId} gesetzt: {$action} (Share {$token})."
         );
 
         return $entry;
