@@ -102,7 +102,7 @@ function applyColor(colorKey) {
 <style scoped>
 .sr-selbar {
   position: fixed;
-  bottom: max(28px, calc(20px + env(safe-area-inset-bottom)));
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -230,6 +230,13 @@ function applyColor(colorKey) {
   background: transparent;
   border-color: #fff;
   box-shadow: 0 0 0 2px var(--dot-color, #888);
+}
+
+/* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */
+@media (pointer: coarse) {
+  .sr-selbar {
+    bottom: max(80px, env(safe-area-inset-bottom));
+  }
 }
 
 /* Slide-up Transition */
