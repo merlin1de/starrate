@@ -149,6 +149,10 @@ const props = defineProps({
     type: Function,
     default: null,
   },
+  previewUrlFn: {
+    type: Function,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['rate', 'close', 'index-change'])
@@ -192,7 +196,9 @@ const hasNext = computed(() => currentIndex.value < props.images.length - 1)
 
 const previewUrl = computed(() => {
   if (!currentImage.value) return ''
-  return generateUrl(`/apps/starrate/api/preview/${currentImage.value.id}?width=1920&height=1200`)
+  return props.previewUrlFn
+    ? props.previewUrlFn(currentImage.value.id)
+    : generateUrl(`/apps/starrate/api/preview/${currentImage.value.id}?width=1920&height=1200`)
 })
 
 const zoomLabel = computed(() => {

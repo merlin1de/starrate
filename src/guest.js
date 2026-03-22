@@ -2,11 +2,17 @@
  * StarRate – Guest Gallery entry point
  *
  * Loaded by templates/guest.php (standalone, no Nextcloud layout).
- * Reads data-* attributes from #sr-guest-app and mounts GuestGallery.
+ * Reads data-* attributes from #starrate-guest-root and mounts GuestGallery.
+ *
+ * Memory-Router wird installiert damit Gallery.vue useRoute()/useRouter()
+ * unverändert nutzen kann — der Router selbst wird von Gallery.vue nur für
+ * die Pfad-Navigation benutzt (kein RouterView).
  */
 
 import { createApp } from 'vue'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import GuestGallery from './views/GuestGallery.vue'
+import '../css/starrate.css'
 
 const el = document.getElementById('starrate-guest-root')
 
@@ -14,6 +20,18 @@ if (el) {
   const token     = el.dataset.token     ?? ''
   const canRate   = el.dataset.canRate   === 'true'
   const minRating = parseInt(el.dataset.minRating ?? '0', 10)
+  const guestName = el.dataset.guestName ?? ''
 
-  createApp(GuestGallery, { token, canRate, minRating }).mount(el)
+  // Memory-Router: dieselben Routen wie main.js, aber ohne URL-Seiteneffekte
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: {} },
+      { path: '/folder/:path(.*)', component: {} },
+    ],
+  })
+
+  const app = createApp(GuestGallery, { token, canRate, minRating, guestName })
+  app.use(router)
+  router.isReady().then(() => app.mount(el))
 }

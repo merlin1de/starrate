@@ -142,6 +142,10 @@ const props = defineProps({
   },
   /** Thumbnail-Größe in Pixeln (aus Settings) */
   thumbnailSize: { type: Number,  default: 280 },
+  thumbnailUrlFn: {
+    type: Function,
+    default: null,
+  },
   /** Grid-Spalten: 'auto' | '2' | '3' | '4' | '5' | '6' | '8' */
   gridColumns:   { type: String,  default: 'auto' },
   /** Dateiname in der Info-Leiste anzeigen */
@@ -235,7 +239,9 @@ function drainQueue() {
 
 function loadThumb(image) {
   const sz  = props.thumbnailSize
-  const url = generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
+  const url = props.thumbnailUrlFn
+    ? props.thumbnailUrlFn(image.id, sz)
+    : generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
   const imgEl = new Image()
   imgEl.onload = () => {
     thumbCache.value[image.id] = url

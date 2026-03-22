@@ -9,10 +9,14 @@
           <span class="sr-breadcrumb__sep">/</span>
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
-        <button class="sr-breadcrumb__share" @click="showShareList = true" title="Freigabe-Links verwalten">
+        <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" title="Freigabe-Links verwalten">
           Teilen
         </button>
-        <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
+        <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
+        <span class="sr-breadcrumb__version">
+          StarRate v{{ appVersion }}<br>
+          by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
+        </span>
       </div>
 
       <!-- Unterordner (in Loupe ausgeblendet) -->
@@ -52,6 +56,7 @@
         :show-filename="settings.show_filename"
         :show-rating-info="settings.show_rating_overlay"
         :show-color-info="settings.show_color_overlay"
+        :thumbnail-url-fn="thumbnailUrlFn"
         @rate="onRate"
         @open-loupe="openLoupe"
         @selection-change="onSelectionChange"
@@ -63,7 +68,8 @@
         v-else
         :images="filteredImages"
         :initial-index="currentIndex"
-        :on-refresh-rating="refreshImageRating"
+        :on-refresh-rating="guestMode ? null : refreshImageRating"
+        :preview-url-fn="previewUrlFn"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -80,7 +86,7 @@
 
     <!-- Share-Liste -->
     <ShareList
-      v-if="showShareList"
+      v-if="!guestMode && showShareList"
       ref="shareListRef"
       :nc-path="currentPath"
       @close="showShareList = false"
@@ -89,7 +95,7 @@
 
     <!-- Share erstellen -->
     <ShareModal
-      v-if="showShareModal"
+      v-if="!guestMode && showShareModal"
       :nc-path="currentPath"
       @close="showShareModal = false"
       @created="onShareCreated"
@@ -129,6 +135,25 @@ import SelectionBar from '../components/SelectionBar.vue'
 import LoupeView from '../components/LoupeView.vue'
 import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
+
+// ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
+
+const props = defineProps({
+  /** Gast-Modus: kein Settings-Abruf, kein Share-UI, kein localStorage-Filter */
+  guestMode:      { type: Boolean,  default: false },
+  /** Name-Badge im Breadcrumb (nur im Gast-Modus) */
+  guestLabel:     { type: String,   default: '' },
+  /** Ersetzt /api/images — fn(path) → { images, folders } */
+  loadImagesFn:   { type: Function, default: null },
+  /** Ersetzt /api/rating/{id} POST — fn(fileId, payload) */
+  rateFn:         { type: Function, default: null },
+  /** Ersetzt /api/rating/batch POST — fn(ids, payload) */
+  batchRateFn:    { type: Function, default: null },
+  /** Weitergereicht an GridView */
+  thumbnailUrlFn: { type: Function, default: null },
+  /** Weitergereicht an LoupeView */
+  previewUrlFn:   { type: Function, default: null },
+})
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
@@ -232,11 +257,17 @@ async function loadImages() {
   const seq = ++loadSeq
   loading.value = true
   try {
-    const url = generateUrl('/apps/starrate/api/images')
-    const { data } = await axios.get(url, {
-      params: { path: currentPath.value, sort: settings.value.default_sort, order: settings.value.default_sort_order },
-      timeout: 15000,
-    })
+    let data
+    if (props.loadImagesFn) {
+      data = await props.loadImagesFn(currentPath.value)
+    } else {
+      const url = generateUrl('/apps/starrate/api/images')
+      const res = await axios.get(url, {
+        params: { path: currentPath.value, sort: settings.value.default_sort, order: settings.value.default_sort_order },
+        timeout: 15000,
+      })
+      data = res.data
+    }
     if (seq !== loadSeq) return  // veralteter Request – ignorieren
     allImages.value = (data.images || []).map(img => ({
       ...img,
@@ -270,8 +301,12 @@ async function onRate(image, rating, color, pick) {
   if (local) Object.assign(local, payload)
 
   try {
-    const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
-    await axios.post(url, payload)
+    if (props.rateFn) {
+      await props.rateFn(image.id, payload)
+    } else {
+      const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
+      await axios.post(url, payload)
+    }
 
     if (payload.rating !== undefined) {
       const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
@@ -307,8 +342,15 @@ async function onBatchRate(rating, color) {
   })
 
   try {
-    const url = generateUrl('/apps/starrate/api/rating/batch')
-    const { data } = await axios.post(url, payload)
+    if (props.batchRateFn) {
+      await props.batchRateFn(ids, { rating: payload.rating, color: payload.color })
+    } else {
+      const url = generateUrl('/apps/starrate/api/rating/batch')
+      const { data } = await axios.post(url, payload)
+      if (data.errors > 0) {
+        showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
+      }
+    }
 
     const stars = payload.rating !== undefined
       ? '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
@@ -317,10 +359,6 @@ async function onBatchRate(rating, color) {
       n('starrate', '%n Bild bewertet %s', '%n Bilder bewertet %s', ids.length, stars),
       'success'
     )
-
-    if (data.errors > 0) {
-      showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
-    }
   } catch (e) {
     await loadImages()
     showToast(t('starrate', 'Stapel-Bewertung fehlgeschlagen'), 'error')
@@ -399,6 +437,7 @@ function onDocKeydown(e) {
 }
 
 async function loadSettings() {
+  if (props.guestMode) return  // Gast nutzt Standardwerte
   try {
     const url = generateUrl('/apps/starrate/api/settings')
     const { data } = await axios.get(url)
@@ -453,15 +492,17 @@ onMounted(async () => {
   // Settings laden, dann erst Bilder (damit sort/order korrekt ist)
   await loadSettings()
 
-  // URL-Query-Params haben Priorität (geteilter Link), sonst localStorage
-  const q = route.query
-  const hasUrlFilter = ['r', 're', 'rm', 'c', 'p'].some(k => k in q)
-  if (hasUrlFilter) {
-    Object.assign(activeFilter.value, queryToFilter(q))
-  } else {
-    const saved = localStorage.getItem(`starrate_filter_${currentPath.value}`)
-    if (saved) {
-      try { Object.assign(activeFilter.value, JSON.parse(saved)) } catch {}
+  // URL-Query-Params / localStorage nur im normalen Modus
+  if (!props.guestMode) {
+    const q = route.query
+    const hasUrlFilter = ['r', 're', 'rm', 'c', 'p'].some(k => k in q)
+    if (hasUrlFilter) {
+      Object.assign(activeFilter.value, queryToFilter(q))
+    } else {
+      const saved = localStorage.getItem(`starrate_filter_${currentPath.value}`)
+      if (saved) {
+        try { Object.assign(activeFilter.value, JSON.parse(saved)) } catch {}
+      }
     }
   }
 
@@ -475,8 +516,9 @@ onUnmounted(() => {
   stopBackgroundSync()
 })
 
-// Filter in localStorage + URL persistieren
+// Filter in localStorage + URL persistieren (nur normaler Modus)
 watch(activeFilter, val => {
+  if (props.guestMode) return
   localStorage.setItem(`starrate_filter_${currentPath.value}`, JSON.stringify(val))
   router.replace({ query: filterToQuery(val) })
 }, { deep: true })
@@ -577,15 +619,40 @@ watch(() => route.query, q => {
   border-color: #7a3050;
 }
 
+.sr-breadcrumb__guest-label {
+  background: #2a2a3e;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #a1a1aa;
+  font-size: 11px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .sr-breadcrumb__version {
   margin-left: auto;
   font-size: 10px;
-  color: #3a3a52;
+  color: #7a7a96;
   user-select: none;
   letter-spacing: 0.04em;
   padding-left: 24px;
   white-space: nowrap;
   flex-shrink: 0;
+  text-align: right;
+  line-height: 1.5;
+}
+
+.sr-breadcrumb__version-link,
+.sr-breadcrumb__version-link:visited,
+.sr-breadcrumb__version-link:hover,
+.sr-breadcrumb__version-link:active {
+  color: #8a8aa8 !important;
+  text-decoration: none;
+}
+
+.sr-breadcrumb__version-link:hover {
+  text-decoration: underline;
 }
 
 /* ── Mobile: Nav-Zeile als einzelne scrollbare Reihe ─────────────────────── */

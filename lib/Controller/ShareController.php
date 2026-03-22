@@ -65,6 +65,7 @@ class ShareController extends Controller
                 isset($body['expires_at']) ? (int) $body['expires_at'] : null,
                 isset($body['min_rating']) ? (int) $body['min_rating'] : 0,
                 $body['permissions'] ?? ShareService::PERM_VIEW,
+                $body['guest_name']  ?? null,
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -234,26 +235,19 @@ class ShareController extends Controller
         $share = $this->shareService->getShare($token);
 
         if ($share === null || !$this->shareService->isShareValid($share)) {
-            return new TemplateResponse($this->appName, 'share_expired', [], 'guest');
+            return new TemplateResponse($this->appName, 'share_expired', [], 'public');
         }
 
-        // Passwortschutz: Prüfe Session-Flag
-        if (!empty($share['password_hash'])) {
-            $session  = \OC::$server->getSession();
-            $verified = $session->get("starrate_share_{$token}") === true;
-            if (!$verified) {
-                return new TemplateResponse($this->appName, 'share_password', [
-                    'token' => $token,
-                ], 'guest');
-            }
-        }
+        // Passwortprüfung läuft über die API (guestImages gibt 401 zurück),
+        // die Vue-SPA zeigt den Passwort-Dialog — keine separate PHP-Seite nötig.
 
         return new TemplateResponse($this->appName, 'guest', [
             'token'      => $token,
             'share'      => $share,
             'min_rating' => $share['min_rating'] ?? 0,
             'can_rate'   => $share['permissions'] === ShareService::PERM_RATE,
-        ], 'guest');
+            'guest_name' => $share['guest_name'] ?? '',
+        ], 'public');
     }
 
     /**
@@ -272,9 +266,15 @@ class ShareController extends Controller
             return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
         }
 
+        $subPath = (string) ($this->request->getParam('path', ''));
+
         try {
-            $images = $this->shareService->getImagesForShare($share);
-            return new DataResponse(['images' => $images, 'total' => count($images)]);
+            $result = $this->shareService->getImagesForShare($share, $subPath);
+            return new DataResponse([
+                'images'  => $result['images'],
+                'folders' => $result['folders'],
+                'total'   => count($result['images']),
+            ]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::guestImages – {$e->getMessage()}");
             return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
@@ -297,8 +297,34 @@ class ShareController extends Controller
             return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
         }
 
+        $width  = min(max((int) ($this->request->getParam('width',  400)), 32), 3840);
+        $height = min(max((int) ($this->request->getParam('height', 400)), 32), 2160);
+
         try {
-            return $this->shareService->getThumbnailForShare($share, $fileId);
+            return $this->shareService->getThumbnailForShare($share, $fileId, $width, $height);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
+        }
+    }
+
+    /**
+     * GET /api/guest/{token}/preview/{fileId} — Vollbild-Preview für Gäste (LoupeView).
+     */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    public function guestPreview(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Link ungültig'], Http::STATUS_FORBIDDEN);
+        }
+
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        try {
+            return $this->shareService->getThumbnailForShare($share, $fileId, 1920, 1200);
         } catch (\Exception $e) {
             return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
         }
