@@ -172,6 +172,56 @@ class ShareController extends Controller
         }
     }
 
+    // ─── Gast-Log (eingeloggte Benutzer) ──────────────────────────────────────
+
+    /**
+     * GET /api/share/{token}/log — Log-Einträge eines Shares abrufen.
+     */
+    #[NoAdminRequired]
+    public function getLog(string $token): DataResponse
+    {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $share = $this->shareService->getShare($token);
+        if ($share === null || $share['owner_id'] !== $userId) {
+            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+        }
+
+        return new DataResponse(['log' => $this->shareService->getGuestLog($token)]);
+    }
+
+    /**
+     * DELETE /api/share/{token}/log — Log löschen oder einkürzen.
+     *
+     * Query: ?before=<unix-timestamp>  → nur Einträge älter als before löschen
+     * Ohne before                      → gesamtes Log löschen
+     */
+    #[NoAdminRequired]
+    public function deleteLog(string $token): DataResponse
+    {
+        $userId = $this->getUserId();
+        if ($userId === null) {
+            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $share = $this->shareService->getShare($token);
+        if ($share === null || $share['owner_id'] !== $userId) {
+            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+        }
+
+        $before = $this->request->getParam('before');
+        if ($before !== null) {
+            $this->shareService->trimGuestLog($token, (int) $before);
+        } else {
+            $this->shareService->clearGuestLog($token);
+        }
+
+        return new DataResponse(['ok' => true]);
+    }
+
     // ─── Gast-Zugriff (öffentlich, kein Login) ───────────────────────────────
 
     /**
@@ -189,7 +239,7 @@ class ShareController extends Controller
 
         // Passwortschutz: Prüfe Session-Flag
         if (!empty($share['password_hash'])) {
-            $session = \OC::$server->getSession();
+            $session  = \OC::$server->getSession();
             $verified = $session->get("starrate_share_{$token}") === true;
             if (!$verified) {
                 return new TemplateResponse($this->appName, 'share_password', [
@@ -207,7 +257,7 @@ class ShareController extends Controller
     }
 
     /**
-     * GET /api/guest/{token}/images — Bilder im freigegebenen Ordner.
+     * GET /api/guest/{token}/images — Bilder im freigegebenen Ordner inkl. Bewertungen.
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -260,8 +310,8 @@ class ShareController extends Controller
      * Body (JSON): {
      *   "file_id": 123,
      *   "rating": 4,
-     *   "color": "Green",   // optional
-     *   "guest_name": "Anna"  // optional, für Anzeige beim Fotografen
+     *   "color": "Green",       // optional
+     *   "guest_name": "Anna"    // optional
      * }
      */
     #[PublicPage]
@@ -329,7 +379,6 @@ class ShareController extends Controller
         $password = $body['password'] ?? '';
 
         if ($this->shareService->verifyPassword($share, $password)) {
-            // Passwort korrekt → Session-Flag setzen
             $session = \OC::$server->getSession();
             $session->set("starrate_share_{$token}", true);
             return new DataResponse(['ok' => true]);
@@ -352,7 +401,7 @@ class ShareController extends Controller
     private function checkGuestPassword(string $token, array $share): bool
     {
         if (empty($share['password_hash'])) {
-            return true; // kein Passwort gesetzt
+            return true;
         }
         $session = \OC::$server->getSession();
         return $session->get("starrate_share_{$token}") === true;
@@ -388,7 +437,7 @@ class ShareController extends Controller
 
     private function getJsonBody(): array
     {
-        $raw     = $this->request->getContent();
+        $raw     = file_get_contents('php://input');
         $decoded = json_decode($raw ?: '{}', true);
         return is_array($decoded) ? $decoded : [];
     }

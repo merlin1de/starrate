@@ -66,6 +66,17 @@ return [
             'url'  => '/api/share',
             'verb' => 'GET',
         ],
+        // Log-Routen VOR {token}-Wildcard (spezifischer zuerst)
+        [
+            'name' => 'share#getLog',
+            'url'  => '/api/share/{token}/log',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'share#deleteLog',
+            'url'  => '/api/share/{token}/log',
+            'verb' => 'DELETE',
+        ],
         [
             'name' => 'share#get',
             'url'  => '/api/share/{token}',

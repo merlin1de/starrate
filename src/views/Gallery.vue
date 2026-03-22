@@ -9,6 +9,9 @@
           <span class="sr-breadcrumb__sep">/</span>
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
+        <button class="sr-breadcrumb__share" @click="showShareList = true" title="Freigabe-Links verwalten">
+          Teilen
+        </button>
         <span class="sr-breadcrumb__version">StarRate v{{ appVersion }}</span>
       </div>
 
@@ -75,6 +78,23 @@
       @clear="gridRef?.clearSelection()"
     />
 
+    <!-- Share-Liste -->
+    <ShareList
+      v-if="showShareList"
+      ref="shareListRef"
+      :nc-path="currentPath"
+      @close="showShareList = false"
+      @create="showShareModal = true"
+    />
+
+    <!-- Share erstellen -->
+    <ShareModal
+      v-if="showShareModal"
+      :nc-path="currentPath"
+      @close="showShareModal = false"
+      @created="onShareCreated"
+    />
+
     <!-- Toast-Nachrichten -->
     <Teleport to="body">
       <div class="sr-toasts">
@@ -107,6 +127,8 @@ import GridView from '../components/GridView.vue'
 import FilterBar from '../components/FilterBar.vue'
 import SelectionBar from '../components/SelectionBar.vue'
 import LoupeView from '../components/LoupeView.vue'
+import ShareModal from '../components/ShareModal.vue'
+import ShareList from '../components/ShareList.vue'
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
@@ -130,8 +152,12 @@ const subFolders   = ref([])
 const currentIndex = ref(0)
 const selectedIds  = ref(new Set())
 const gridRef      = ref(null)
+const shareListRef = ref(null)
 const toasts       = ref([])
 let   toastCounter = 0
+
+const showShareList  = ref(false)
+const showShareModal = ref(false)
 
 const activeFilter = ref({
   minRating: 0,     // 0 = alle  (>=)
@@ -357,6 +383,14 @@ function showToast(message, type = 'success') {
   }, 3000)
 }
 
+// ─── Share ────────────────────────────────────────────────────────────────────
+
+function onShareCreated(share) {
+  showShareModal.value = false
+  // Liste neu laden damit der neue Share erscheint
+  shareListRef.value?.loadShares()
+}
+
 // Escape auf Dokument-Ebene: klärt Auswahl unabhängig davon, welches Element Fokus hat
 function onDocKeydown(e) {
   if (e.key === 'Escape' && selectedIds.value.size > 0) {
@@ -524,6 +558,23 @@ watch(() => route.query, q => {
 .sr-view-wrap {
   flex: 1;
   min-height: 0;
+}
+
+.sr-breadcrumb__share {
+  background: #2a2a3e;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sr-breadcrumb__share:hover {
+  color: #d4d4d8;
+  border-color: #7a3050;
 }
 
 .sr-breadcrumb__version {

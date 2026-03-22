@@ -1,22 +1,48 @@
 <template>
   <div class="sr-guest">
 
+    <!-- Name-Dialog: beim ersten Bewertungsversuch -->
+    <div v-if="showNameDialog" class="sr-guest__overlay">
+      <div class="sr-guest__dialog">
+        <h2 class="sr-guest__dialog-title">Wie heißt du?</h2>
+        <p class="sr-guest__dialog-hint">Dein Name erscheint beim Fotografen im Bewertungs-Log.</p>
+        <input
+          v-model="nameInput"
+          class="sr-guest__dialog-input"
+          type="text"
+          placeholder="Dein Name"
+          maxlength="60"
+          @keydown.enter="confirmName"
+        />
+        <div class="sr-guest__dialog-actions">
+          <button class="sr-guest__btn sr-guest__btn--secondary" @click="showNameDialog = false">
+            Abbrechen
+          </button>
+          <button class="sr-guest__btn sr-guest__btn--primary" :disabled="!nameInput.trim()" @click="confirmName">
+            Bestätigen
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Password dialog -->
-    <div v-if="passwordDlg" class="sr-guest__overlay">
-      <div class="sr-guest__password-dialog">
-        <h2 class="sr-guest__password-title">{{ t('starrate', 'Passwortgeschützte Galerie') }}</h2>
-        <p class="sr-guest__password-hint">{{ t('starrate', 'Bitte gib das Passwort ein, um die Galerie zu öffnen.') }}</p>
+    <div v-else-if="passwordDlg" class="sr-guest__overlay">
+      <div class="sr-guest__dialog">
+        <h2 class="sr-guest__dialog-title">{{ t('starrate', 'Passwortgeschützte Galerie') }}</h2>
+        <p class="sr-guest__dialog-hint">{{ t('starrate', 'Bitte gib das Passwort ein, um die Galerie zu öffnen.') }}</p>
         <input
           v-model="password"
-          class="sr-guest__password-input"
+          class="sr-guest__dialog-input"
           type="password"
           :placeholder="t('starrate', 'Passwort')"
           @keydown.enter="verifyPassword"
         />
         <span v-if="passwordErr" class="sr-guest__password-error">{{ passwordErr }}</span>
-        <button class="sr-guest__password-submit" :disabled="!password" @click="verifyPassword">
-          {{ t('starrate', 'Bestätigen') }}
-        </button>
+        <div class="sr-guest__dialog-actions">
+          <button class="sr-guest__btn sr-guest__btn--primary" :disabled="!password" @click="verifyPassword">
+            {{ t('starrate', 'Bestätigen') }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -34,9 +60,14 @@
     <div v-else class="sr-guest__gallery">
       <header class="sr-guest__header">
         <h1 class="sr-guest__title">{{ t('starrate', 'Galerie') }}</h1>
-        <span v-if="canRate" class="sr-guest__badge">
-          {{ t('starrate', 'Bewertung erlaubt') }}
-        </span>
+        <div class="sr-guest__header-right">
+          <span v-if="canRate && guestName" class="sr-guest__name-badge" :title="t('starrate', 'Aktiver Name')" @click="changeGuestName">
+            {{ guestName }} ✎
+          </span>
+          <span v-if="canRate" class="sr-guest__badge">
+            {{ t('starrate', 'Bewertung erlaubt') }}
+          </span>
+        </div>
       </header>
 
       <div v-if="images.length === 0" class="sr-guest__empty">
@@ -74,19 +105,19 @@
                 v-for="star in 5"
                 :key="star"
                 class="sr-guest__star"
-                :class="{ 'sr-guest__star--filled': star <= (pendingRatings[img.id] ?? img.rating) }"
+                :class="{ 'sr-guest__star--filled': star <= (pendingRatings[img.id] ?? img.rating ?? 0) }"
                 :title="`${star} ★`"
-                @click="rateImage(img.id, star, null)"
+                @click="onStarClick(img.id, star)"
               >★</button>
               <button
                 class="sr-guest__star sr-guest__star--clear"
                 :title="t('starrate', 'Bewertung entfernen')"
-                @click="rateImage(img.id, 0, null)"
+                @click="onStarClick(img.id, 0)"
               >✕</button>
             </div>
 
             <!-- Display-only rating -->
-            <div v-else-if="img.rating > 0" class="sr-guest__rating-display">
+            <div v-else-if="(img.rating ?? 0) > 0" class="sr-guest__rating-display">
               <span
                 v-for="star in 5"
                 :key="star"
@@ -137,28 +168,37 @@ const props = defineProps({
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const images        = ref([])
-const loading       = ref(false)
-const error         = ref('')
-const passwordDlg   = ref(false)
-const password      = ref('')
-const passwordErr   = ref('')
-const pendingRatings = ref({})  // optimistic updates
-const toasts        = ref([])
-let   toastSeq      = 0
+const images         = ref([])
+const loading        = ref(false)
+const error          = ref('')
+const passwordDlg    = ref(false)
+const password       = ref('')
+const passwordErr    = ref('')
+const pendingRatings = ref({})   // optimistic updates: fileId → rating
+const toasts         = ref([])
+let   toastSeq       = 0
+
+// Guest name (localStorage-gespeichert pro Token)
+const GUEST_NAME_KEY  = `starrate_guest_name_${props.token}`
+const guestName       = ref(localStorage.getItem(GUEST_NAME_KEY) ?? '')
+const showNameDialog  = ref(false)
+const nameInput       = ref('')
+// pending rate action while name dialog is open
+let   pendingRate     = null
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 
 const filteredImages = computed(() =>
   props.minRating > 0
-    ? images.value.filter(img => img.rating >= props.minRating)
+    ? images.value.filter(img => (img.rating ?? 0) >= props.minRating)
     : images.value
 )
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function thumbUrl(fileId) {
-  return generateUrl(`/apps/starrate/api/thumbnail/${fileId}`)
+  // Gast-Thumbnail-Endpunkt (kein NC-Login erforderlich)
+  return generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}`)
 }
 
 function showToast(message, type = 'success') {
@@ -167,6 +207,28 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toasts.value = toasts.value.filter(t => t.id !== id)
   }, 4000)
+}
+
+// ── Guest-Name ────────────────────────────────────────────────────────────────
+
+function confirmName() {
+  const name = nameInput.value.trim()
+  if (!name) return
+  guestName.value = name
+  localStorage.setItem(GUEST_NAME_KEY, name)
+  showNameDialog.value = false
+  nameInput.value      = ''
+  // Ausstehende Bewertung nachholen
+  if (pendingRate) {
+    const { fileId, rating } = pendingRate
+    pendingRate = null
+    rateImage(fileId, rating, null)
+  }
+}
+
+function changeGuestName() {
+  nameInput.value   = guestName.value
+  showNameDialog.value = true
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -182,7 +244,7 @@ async function loadImages() {
   } catch (e) {
     if (e?.response?.status === 401) {
       passwordDlg.value = true
-    } else if (e?.response?.status === 404) {
+    } else if (e?.response?.status === 403) {
       error.value = t('starrate', 'Dieser Freigabe-Link ist nicht mehr gültig.')
     } else {
       error.value = t('starrate', 'Fehler beim Laden der Galerie.')
@@ -207,6 +269,18 @@ async function verifyPassword() {
   }
 }
 
+// Wird aufgerufen wenn Stern geklickt wird
+function onStarClick(fileId, rating) {
+  if (!guestName.value) {
+    // Name noch nicht gesetzt → Dialog öffnen, Bewertung merken
+    pendingRate = { fileId, rating }
+    nameInput.value  = ''
+    showNameDialog.value = true
+    return
+  }
+  rateImage(fileId, rating, null)
+}
+
 async function rateImage(fileId, rating, color) {
   const prev = pendingRatings.value[fileId] ?? images.value.find(i => i.id === fileId)?.rating ?? 0
   pendingRatings.value[fileId] = rating  // optimistic
@@ -214,7 +288,7 @@ async function rateImage(fileId, rating, color) {
   try {
     await axios.post(
       generateUrl(`/apps/starrate/api/guest/${props.token}/rate`),
-      { file_id: fileId, rating, color, guest_name: '' }
+      { file_id: fileId, rating, color, guest_name: guestName.value || 'Gast' }
     )
     // Persist into images array
     const img = images.value.find(i => i.id === fileId)
@@ -239,7 +313,7 @@ onMounted(loadImages)
 // ── Expose (for GuestGallery.spec.js stub compatibility) ──────────────────────
 
 defineExpose({ images, loading, passwordDlg, password, passwordErr, toasts,
-               verifyPassword, rateImage })
+               guestName, showNameDialog, verifyPassword, rateImage })
 </script>
 
 <style scoped>
@@ -257,7 +331,7 @@ defineExpose({ images, loading, passwordDlg, password, passwordErr, toasts,
 .sr-guest__header {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
   padding: 1.5rem 2rem 1rem;
   border-bottom: 1px solid #2a2a3e;
 }
@@ -267,6 +341,11 @@ defineExpose({ images, loading, passwordDlg, password, passwordErr, toasts,
   color: #fff;
   margin: 0;
 }
+.sr-guest__header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 .sr-guest__badge {
   background: #e94560;
   color: #fff;
@@ -274,6 +353,88 @@ defineExpose({ images, loading, passwordDlg, password, passwordErr, toasts,
   padding: 0.2rem 0.6rem;
   border-radius: 99px;
 }
+.sr-guest__name-badge {
+  background: #2a2a3e;
+  color: #a1a1aa;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  cursor: pointer;
+  user-select: none;
+}
+.sr-guest__name-badge:hover { color: #d4d4d8; }
+
+/* Dialog (Name + Password) */
+.sr-guest__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.sr-guest__dialog {
+  background: #16213e;
+  border: 1px solid #2a2a3e;
+  border-radius: 12px;
+  padding: 2rem;
+  width: min(400px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.sr-guest__dialog-title {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+.sr-guest__dialog-hint {
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  margin: 0;
+}
+.sr-guest__dialog-input {
+  background: #0f0f1a;
+  border: 1px solid #3f3f5a;
+  border-radius: 6px;
+  color: #d4d4d8;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.sr-guest__dialog-input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+.sr-guest__password-error {
+  color: #e94560;
+  font-size: 0.8rem;
+}
+.sr-guest__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.sr-guest__btn {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.5rem 1.25rem;
+}
+.sr-guest__btn--primary {
+  background: #e94560;
+  color: #fff;
+}
+.sr-guest__btn--primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.sr-guest__btn--secondary {
+  background: #2a2a3e;
+  color: #a1a1aa;
+}
+.sr-guest__btn--secondary:hover { color: #d4d4d8; }
 
 /* Grid */
 .sr-guest__grid {
@@ -358,70 +519,6 @@ defineExpose({ images, loading, passwordDlg, password, passwordErr, toasts,
   margin-left: 4px;
 }
 .sr-guest__star--clear:hover { color: #e94560; }
-
-/* Password dialog */
-.sr-guest__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.sr-guest__password-dialog {
-  background: #16213e;
-  border: 1px solid #2a2a3e;
-  border-radius: 12px;
-  padding: 2rem;
-  width: min(400px, 90vw);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.sr-guest__password-title {
-  color: #fff;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
-}
-.sr-guest__password-hint {
-  color: #a1a1aa;
-  font-size: 0.875rem;
-  margin: 0;
-}
-.sr-guest__password-input {
-  background: #0f0f1a;
-  border: 1px solid #3f3f5a;
-  border-radius: 6px;
-  color: #d4d4d8;
-  font-size: 0.9rem;
-  padding: 0.5rem 0.75rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-.sr-guest__password-input:focus {
-  outline: none;
-  border-color: #e94560;
-}
-.sr-guest__password-error {
-  color: #e94560;
-  font-size: 0.8rem;
-}
-.sr-guest__password-submit {
-  background: #e94560;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.5rem 1.5rem;
-  align-self: flex-end;
-}
-.sr-guest__password-submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 
 /* Loading / empty / error */
 .sr-guest__loading {

@@ -17,18 +17,19 @@ use Psr\Log\LoggerInterface;
 /**
  * Verwaltet öffentliche Freigabe-Links für Gäste (Modelle, Kunden).
  *
- * Shares werden pro Benutzer in der NC-Config gespeichert.
- * Gast-Bewertungen werden ebenfalls dort abgelegt.
+ * Shares werden in der NC-Config gespeichert.
+ * Gast-Bewertungen werden als echte NC Collaborative Tags gespeichert (via TagService).
+ * Ein Log pro Share protokolliert wer wann was bewertet hat.
  */
 class ShareService
 {
     public const PERM_VIEW = 'view';
     public const PERM_RATE = 'rate';
 
-    private const APP_ID          = 'starrate';
-    private const CONFIG_SHARES   = 'starrate_shares';
-    private const CONFIG_RATINGS  = 'starrate_guest_ratings';
-    private const TOKEN_LENGTH    = 24;
+    private const APP_ID        = 'starrate';
+    private const CONFIG_SHARES = 'starrate_shares';
+    private const CONFIG_LOG    = 'starrate_guest_log';  // key: CONFIG_LOG_<token>
+    private const TOKEN_LENGTH  = 24;
 
     // Unterstützte MIME-Typen für Gast-Galerie
     private const GUEST_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -38,6 +39,7 @@ class ShareService
         private readonly IRootFolder     $rootFolder,
         private readonly IPreviewManager $previewManager,
         private readonly ISecureRandom   $secureRandom,
+        private readonly TagService      $tagService,
         private readonly LoggerInterface $logger,
     ) {}
 
@@ -79,8 +81,7 @@ class ShareService
         $allShares[$token]   = $share;
         $this->saveShares($ownerId, $allShares);
 
-        // Passwort-Hash nicht nach außen geben
-        $safe          = $share;
+        $safe                 = $share;
         $safe['has_password'] = $password !== null;
         unset($safe['password_hash']);
 
@@ -93,9 +94,7 @@ class ShareService
      */
     public function getShare(string $token): ?array
     {
-        // Token enthält owner_id im Payload → wir suchen in allen User-Configs
-        // Effizienter: Owner-ID im Token kodieren, hier: lineare Suche über DB
-        $qb = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+        $qb     = \OC::$server->getDatabaseConnection()->getQueryBuilder();
         $result = $qb->select('userid', 'configvalue')
             ->from('preferences')
             ->where($qb->expr()->eq('appid', $qb->createNamedParameter(self::APP_ID)))
@@ -105,7 +104,7 @@ class ShareService
         while ($row = $result->fetch()) {
             $shares = json_decode($row['configvalue'], true);
             if (is_array($shares) && isset($shares[$token])) {
-                $share = $shares[$token];
+                $share                = $shares[$token];
                 $share['has_password'] = !empty($share['password_hash']);
                 return $share;
             }
@@ -134,13 +133,13 @@ class ShareService
      */
     public function updateShare(string $token, array $data): array
     {
-        $share    = $this->getShare($token);
+        $share   = $this->getShare($token);
         if ($share === null) {
             throw new \RuntimeException("Share {$token} nicht gefunden.");
         }
 
-        $ownerId  = $share['owner_id'];
-        $all      = $this->loadAllShares($ownerId);
+        $ownerId = $share['owner_id'];
+        $all     = $this->loadAllShares($ownerId);
 
         if (array_key_exists('password', $data)) {
             $all[$token]['password_hash'] = $data['password']
@@ -163,14 +162,14 @@ class ShareService
 
         $this->saveShares($ownerId, $all);
 
-        $updated = $all[$token];
+        $updated               = $all[$token];
         $updated['has_password'] = !empty($updated['password_hash']);
         unset($updated['password_hash']);
         return $updated;
     }
 
     /**
-     * Löscht einen Share.
+     * Löscht einen Share und sein Log.
      */
     public function deleteShare(string $token): void
     {
@@ -184,14 +183,14 @@ class ShareService
         unset($all[$token]);
         $this->saveShares($ownerId, $all);
 
+        // Log mit löschen
+        $this->config->deleteUserValue($ownerId, self::APP_ID, self::CONFIG_LOG . '_' . $token);
+
         $this->logger->info("StarRate: Share {$token} gelöscht.");
     }
 
     // ─── Share-Validierung ────────────────────────────────────────────────────
 
-    /**
-     * Prüft ob ein Share aktiv und nicht abgelaufen ist.
-     */
     public function isShareValid(array $share): bool
     {
         if (!($share['active'] ?? true)) {
@@ -203,9 +202,6 @@ class ShareService
         return true;
     }
 
-    /**
-     * Verifiziert das Passwort eines Shares.
-     */
     public function verifyPassword(array $share, string $password): bool
     {
         if (empty($share['password_hash'])) {
@@ -217,7 +213,8 @@ class ShareService
     // ─── Gast-Galerie ─────────────────────────────────────────────────────────
 
     /**
-     * Gibt alle Bilder für einen Share zurück (gefiltert nach min_rating).
+     * Gibt alle Bilder für einen Share zurück inkl. aktueller NC-Tag-Bewertungen.
+     * Filtert nach min_rating wenn gesetzt (verwendet NC-Tags).
      *
      * @return array[]
      */
@@ -250,19 +247,25 @@ class ShareService
             ];
         }
 
-        // Wenn min_rating gesetzt → Metadaten laden und filtern
-        if ($minRating > 0 && !empty($images)) {
-            $guestRatings = $this->getGuestRatingsForShare($share['token']);
-            $images = array_values(array_filter($images, function (array $img) use ($minRating, $guestRatings): bool {
-                $fileId = (string) $img['id'];
-                $rating = 0;
-                // Gast-Bewertungen berücksichtigen
-                if (isset($guestRatings[$fileId])) {
-                    $ratings = array_column($guestRatings[$fileId], 'rating');
-                    $rating  = !empty($ratings) ? max($ratings) : 0;
-                }
-                return $rating >= $minRating;
-            }));
+        if (empty($images)) {
+            return [];
+        }
+
+        // Aktuelle NC-Tag-Bewertungen laden
+        $fileIds  = array_map(fn($img) => (string) $img['id'], $images);
+        $metadata = $this->tagService->getMetadataBatch($fileIds);
+
+        foreach ($images as &$img) {
+            $meta          = $metadata[(string) $img['id']] ?? ['rating' => 0, 'color' => null, 'pick' => 'none'];
+            $img['rating'] = $meta['rating'];
+            $img['color']  = $meta['color'];
+            $img['pick']   = $meta['pick'];
+        }
+        unset($img);
+
+        // min_rating filtern (basiert auf NC-Tags)
+        if ($minRating > 0) {
+            $images = array_values(array_filter($images, fn($img) => ($img['rating'] ?? 0) >= $minRating));
         }
 
         return $images;
@@ -295,7 +298,7 @@ class ShareService
             throw new \RuntimeException("Datei liegt nicht im freigegebenen Ordner.");
         }
 
-        $preview = $this->previewManager->getPreview($file, 400, 400, true);
+        $preview  = $this->previewManager->getPreview($file, 400, 400, true);
         $response = new FileDisplayResponse($preview, 200, [
             'Content-Type' => $preview->getMimeType(),
         ]);
@@ -303,10 +306,11 @@ class ShareService
         return $response;
     }
 
-    // ─── Gast-Bewertungen ────────────────────────────────────────────────────
+    // ─── Gast-Bewertungen ─────────────────────────────────────────────────────
 
     /**
-     * Speichert eine Gast-Bewertung.
+     * Speichert eine Gast-Bewertung als echte NC Collaborative Tags.
+     * Schreibt zusätzlich einen Log-Eintrag (für den Fotografen).
      *
      * @return array{file_id: int, rating: int|null, color: string|null, guest_name: string, timestamp: int}
      */
@@ -317,9 +321,23 @@ class ShareService
         ?string $color,
         string  $guestName,
     ): array {
-        $token   = $share['token'];
-        $ownerId = $share['owner_id'];
+        $token     = $share['token'];
+        $ownerId   = $share['owner_id'];
+        $fileIdStr = (string) $fileId;
 
+        // Echte NC-Tags setzen (identisch zu normalem User-Rating)
+        $metadata = [];
+        if ($rating !== null) {
+            $metadata['rating'] = $rating;
+        }
+        if ($color !== null) {
+            $metadata['color'] = $color;
+        }
+        if (!empty($metadata)) {
+            $this->tagService->setMetadata($fileIdStr, $metadata);
+        }
+
+        // Log-Eintrag schreiben
         $entry = [
             'file_id'    => $fileId,
             'rating'     => $rating,
@@ -328,65 +346,84 @@ class ShareService
             'timestamp'  => time(),
         ];
 
-        $key     = self::CONFIG_RATINGS . '_' . $token;
-        $raw     = $this->config->getUserValue($ownerId, self::APP_ID, $key, '{}');
-        $ratings = json_decode($raw, true);
-        if (!is_array($ratings)) {
-            $ratings = [];
+        $key = self::CONFIG_LOG . '_' . $token;
+        $raw = $this->config->getUserValue($ownerId, self::APP_ID, $key, '[]');
+        $log = json_decode($raw, true);
+        if (!is_array($log)) {
+            $log = [];
         }
+        $log[] = $entry;
+        $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($log));
 
-        $fileKey = (string) $fileId;
-        if (!isset($ratings[$fileKey])) {
-            $ratings[$fileKey] = [];
-        }
+        $this->logger->info(
+            "StarRate: Gast '{$entry['guest_name']}' hat Datei {$fileId} mit "
+            . "Rating " . ($rating ?? 'null') . " bewertet (Share {$token})."
+        );
 
-        // Bestehende Bewertung des gleichen Gastes überschreiben
-        $found = false;
-        foreach ($ratings[$fileKey] as &$existing) {
-            if ($existing['guest_name'] === $entry['guest_name']) {
-                $existing = $entry;
-                $found    = true;
-                break;
-            }
-        }
-        unset($existing);
-
-        if (!$found) {
-            $ratings[$fileKey][] = $entry;
-        }
-
-        $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($ratings));
-
-        $this->logger->debug("StarRate: Gast-Bewertung von '{$guestName}' für Datei {$fileId} gespeichert.");
         return $entry;
     }
 
+    // ─── Gast-Log ─────────────────────────────────────────────────────────────
+
     /**
-     * Gibt alle Gast-Bewertungen für einen Share zurück.
+     * Gibt alle Log-Einträge eines Shares zurück (neueste zuerst).
      *
-     * @return array<string, array[]>  fileId (string) → Liste von Gast-Bewertungen
+     * @return array[]  [{file_id, rating, color, guest_name, timestamp}, ...]
      */
-    public function getGuestRatingsForShare(string $token): array
+    public function getGuestLog(string $token): array
     {
         $share = $this->getShare($token);
         if ($share === null) {
             return [];
         }
 
-        $ownerId = $share['owner_id'];
-        $key     = self::CONFIG_RATINGS . '_' . $token;
-        $raw     = $this->config->getUserValue($ownerId, self::APP_ID, $key, '{}');
-        $ratings = json_decode($raw, true);
-        return is_array($ratings) ? $ratings : [];
+        $key = self::CONFIG_LOG . '_' . $token;
+        $raw = $this->config->getUserValue($share['owner_id'], self::APP_ID, $key, '[]');
+        $log = json_decode($raw, true);
+        if (!is_array($log)) {
+            return [];
+        }
+        return array_reverse($log);  // neueste zuerst
+    }
+
+    /**
+     * Löscht das gesamte Log eines Shares.
+     */
+    public function clearGuestLog(string $token): void
+    {
+        $share = $this->getShare($token);
+        if ($share === null) {
+            return;
+        }
+        $this->config->setUserValue(
+            $share['owner_id'], self::APP_ID, self::CONFIG_LOG . '_' . $token, '[]'
+        );
+    }
+
+    /**
+     * Entfernt alle Log-Einträge älter als $before (Unix-Timestamp).
+     */
+    public function trimGuestLog(string $token, int $before): void
+    {
+        $share = $this->getShare($token);
+        if ($share === null) {
+            return;
+        }
+
+        $ownerId  = $share['owner_id'];
+        $key      = self::CONFIG_LOG . '_' . $token;
+        $raw      = $this->config->getUserValue($ownerId, self::APP_ID, $key, '[]');
+        $log      = json_decode($raw, true);
+        if (!is_array($log)) {
+            return;
+        }
+
+        $filtered = array_values(array_filter($log, fn($e) => ($e['timestamp'] ?? 0) >= $before));
+        $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($filtered));
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
 
-    /**
-     * Lädt alle Shares eines Benutzers aus der Config.
-     *
-     * @return array<string, array>  token → share
-     */
     private function loadAllShares(string $userId): array
     {
         $raw    = $this->config->getUserValue($userId, self::APP_ID, self::CONFIG_SHARES, '{}');
@@ -402,7 +439,9 @@ class ShareService
     private function validatePermissions(string $permissions): void
     {
         if (!in_array($permissions, [self::PERM_VIEW, self::PERM_RATE], true)) {
-            throw new \InvalidArgumentException("Ungültige Berechtigung: {$permissions}. Erlaubt: view, rate");
+            throw new \InvalidArgumentException(
+                "Ungültige Berechtigung: {$permissions}. Erlaubt: view, rate"
+            );
         }
     }
 }
