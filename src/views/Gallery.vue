@@ -387,6 +387,9 @@ async function onRate(image, rating, color, pick) {
     } else if (payload.color !== undefined) {
       const label = payload.color || '○'
       showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+    } else if (payload.pick !== undefined) {
+      const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— kein Pick'
+      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
     }
   } catch (e) {
     // Rollback

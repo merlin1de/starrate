@@ -365,10 +365,15 @@ class ShareController extends Controller
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
         $color     = $body['color'] ?? null;
+        $pick      = $body['pick'] ?? null;
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
         if ($rating !== null && ($rating < 0 || $rating > 5)) {
             return new DataResponse(['error' => 'rating muss zwischen 0 und 5 liegen'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($pick !== null && !in_array($pick, TagService::VALID_PICKS, true)) {
+            return new DataResponse(['error' => 'Ungültiger Pick-Status'], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
         try {
@@ -377,6 +382,7 @@ class ShareController extends Controller
                 (int) $body['file_id'],
                 $rating,
                 $color,
+                $pick,
                 $guestName,
             );
             return new DataResponse($result, Http::STATUS_OK);
