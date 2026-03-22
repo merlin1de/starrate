@@ -19,7 +19,6 @@ const el = document.getElementById('starrate-guest-root')
 if (el) {
   const token     = el.dataset.token     ?? ''
   const canRate   = el.dataset.canRate   === 'true'
-  const minRating = parseInt(el.dataset.minRating ?? '0', 10)
   const guestName = el.dataset.guestName ?? ''
 
   // Memory-Router: dieselben Routen wie main.js, aber ohne URL-Seiteneffekte
@@ -31,7 +30,7 @@ if (el) {
     ],
   })
 
-  const app = createApp(GuestGallery, { token, canRate, minRating, guestName })
+  const app = createApp(GuestGallery, { token, canRate, guestName })
   app.use(router)
   router.isReady().then(() => app.mount(el))
 }

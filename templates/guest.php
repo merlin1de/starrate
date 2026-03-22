@@ -5,13 +5,11 @@
 
 $token     = $_['token']      ?? '';
 $canRate   = $_['can_rate']   ?? false;
-$minRating = $_['min_rating'] ?? 0;
 $guestName = $_['guest_name'] ?? '';
 ?>
 <div
   id="starrate-guest-root"
   data-token="<?= htmlspecialchars($token, ENT_QUOTES) ?>"
   data-can-rate="<?= $canRate ? 'true' : 'false' ?>"
-  data-min-rating="<?= (int) $minRating ?>"
   data-guest-name="<?= htmlspecialchars($guestName, ENT_QUOTES) ?>"
 ></div>
