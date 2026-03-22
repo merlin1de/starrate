@@ -756,7 +756,7 @@ watch(() => route.query, q => {
 .sr-breadcrumb__version-link:hover,
 .sr-breadcrumb__version-link:active {
   color: #8a8aa8 !important;
-  text-decoration: underline;
+  text-decoration: underline !important;
 }
 
 /* ── Help-Button ─────────────────────────────────────────────────────────── */
