@@ -72,6 +72,7 @@
       :total="allImages.length"
       :filtered-count="filteredImages.length"
       :mode="mode"
+      :enable-pick-ui="settings.enable_pick_ui"
       @toggle-mode="toggleMode"
     />
 
@@ -89,6 +90,7 @@
         :show-filename="settings.show_filename"
         :show-rating-info="settings.show_rating_overlay"
         :show-color-info="settings.show_color_overlay"
+        :enable-pick-ui="settings.enable_pick_ui"
         :thumbnail-url-fn="thumbnailUrlFn"
         @rate="onRate"
         @open-loupe="openLoupe"
@@ -103,6 +105,7 @@
         :initial-index="currentIndex"
         :on-refresh-rating="guestMode ? null : refreshImageRating"
         :preview-url-fn="previewUrlFn"
+        :enable-pick-ui="settings.enable_pick_ui"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -161,7 +164,7 @@
                 <div class="sr-shortcuts-row"><kbd>9</kbd><span>Blau</span></div>
                 <div class="sr-shortcuts-row"><kbd>V</kbd><span>Lila</span></div>
               </div>
-              <div class="sr-shortcuts-group">
+              <div v-if="settings.enable_pick_ui" class="sr-shortcuts-group">
                 <div class="sr-shortcuts-group-title">Auswahl</div>
                 <div class="sr-shortcuts-row"><kbd>P</kbd><span>Pick</span></div>
                 <div class="sr-shortcuts-row"><kbd>X</kbd><span>Reject</span></div>
@@ -243,6 +246,7 @@ const settings = ref({
   show_rating_overlay:  true,
   show_color_overlay:   true,
   grid_columns:        'auto',
+  enable_pick_ui:       false,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
@@ -307,7 +311,7 @@ const filteredImages = computed(() => {
     imgs = imgs.filter(i => i.color === f.color)
   }
 
-  if (f.pick) {
+  if (f.pick && settings.value.enable_pick_ui) {
     imgs = imgs.filter(i => i.pick === f.pick)
   }
 
@@ -319,7 +323,7 @@ const hasActiveFilter = computed(() =>
   activeFilter.value.exactRating !== null ||
   activeFilter.value.maxRating !== null ||
   activeFilter.value.color !== null ||
-  activeFilter.value.pick !== null
+  (settings.value.enable_pick_ui && activeFilter.value.pick !== null)
 )
 
 // ─── Bilder laden ─────────────────────────────────────────────────────────────
@@ -358,6 +362,13 @@ async function loadImages() {
 
 // Pfadwechsel → Bilder neu laden (kein immediate: erster Load passiert in onMounted nach Settings)
 watch(currentPath, loadImages)
+
+// Pick-Filter zurücksetzen wenn Pick-UI deaktiviert wird
+watch(() => settings.value.enable_pick_ui, enabled => {
+  if (!enabled && activeFilter.value.pick !== null) {
+    activeFilter.value = { ...activeFilter.value, pick: null }
+  }
+})
 
 // ─── Bewertung setzen ─────────────────────────────────────────────────────────
 

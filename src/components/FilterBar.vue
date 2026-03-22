@@ -61,7 +61,7 @@
       <div class="sr-filterbar__sep" aria-hidden="true" />
 
       <!-- Pick/Reject-Filter -->
-      <div class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Auswahl')">
+      <div v-if="enablePickUi" class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Auswahl')">
 
         <button
           class="sr-filterbar__pill sr-filterbar__pill--pick"
@@ -176,6 +176,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'grid',
+  },
+  enablePickUi: {
+    type: Boolean,
+    default: false,
   },
 })
 
