@@ -320,7 +320,7 @@ function onDblClick(e) {
 
   if (isFit.value) {
     zoomTo100()
-  } else if (Math.abs(zoom.value - 1.0) < 0.05 || zoom.value > 1.5) {
+  } else if (zoom.value < 1.0 || Math.abs(zoom.value - 1.0) < 0.05 || zoom.value > 1.5) {
     resetZoom()
   } else {
     zoomTo100()
