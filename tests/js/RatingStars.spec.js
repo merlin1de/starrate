@@ -20,14 +20,18 @@ describe('RatingStars', () => {
     expect(filled).toHaveLength(3)
   })
 
-  it('zeigt keinen Clear-Button bei Rating 0', () => {
+  it('zeigt Clear-Button versteckt bei Rating 0', () => {
     const w = factory({ modelValue: 0 })
-    expect(w.find('.sr-stars__clear').exists()).toBe(false)
+    const btn = w.find('.sr-stars__clear')
+    expect(btn.exists()).toBe(true)
+    expect(btn.classes()).toContain('sr-stars__clear--hidden')
   })
 
-  it('zeigt Clear-Button bei Rating > 0', () => {
+  it('zeigt Clear-Button sichtbar bei Rating > 0', () => {
     const w = factory({ modelValue: 3 })
-    expect(w.find('.sr-stars__clear').exists()).toBe(true)
+    const btn = w.find('.sr-stars__clear')
+    expect(btn.exists()).toBe(true)
+    expect(btn.classes()).not.toContain('sr-stars__clear--hidden')
   })
 
   it('ist nicht interaktiv bei interactive=false', () => {
