@@ -137,7 +137,6 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import { t, n } from '@nextcloud/l10n'
 
 const COLOR_OPTIONS = [
@@ -168,9 +167,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:filter', 'toggle-mode'])
-
-const route  = useRoute()
-const router = useRouter()
 
 const colorOptions = COLOR_OPTIONS
 
@@ -270,20 +266,6 @@ function resetFilters() {
 
 function updateFilter(newFilter) {
   emit('update:filter', newFilter)
-  syncUrlParams(newFilter)
-}
-
-// ─── URL-Sync ─────────────────────────────────────────────────────────────────
-
-function syncUrlParams(filter) {
-  const query = {}
-  if (filter.exactRating !== null)  query.rating     = String(filter.exactRating)
-  else if (filter.minRating > 0)    query.min_rating = String(filter.minRating)
-  else if (filter.maxRating !== null) query.max_rating = String(filter.maxRating)
-  if (filter.color) query.color = filter.color
-  if (filter.pick)  query.pick  = filter.pick
-
-  router.replace({ query })
 }
 </script>
 
