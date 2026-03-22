@@ -5,8 +5,6 @@
     tabindex="0"
     :style="gridStyle"
     @keydown="onGlobalKeydown"
-    @focus="gridFocused = true"
-    @blur="gridFocused = false"
   >
     <!-- Skeleton-Loader -->
     <template v-if="loading">
@@ -155,47 +153,83 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'rate',           // (image, rating|null, color|null)
-  'open-loupe',     // (image, index)
+  'rate',             // (image, rating|undefined, color|undefined, pick|undefined)
+  'open-loupe',       // (image, index)
   'selection-change', // (selectedIds: Set)
-  'batch-rate',     // (selectedIds: Set, rating|null, color|null)
-  'clear-filter',   // ()
+  'clear-filter',     // ()
 ])
 
 const gridStyle = computed(() => {
-  const cols = props.gridColumns === 'auto'
-    ? 'repeat(auto-fill, minmax(200px, 1fr))'
-    : `repeat(${props.gridColumns}, 1fr)`
-  return { '--sr-grid-columns': cols }
+  // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
+  // werden in einigen Browsern nicht korrekt in grid-template-columns geparsed.
+  if (props.gridColumns !== 'auto') {
+    return { gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
+  }
+  return { gridTemplateColumns: `repeat(auto-fill, minmax(${props.thumbnailSize}px, 1fr))` }
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
 const gridEl       = ref(null)
-const gridFocused  = ref(false)
 const focusedIndex = ref(-1)
 const selectedIds  = ref(new Set())
 const lastClickIdx = ref(-1)
 const skeletonCount = 16
 
-// Lazy-Loading: Thumbnails werden nach dem Mount geladen
+// Thumbnail-Cache: überlebt Filter-Wechsel
 const thumbCache = ref({})
 
-// ─── Thumbnail-Loading ────────────────────────────────────────────────────────
+// ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
-watch(() => props.images, (imgs) => {
-  imgs.forEach(img => {
-    if (!img.thumbLoaded) {
-      if (thumbCache.value[img.id]) {
-        // Aus Cache: sofort ohne Netzwerkrequest setzen
-        img.thumbUrl    = thumbCache.value[img.id]
-        img.thumbLoaded = true
+const THUMB_CONCURRENCY = 5
+let thumbObserver = null
+let activeLoads   = 0
+const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
+
+function setupThumbObserver() {
+  thumbObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return
+      const idx   = parseInt(entry.target.dataset.index, 10)
+      const image = props.images[idx]
+      if (!image || image.thumbLoaded) return
+      if (thumbCache.value[image.id]) {
+        image.thumbUrl    = thumbCache.value[image.id]
+        image.thumbLoaded = true
       } else {
-        loadThumb(img)
+        enqueueThumb(image)
       }
-    }
+      thumbObserver.unobserve(entry.target)
+    })
+  }, { rootMargin: '400px 0px' })  // 400px Vorladen
+}
+
+function observeAllItems() {
+  nextTick(() => {
+    if (!gridEl.value || !thumbObserver) return
+    const items = gridEl.value.querySelectorAll('.sr-grid__item[data-index]')
+    items.forEach(el => {
+      const idx = parseInt(el.dataset.index, 10)
+      const img = props.images[idx]
+      if (img && !img.thumbLoaded) thumbObserver.observe(el)
+    })
   })
-}, { immediate: true })
+}
+
+function enqueueThumb(image) {
+  if (loadQueue.some(i => i.id === image.id)) return
+  loadQueue.push(image)
+  drainQueue()
+}
+
+function drainQueue() {
+  while (activeLoads < THUMB_CONCURRENCY && loadQueue.length > 0) {
+    const image = loadQueue.shift()
+    if (image.thumbLoaded) continue
+    activeLoads++
+    loadThumb(image)
+  }
+}
 
 function loadThumb(image) {
   const sz  = props.thumbnailSize
@@ -203,19 +237,26 @@ function loadThumb(image) {
   const imgEl = new Image()
   imgEl.onload = () => {
     thumbCache.value[image.id] = url
-    // Reaktives Update
     const found = props.images.find(i => i.id === image.id)
-    if (found) {
-      found.thumbUrl    = url
-      found.thumbLoaded = true
-    }
+    if (found) { found.thumbUrl = url; found.thumbLoaded = true }
+    activeLoads--
+    drainQueue()
   }
   imgEl.onerror = () => {
     const found = props.images.find(i => i.id === image.id)
-    if (found) found.thumbLoaded = true // trotzdem als geladen markieren
+    if (found) found.thumbLoaded = true
+    activeLoads--
+    drainQueue()
   }
   imgEl.src = url
 }
+
+// Bilder-Array wechselt (Filter / Ordner): Observer + Queue neu aufsetzen
+watch(() => props.images, () => {
+  loadQueue.length = 0
+  thumbObserver?.disconnect()
+  observeAllItems()
+})
 
 // ─── Auswahl ──────────────────────────────────────────────────────────────────
 
@@ -410,8 +451,7 @@ function moveFocus(delta, extend = false) {
 
 function columnsEstimate() {
   if (!gridEl.value) return 4
-  const itemWidth = 220 // ungefähre Thumbnail-Breite in px
-  return Math.max(1, Math.floor(gridEl.value.offsetWidth / itemWidth))
+  return Math.max(1, Math.floor(gridEl.value.offsetWidth / props.thumbnailSize))
 }
 
 function scrollItemIntoView(index) {
@@ -433,7 +473,13 @@ watch(() => props.currentIndex, idx => {
 // ─── Autofocus beim Mount ─────────────────────────────────────────────────────
 
 onMounted(() => {
+  setupThumbObserver()
+  observeAllItems()
   nextTick(() => gridEl.value?.focus({ preventScroll: true }))
+})
+
+onUnmounted(() => {
+  thumbObserver?.disconnect()
 })
 
 // ─── Expose für SelectionBar ─────────────────────────────────────────────────
@@ -444,14 +490,14 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 <style scoped>
 .sr-grid {
   display: grid;
-  grid-template-columns: var(--sr-grid-columns, repeat(auto-fill, minmax(200px, 1fr)));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Fallback; wird via :style überschrieben */
   gap: 6px;
   padding: 8px;
   outline: none;
   align-content: start;
-  flex: 1;
+  /* max-height unabhängig von der Elternkette – NC-Header 50px + Breadcrumb ~36px + Filterbar ~62px + Puffer */
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
-  min-height: 0;
 }
 
 /* ── Item ─────────────────────────────────────────────────────────────────── */
