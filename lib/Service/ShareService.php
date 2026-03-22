@@ -57,6 +57,7 @@ class ShareService
         ?int    $expiresAt,
         int     $minRating,
         string  $permissions,
+        ?string $guestName = null,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -73,6 +74,7 @@ class ShareService
             'expires_at'    => $expiresAt,
             'min_rating'    => max(0, min(5, $minRating)),
             'permissions'   => $permissions,
+            'guest_name'    => $guestName ? trim($guestName) : null,
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -213,26 +215,43 @@ class ShareService
     // ─── Gast-Galerie ─────────────────────────────────────────────────────────
 
     /**
-     * Gibt alle Bilder für einen Share zurück inkl. aktueller NC-Tag-Bewertungen.
+     * Gibt Bilder und Unterordner für einen Share zurück inkl. aktueller NC-Tag-Bewertungen.
      * Filtert nach min_rating wenn gesetzt (verwendet NC-Tags).
      *
-     * @return array[]
+     * @param  string $subPath  Relativer Pfad innerhalb des Share-Roots (leer = Root)
+     * @return array{images: array[], folders: array[]}
      */
-    public function getImagesForShare(array $share): array
+    public function getImagesForShare(array $share, string $subPath = ''): array
     {
         $ownerId   = $share['owner_id'];
-        $ncPath    = $share['nc_path'];
+        $ncPath    = rtrim($share['nc_path'], '/');
         $minRating = (int) ($share['min_rating'] ?? 0);
 
+        // Subpath bereinigen (Traversal-Schutz)
+        $subPath = $this->sanitizeSubPath($subPath);
+
         $userFolder = $this->rootFolder->getUserFolder($ownerId);
-        $folder     = $ncPath === '/' ? $userFolder : $userFolder->get(ltrim($ncPath, '/'));
+        $fullPath   = $ncPath . $subPath;
+        $folder     = $fullPath === '' || $fullPath === '/'
+            ? $userFolder
+            : $userFolder->get(ltrim($fullPath, '/'));
 
         if (!($folder instanceof Folder)) {
-            throw new \RuntimeException("Pfad ist kein Ordner: {$ncPath}");
+            throw new \RuntimeException("Pfad ist kein Ordner: {$fullPath}");
         }
 
-        $images = [];
+        $images  = [];
+        $folders = [];
+
         foreach ($folder->getDirectoryListing() as $node) {
+            if ($node instanceof Folder) {
+                $relPath   = $subPath . '/' . $node->getName();
+                $folders[] = [
+                    'name' => $node->getName(),
+                    'path' => $relPath,
+                ];
+                continue;
+            }
             if (!($node instanceof File)) {
                 continue;
             }
@@ -247,34 +266,32 @@ class ShareService
             ];
         }
 
-        if (empty($images)) {
-            return [];
+        if (!empty($images)) {
+            // Aktuelle NC-Tag-Bewertungen laden
+            $fileIds  = array_map(fn($img) => (string) $img['id'], $images);
+            $metadata = $this->tagService->getMetadataBatch($fileIds);
+
+            foreach ($images as &$img) {
+                $meta          = $metadata[(string) $img['id']] ?? ['rating' => 0, 'color' => null, 'pick' => 'none'];
+                $img['rating'] = $meta['rating'];
+                $img['color']  = $meta['color'];
+                $img['pick']   = $meta['pick'];
+            }
+            unset($img);
+
+            // min_rating filtern (basiert auf NC-Tags)
+            if ($minRating > 0) {
+                $images = array_values(array_filter($images, fn($img) => ($img['rating'] ?? 0) >= $minRating));
+            }
         }
 
-        // Aktuelle NC-Tag-Bewertungen laden
-        $fileIds  = array_map(fn($img) => (string) $img['id'], $images);
-        $metadata = $this->tagService->getMetadataBatch($fileIds);
-
-        foreach ($images as &$img) {
-            $meta          = $metadata[(string) $img['id']] ?? ['rating' => 0, 'color' => null, 'pick' => 'none'];
-            $img['rating'] = $meta['rating'];
-            $img['color']  = $meta['color'];
-            $img['pick']   = $meta['pick'];
-        }
-        unset($img);
-
-        // min_rating filtern (basiert auf NC-Tags)
-        if ($minRating > 0) {
-            $images = array_values(array_filter($images, fn($img) => ($img['rating'] ?? 0) >= $minRating));
-        }
-
-        return $images;
+        return ['images' => $images, 'folders' => $folders];
     }
 
     /**
      * Liefert ein Thumbnail für einen Share (prüft Dateizugehörigkeit).
      */
-    public function getThumbnailForShare(array $share, int $fileId): Response
+    public function getThumbnailForShare(array $share, int $fileId, int $width = 400, int $height = 400): Response
     {
         $ownerId    = $share['owner_id'];
         $userFolder = $this->rootFolder->getUserFolder($ownerId);
@@ -298,7 +315,11 @@ class ShareService
             throw new \RuntimeException("Datei liegt nicht im freigegebenen Ordner.");
         }
 
-        $preview  = $this->previewManager->getPreview($file, 400, 400, true);
+        $width  = min(max($width,  32), 3840);
+        $height = min(max($height, 32), 2160);
+
+        $crop     = ($width <= 800);  // Thumbnails: crop; Previews: kein Crop
+        $preview  = $this->previewManager->getPreview($file, $width, $height, $crop);
         $response = new FileDisplayResponse($preview, 200, [
             'Content-Type' => $preview->getMimeType(),
         ]);
@@ -337,9 +358,21 @@ class ShareService
             $this->tagService->setMetadata($fileIdStr, $metadata);
         }
 
+        // Dateinamen für den Log-Eintrag ermitteln
+        $filename = (string) $fileId;
+        $userFolder = $this->rootFolder->getUserFolder($ownerId);
+        $nodes = $userFolder->getById($fileId);
+        foreach ($nodes as $n) {
+            if ($n instanceof \OCP\Files\File) {
+                $filename = $n->getName();
+                break;
+            }
+        }
+
         // Log-Eintrag schreiben
         $entry = [
             'file_id'    => $fileId,
+            'filename'   => $filename,
             'rating'     => $rating,
             'color'      => $color,
             'guest_name' => $guestName ?: 'Gast',
@@ -423,6 +456,31 @@ class ShareService
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
+
+    /**
+     * Bereinigt einen relativen Unterpfad gegen Directory-Traversal-Angriffe.
+     * Liefert immer entweder '' oder einen Pfad der mit '/' beginnt.
+     */
+    private function sanitizeSubPath(string $subPath): string
+    {
+        if ($subPath === '' || $subPath === '/') {
+            return '';
+        }
+
+        $parts  = explode('/', str_replace('\\', '/', $subPath));
+        $result = [];
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                // Traversal-Versuch → einfach ignorieren
+                continue;
+            }
+            $result[] = $part;
+        }
+        return $result ? '/' . implode('/', $result) : '';
+    }
 
     private function loadAllShares(string $userId): array
     {

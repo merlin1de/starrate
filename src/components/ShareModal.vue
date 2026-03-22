@@ -42,6 +42,21 @@
           </div>
 
           <div class="sr-share-modal__field">
+            <label class="sr-share-modal__label">
+              Name des Empfängers
+              <span v-if="form.permissions === 'rate'" class="sr-share-modal__required">*</span>
+              <span v-else class="sr-share-modal__optional">(optional)</span>
+            </label>
+            <input
+              v-model="form.guestName"
+              class="sr-share-modal__input"
+              type="text"
+              placeholder="z.B. Anna, Model 1, Kunde Müller"
+              maxlength="60"
+            />
+          </div>
+
+          <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">Berechtigung</label>
             <div class="sr-share-modal__toggle-group">
               <button
@@ -123,7 +138,8 @@ const emit = defineEmits(['close', 'created'])
 // ── Formular-State ────────────────────────────────────────────────────────────
 
 const form = ref({
-  permissions: 'view',
+  guestName:   '',
+  permissions: 'rate',
   minRating:   0,
   password:    '',
   expiresDate: '',
@@ -159,7 +175,7 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { permissions: 'view', minRating: 0, password: '', expiresDate: '' }
+  form.value = { guestName: '', permissions: 'view', minRating: 0, password: '', expiresDate: '' }
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -168,10 +184,21 @@ async function create() {
   formError.value = ''
   saving.value    = true
 
+  // Pflichtfeld-Check: bei rate muss ein Name angegeben sein
+  if (form.value.permissions === 'rate' && !form.value.guestName.trim()) {
+    formError.value = 'Bitte einen Namen für den Empfänger eingeben.'
+    saving.value    = false
+    return
+  }
+
   const body = {
     nc_path:     props.ncPath,
     permissions: form.value.permissions,
     min_rating:  form.value.minRating,
+  }
+
+  if (form.value.guestName.trim()) {
+    body.guest_name = form.value.guestName.trim()
   }
 
   if (form.value.password) {
@@ -264,6 +291,10 @@ async function create() {
 }
 .sr-share-modal__optional {
   color: #52525b;
+  font-weight: 400;
+}
+.sr-share-modal__required {
+  color: #e94560;
   font-weight: 400;
 }
 

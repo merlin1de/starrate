@@ -35,6 +35,7 @@
             <div class="sr-share-list__row">
               <div class="sr-share-list__info">
                 <span class="sr-share-list__path">{{ share.nc_path || '/' }}</span>
+                <span v-if="share.guest_name" class="sr-share-list__guest-name">{{ share.guest_name }}</span>
                 <div class="sr-share-list__meta">
                   <span class="sr-share-list__badge" :class="share.permissions === 'rate' ? 'sr-share-list__badge--rate' : 'sr-share-list__badge--view'">
                     {{ share.permissions === 'rate' ? 'Bewerten' : 'Ansehen' }}
@@ -124,7 +125,7 @@
                   <span v-if="entry.color" class="sr-share-list__log-color" :class="`sr-share-list__log-color--${entry.color.toLowerCase()}`">
                     ●
                   </span>
-                  <span class="sr-share-list__log-file">Bild #{{ entry.file_id }}</span>
+                  <span class="sr-share-list__log-file">{{ entry.filename ?? `#${entry.file_id}` }}</span>
                   <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
                 </div>
               </div>
@@ -367,6 +368,10 @@ defineExpose({ loadShares })
   font-size: 0.875rem;
   font-weight: 500;
   word-break: break-all;
+}
+.sr-share-list__guest-name {
+  color: #a1a1aa;
+  font-size: 0.8rem;
 }
 
 .sr-share-list__meta {
