@@ -100,7 +100,6 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import RatingStars from './RatingStars.vue'
-import ColorLabel from './ColorLabel.vue'
 
 const props = defineProps({
   /** Array von Bild-Objekten (von der API) */
@@ -690,8 +689,4 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   font-size: 14px;
 }
 
-.sr-grid__empty-sub {
-  font-size: 12px !important;
-  color: #444;
-}
 </style>

@@ -789,8 +789,6 @@ watch(() => props.initialIndex, idx => {
   border-radius: 4px;
   background: transparent;
   color: #888;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
   transition: background 150ms, color 150ms, border-color 150ms;
 }
