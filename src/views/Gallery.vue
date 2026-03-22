@@ -60,6 +60,7 @@
         v-else
         :images="filteredImages"
         :initial-index="currentIndex"
+        :on-refresh-rating="refreshImageRating"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -373,8 +374,29 @@ async function loadSettings() {
   }
 }
 
+// ─── Sync-Light: einzelnes Bild aktualisieren (für Loupe-Navigation) ──────────
+
+async function refreshImageRating(image) {
+  if (!image?.id) return
+  try {
+    const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
+    const { data } = await axios.get(url, { timeout: 5000 })
+    const local = allImages.value.find(i => i.id === image.id)
+    if (local) Object.assign(local, { rating: data.rating, color: data.color, pick: data.pick })
+  } catch {
+    // still ignore – user sees last known value
+  }
+}
+
+// ─── Visibility-Refresh: Tab kommt in Vordergrund → Ordner neu laden ──────────
+
+function onVisibilityChange() {
+  if (!document.hidden && !loading.value) loadImages()
+}
+
 onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 
   // Settings laden, dann erst Bilder (damit sort/order korrekt ist)
   await loadSettings()
@@ -397,6 +419,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKeydown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 // Filter in localStorage + URL persistieren

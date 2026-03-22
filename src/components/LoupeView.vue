@@ -145,6 +145,10 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  onRefreshRating: {
+    type: Function,
+    default: null,
+  },
 })
 
 const emit = defineEmits(['rate', 'close', 'index-change'])
@@ -220,6 +224,9 @@ function navigate(delta) {
   currentIndex.value   = newIdx
   resetZoom()
   emit('index-change', newIdx)
+
+  // Rating vom Server nachladen (Sync-Light für Multi-User)
+  props.onRefreshRating?.(props.images[newIdx])
 
   // Nächstes Bild vorab laden
   preloadAdjacent(newIdx)
