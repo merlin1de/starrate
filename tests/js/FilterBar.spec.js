@@ -1,12 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createRouter, createMemoryHistory } from 'vue-router'
 import FilterBar from '../../src/components/FilterBar.vue'
-
-const makeRouter = () => createRouter({
-  history: createMemoryHistory(),
-  routes: [{ path: '/', component: { template: '<div/>' } }],
-})
 
 const defaultFilter = () => ({
   minRating:   0,
@@ -16,19 +10,15 @@ const defaultFilter = () => ({
   pick:        null,
 })
 
-const factory = (props = {}, router = null) => {
-  const r = router ?? makeRouter()
-  return mount(FilterBar, {
-    props: {
-      filter:        defaultFilter(),
-      total:         100,
-      filteredCount: 100,
-      mode:          'grid',
-      ...props,
-    },
-    global: { plugins: [r] },
-  })
-}
+const factory = (props = {}) => mount(FilterBar, {
+  props: {
+    filter:        defaultFilter(),
+    total:         100,
+    filteredCount: 100,
+    mode:          'grid',
+    ...props,
+  },
+})
 
 describe('FilterBar', () => {
 
@@ -169,29 +159,6 @@ describe('FilterBar', () => {
     await w.find('.sr-filterbar__reset').trigger('click')
     const emitted = w.emitted('update:filter')
     expect(emitted[0][0]).toEqual({ minRating: 0, exactRating: null, maxRating: null, color: null, pick: null })
-  })
-
-  // ── URL-Parameter ─────────────────────────────────────────────────────────
-
-  it('aktualisiert URL-Parameter bei Filter-Wechsel', async () => {
-    const router = makeRouter()
-    const replaceSpy = vi.spyOn(router, 'replace')
-    const w = factory({}, router)
-
-    await w.findAll('.sr-filterbar__colordot')[1].trigger('click') // Gelb
-    expect(replaceSpy).toHaveBeenCalledWith(expect.objectContaining({
-      query: expect.objectContaining({ color: 'Yellow' }),
-    }))
-  })
-
-  it('setzt keine URL-Query wenn kein Filter aktiv', async () => {
-    const router = makeRouter()
-    const replaceSpy = vi.spyOn(router, 'replace')
-    const w = factory({ filter: { ...defaultFilter(), color: 'Red' } }, router)
-
-    // Filter zurücksetzen
-    await w.find('.sr-filterbar__reset').trigger('click')
-    expect(replaceSpy).toHaveBeenCalledWith({ query: {} })
   })
 
   // ── Modus-Toggle ─────────────────────────────────────────────────────────

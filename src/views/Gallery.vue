@@ -394,6 +394,7 @@ const SYNC_INTERVAL_MS = 5 * 60_000  // 5 Minuten
 let syncTimer = null
 
 function startBackgroundSync() {
+  clearInterval(syncTimer)
   syncTimer = setInterval(() => {
     if (!document.hidden && !loading.value) loadImages()
   }, SYNC_INTERVAL_MS)

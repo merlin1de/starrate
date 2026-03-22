@@ -168,6 +168,17 @@ describe('LoupeView – Zoom & Navigation', () => {
     expect(w.find('.sr-loupe__zoom-level').text()).toContain('Eingepasst')
   })
 
+  it('Doppelklick kehrt zu Fit zurück wenn kleiner als Fit gezoomt (zoom < 1.0)', async () => {
+    const w = factory()
+    // Mausrad rauszoomen bis unter Fit-Level
+    for (let i = 0; i < 5; i++) {
+      await w.find('.sr-loupe').trigger('wheel', { deltaY: 120 })
+    }
+    // Jetzt sollte zoom < 1.0 sein (kleiner als Fit) oder schon reset — prüfe dass Doppelklick zu Fit führt
+    await w.find('.sr-loupe').trigger('dblclick')
+    expect(w.find('.sr-loupe__zoom-level').text()).toContain('Eingepasst')
+  })
+
   // ── Bewertung in Lupenansicht ─────────────────────────────────────────────
 
   it.each([0, 1, 2, 3, 4, 5])('Taste "%s" emittiert rate mit Rating %s', async (r) => {
