@@ -585,4 +585,25 @@ function syncUrlParams(filter) {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* ── Mobile: single row, horizontal scroll ────────────────────────────────── */
+@media (pointer: coarse) {
+  .sr-filterbar {
+    flex-wrap: nowrap;
+    padding: 5px 8px;
+    gap: 4px;
+    min-height: 0;
+  }
+  .sr-filterbar__filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .sr-filterbar__filters::-webkit-scrollbar { display: none; }
+
+  .sr-filterbar__label   { display: none; }
+  .sr-filterbar__sep     { display: none; }
+  .sr-filterbar__status  { display: none; }
+}
 </style>
