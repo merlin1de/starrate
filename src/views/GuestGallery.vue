@@ -45,7 +45,6 @@ import Gallery from './Gallery.vue'
 const props = defineProps({
   token:     { type: String,  required: true },
   canRate:   { type: Boolean, default: false },
-  minRating: { type: Number,  default: 0 },
   guestName: { type: String,  default: '' },
 })
 
