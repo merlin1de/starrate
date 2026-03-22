@@ -115,14 +115,18 @@
             type="button"
             :title="t('starrate', 'Pick (P)')"
             @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'pick' ? 'none' : 'pick')"
-          >P</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button
             class="sr-loupe__pick-btn sr-loupe__pick-btn--reject"
             :class="{ 'sr-loupe__pick-btn--active': currentImage?.pick === 'reject' }"
             type="button"
             :title="t('starrate', 'Ablehnen (X)')"
             @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'reject' ? 'none' : 'reject')"
-          >X</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="17" y1="7" x2="7" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
         </div>
       </div>
     </Transition>

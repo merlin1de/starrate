@@ -2,6 +2,13 @@
   <!-- Passwort-Dialog (vor der Galerie) -->
   <div v-if="passwordDlg" class="sr-guest-pw__overlay">
     <div class="sr-guest-pw__dialog">
+
+      <!-- Branding -->
+      <div class="sr-guest-pw__brand">
+        <div class="sr-guest-pw__brand-name">StarRate <span class="sr-guest-pw__brand-version">v{{ appVersion }}</span></div>
+        <div class="sr-guest-pw__brand-by">by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Merlin1.De</a></div>
+      </div>
+
       <h2 class="sr-guest-pw__title">Passwortgeschützte Galerie</h2>
       <p class="sr-guest-pw__hint">Bitte gib das Passwort ein, um die Galerie zu öffnen.</p>
       <input
@@ -39,6 +46,9 @@ import { ref } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import Gallery from './Gallery.vue'
+
+/* global __APP_VERSION__ */
+const appVersion = __APP_VERSION__
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -137,6 +147,45 @@ async function verifyPassword() {
   flex-direction: column;
   gap: 1rem;
 }
+.sr-guest-pw__brand {
+  text-align: center;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #2a2a3e;
+  margin-bottom: 0.25rem;
+}
+
+.sr-guest-pw__brand-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #d4d4e8;
+  letter-spacing: 0.04em;
+}
+
+.sr-guest-pw__brand-version {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #7a7a96;
+  letter-spacing: 0.04em;
+}
+
+.sr-guest-pw__brand-by {
+  font-size: 0.75rem;
+  color: #7a7a96;
+  margin-top: 2px;
+}
+
+.sr-guest-pw__brand-link,
+.sr-guest-pw__brand-link:visited,
+.sr-guest-pw__brand-link:hover,
+.sr-guest-pw__brand-link:active {
+  color: #8a8aa8 !important;
+  text-decoration: none;
+}
+
+.sr-guest-pw__brand-link:hover {
+  text-decoration: underline;
+}
+
 .sr-guest-pw__title {
   color: #fff;
   font-size: 1.1rem;
