@@ -825,10 +825,29 @@ watch(() => props.initialIndex, idx => {
 .fade-enter-from,
 .fade-leave-to     { opacity: 0; }
 
-/* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */
+/* X-Buttons im Footer ausblenden: Nochmals klicken entfernt Bewertung/Farbe */
+.sr-loupe__footer :deep(.sr-stars__clear),
+.sr-loupe__footer :deep(.sr-color-label__clear) {
+  display: none;
+}
+
+/* ── Mobile: zweizeiliger Footer + Android-Navigationsleiste ─────────────── */
 @media (pointer: coarse) {
   .sr-loupe__footer {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 12px;
+  }
+  /* Steuerelemente (Zeile 1) */
+  .sr-loupe__footer-center { order: 1; }
+  .sr-loupe__footer-right  { order: 1; }
+  /* Index + Dateiname (Zeile 2, volle Breite, zentriert) */
+  .sr-loupe__footer-left {
+    order: 2;
+    flex: 0 0 100%;
+    align-items: center;
+    min-width: 0;
   }
 }
 </style>
