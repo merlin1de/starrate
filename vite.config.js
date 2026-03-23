@@ -7,9 +7,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
 export default createAppConfig({
-  main:     'src/main.js',
-  guest:    'src/guest.js',
-  settings: 'src/settings.js',
+  main:           'src/main.js',
+  guest:          'src/guest.js',
+  settings:       'src/settings.js',
+  'files-context': 'src/files-context.js',
 }, {
   config: {
     define: {
