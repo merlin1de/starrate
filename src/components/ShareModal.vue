@@ -315,7 +315,7 @@ async function create() {
   border-color: #e94560;
 }
 .sr-share-modal__input--readonly {
-  color: #71717a;
+  color: #a1a1aa;
   cursor: default;
 }
 .sr-share-modal__select option { background: #16213e; }
