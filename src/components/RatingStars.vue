@@ -4,7 +4,7 @@
     :class="{ 'sr-stars--interactive': interactive, 'sr-stars--compact': compact }"
     role="radiogroup"
     :aria-label="t('starrate', 'Bewertung')"
-    @mouseleave="hoverRating = 0"
+    @pointerleave="e => e.pointerType === 'mouse' && (hoverRating = 0)"
     @keydown="onKeydown"
     :tabindex="interactive ? 0 : -1"
   >
@@ -23,8 +23,9 @@
       :aria-label="n('starrate', '%n Stern', '%n Sterne', star)"
       :tabindex="-1"
       :disabled="!interactive"
-      @mouseenter="interactive && (hoverRating = star)"
+      @pointerenter="e => interactive && e.pointerType === 'mouse' && (hoverRating = star)"
       @click="interactive && setRating(star)"
+      @pointerup="e => e.pointerType === 'touch' && e.currentTarget.blur()"
     >
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path
@@ -142,8 +143,10 @@ defineExpose({ setRating })
   opacity: 1 !important;
 }
 
-.sr-stars__star:not(:disabled):hover {
-  transform: scale(1.2);
+@media (pointer: fine) {
+  .sr-stars__star:not(:disabled):hover {
+    transform: scale(1.2);
+  }
 }
 
 .sr-stars__star svg {
