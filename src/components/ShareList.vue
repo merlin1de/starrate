@@ -57,8 +57,8 @@
                     :value="shareUrl(share.token)"
                     @click="$event.target.select()"
                   />
-                  <button class="sr-share-list__copy" @click="copyUrl(share.token)" :title="'Link kopieren'">
-                    {{ copiedToken === share.token ? '✓' : '⎘' }}
+                  <button class="sr-share-list__copy" @click="copyUrl(share.token)" :class="{ 'sr-share-list__copy--done': copiedToken === share.token }">
+                    {{ copiedToken === share.token ? '✓ Kopiert' : 'Kopieren' }}
                   </button>
                 </div>
               </div>
@@ -441,16 +441,20 @@ defineExpose({ loadShares })
   padding: 0.25rem 0.5rem;
 }
 .sr-share-list__copy {
-  background: none;
-  border: 1px solid #2a2a3e;
-  border-radius: 4px;
-  color: #71717a;
+  background: #2a2a4a;
+  border: 1px solid #3f3f6a;
+  border-radius: 5px;
+  color: #a1a1aa;
   cursor: pointer;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.3rem 0.75rem;
   flex-shrink: 0;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
-.sr-share-list__copy:hover { color: #d4d4d8; }
+.sr-share-list__copy:hover { background: #3a3a5a; color: #d4d4d8; }
+.sr-share-list__copy--done { color: #4caf50; border-color: #4caf50; background: #1a2a1a; }
 
 .sr-share-list__actions {
   display: flex;
