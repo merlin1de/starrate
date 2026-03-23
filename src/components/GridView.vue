@@ -175,6 +175,7 @@ const THUMB_CONCURRENCY = 5
 let thumbObserver = null
 let activeLoads   = 0
 const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
+const pendingLoads = new Set()  // hält Image-Objekte am Leben (verhindert GC auf Mobile)
 
 function setupThumbObserver() {
   thumbObserver = new IntersectionObserver((entries) => {
@@ -182,21 +183,19 @@ function setupThumbObserver() {
       if (!entry.isIntersecting) return
       const idx   = parseInt(entry.target.dataset.index, 10)
       const image = props.images[idx]
-      if (!image || image.thumbLoaded) return
+      if (!image || image.thumbLoaded || image.thumbLoading) return
       if (thumbCache.value[image.id]) {
         image.thumbUrl    = thumbCache.value[image.id]
         image.thumbLoaded = true
       } else {
-        // Bilder die gerade sichtbar sind (intersectionRatio > 0.1) bekommen Priorität
-        const priority = entry.intersectionRatio > 0.1
-        enqueueThumb(image, priority)
+        // Tatsächlich sichtbare Bilder (im echten Viewport) bekommen Priorität
+        const inViewport = entry.boundingClientRect.bottom > 0
+          && entry.boundingClientRect.top < (window.innerHeight || document.documentElement.clientHeight)
+        enqueueThumb(image, inViewport)
       }
       thumbObserver.unobserve(entry.target)
     })
-  }, {
-    rootMargin: '400px 0px',   // 400px Vorladen
-    threshold: [0, 0.1],       // beide Schwellen beobachten für Priorität
-  })
+  }, { rootMargin: '400px 0px' })  // einzelner Threshold 0 → kein Doppel-Firing
 }
 
 function observeAllItems() {
@@ -212,8 +211,7 @@ function observeAllItems() {
 }
 
 function enqueueThumb(image, priority = false) {
-  if (loadQueue.some(i => i.id === image.id)) return
-  // priority: am aktuellen Viewport → vorne einreihen (nicht hinten)
+  if (image.thumbLoading || loadQueue.some(i => i.id === image.id)) return
   if (priority) loadQueue.unshift(image)
   else loadQueue.push(image)
   drainQueue()
@@ -229,21 +227,26 @@ function drainQueue() {
 }
 
 function loadThumb(image) {
+  image.thumbLoading = true
   const sz  = props.thumbnailSize
   const url = props.thumbnailUrlFn
     ? props.thumbnailUrlFn(image.id, sz)
     : generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
   const imgEl = new Image()
+  pendingLoads.add(imgEl)  // GC-Schutz: Image-Objekt am Leben halten bis Request abgeschlossen
   imgEl.onload = () => {
+    pendingLoads.delete(imgEl)
     thumbCache.value[image.id] = url
     const found = props.images.find(i => i.id === image.id)
-    if (found) { found.thumbUrl = url; found.thumbLoaded = true }
+    if (found) { found.thumbUrl = url; found.thumbLoaded = true; found.thumbLoading = false }
     activeLoads--
     drainQueue()
   }
   imgEl.onerror = () => {
+    pendingLoads.delete(imgEl)
     const found = props.images.find(i => i.id === image.id)
     if (found) {
+      found.thumbLoading = false
       found.thumbRetries = (found.thumbRetries ?? 0) + 1
       if (found.thumbRetries < 3) {
         // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen
