@@ -462,8 +462,12 @@ defineExpose({ loadShares })
 
 /* Toggle Switch */
 .sr-share-list__toggle-switch {
-  width: 36px; height: 20px; border-radius: 10px; border: none; cursor: pointer;
-  background: #3f3f5a; position: relative; transition: background 0.2s; flex-shrink: 0; padding: 0;
+  display: inline-block;
+  width: 36px; height: 20px;
+  min-width: 36px; min-height: 20px; max-width: 36px; max-height: 20px;
+  border-radius: 10px; border: none; cursor: pointer;
+  background: #3f3f5a; position: relative; transition: background 0.2s;
+  flex-shrink: 0; padding: 0; align-self: center;
 }
 .sr-share-list__toggle-switch--on { background: #4caf50; }
 .sr-share-list__toggle-thumb {
