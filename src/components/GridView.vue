@@ -40,7 +40,7 @@
             loading="lazy"
             draggable="false"
           />
-          <div v-else class="sr-grid__thumb-placeholder" />
+          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
 
           <!-- Reject-Overlay -->
           <div v-if="enablePickUi && image.pick === 'reject'" class="sr-grid__reject-overlay">
@@ -187,11 +187,16 @@ function setupThumbObserver() {
         image.thumbUrl    = thumbCache.value[image.id]
         image.thumbLoaded = true
       } else {
-        enqueueThumb(image)
+        // Bilder die gerade sichtbar sind (intersectionRatio > 0.1) bekommen Priorität
+        const priority = entry.intersectionRatio > 0.1
+        enqueueThumb(image, priority)
       }
       thumbObserver.unobserve(entry.target)
     })
-  }, { rootMargin: '400px 0px' })  // 400px Vorladen
+  }, {
+    rootMargin: '400px 0px',   // 400px Vorladen
+    threshold: [0, 0.1],       // beide Schwellen beobachten für Priorität
+  })
 }
 
 function observeAllItems() {
@@ -206,9 +211,11 @@ function observeAllItems() {
   })
 }
 
-function enqueueThumb(image) {
+function enqueueThumb(image, priority = false) {
   if (loadQueue.some(i => i.id === image.id)) return
-  loadQueue.push(image)
+  // priority: am aktuellen Viewport → vorne einreihen (nicht hinten)
+  if (priority) loadQueue.unshift(image)
+  else loadQueue.push(image)
   drainQueue()
 }
 
@@ -236,7 +243,15 @@ function loadThumb(image) {
   }
   imgEl.onerror = () => {
     const found = props.images.find(i => i.id === image.id)
-    if (found) found.thumbLoaded = true
+    if (found) {
+      found.thumbRetries = (found.thumbRetries ?? 0) + 1
+      if (found.thumbRetries < 3) {
+        // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen
+        setTimeout(() => enqueueThumb(found), found.thumbRetries * 3000)
+      } else {
+        found.thumbError = true
+      }
+    }
     activeLoads--
     drainQueue()
   }
@@ -555,6 +570,10 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 @keyframes shimmer {
   0%   { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+.sr-grid__thumb-placeholder--error {
+  animation: none;
+  background: #1a1a2a;
 }
 
 /* ── Overlays ─────────────────────────────────────────────────────────────── */

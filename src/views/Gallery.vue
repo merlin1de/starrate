@@ -350,6 +350,8 @@ async function loadImages() {
       ...img,
       thumbLoaded: false,
       thumbUrl: null,
+      thumbRetries: 0,
+      thumbError: false,
     }))
     subFolders.value = data.folders || []
   } catch (e) {
