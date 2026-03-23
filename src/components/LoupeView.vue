@@ -19,15 +19,19 @@
         :key="currentIndex"
       >
         <img
-          v-if="currentImage"
+          v-if="currentImage && !previewError"
           ref="imgEl"
           class="sr-loupe__img"
-          :src="previewUrl"
+          :src="actualSrc"
           :alt="currentImage.name"
           :style="imgStyle"
           draggable="false"
           @load="onImgLoad"
+          @error="onImgError"
         />
+        <div v-else-if="previewError" class="sr-loupe__placeholder sr-loupe__placeholder--error">
+          <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="16" width="48" height="36" rx="4" stroke="#555" stroke-width="2"/><line x1="8" y1="52" x2="56" y2="16" stroke="#555" stroke-width="2"/></svg>
+        </div>
         <div v-else class="sr-loupe__placeholder">
           <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="16" width="48" height="36" rx="4" stroke="#333" stroke-width="2"/></svg>
         </div>
@@ -170,7 +174,11 @@ const emit = defineEmits(['rate', 'close', 'index-change'])
 const loupeEl      = ref(null)
 const imgEl        = ref(null)
 const currentIndex = ref(props.initialIndex)
-const loadingPreview = ref(true)
+const loadingPreview  = ref(true)
+const previewError    = ref(false)
+const actualSrc       = ref('')
+let   previewRetries  = 0
+let   previewRetryTimer = null
 const showControls   = ref(true)
 let   hideControlsTimer = null
 
@@ -539,12 +547,33 @@ function resetControlsTimer() {
 
 function onImgLoad() {
   loadingPreview.value = false
+  previewError.value   = false
+  previewRetries       = 0
   resetControlsTimer()
 }
 
-watch(previewUrl, () => {
+function onImgError() {
+  previewRetries++
+  if (previewRetries < 3) {
+    // NC generiert Previews beim ersten Zugriff lazy — nach kurzer Pause nochmals versuchen
+    loadingPreview.value = true
+    previewRetryTimer = setTimeout(() => {
+      // Cache-Buster erzwingt neuen Request (Browser würde sonst gecachte 404 nehmen)
+      actualSrc.value = previewUrl.value + (previewUrl.value.includes('?') ? '&' : '?') + '_r=' + previewRetries
+    }, previewRetries * 3000)
+  } else {
+    loadingPreview.value = false
+    previewError.value   = true
+  }
+}
+
+watch(previewUrl, (url) => {
+  actualSrc.value      = url
   loadingPreview.value = true
-})
+  previewError.value   = false
+  previewRetries       = 0
+  clearTimeout(previewRetryTimer)
+}, { immediate: true })
 
 // ─── Mount / Unmount ──────────────────────────────────────────────────────────
 
@@ -557,6 +586,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   clearTimeout(hideControlsTimer)
+  clearTimeout(previewRetryTimer)
 })
 
 watch(() => props.initialIndex, idx => {
