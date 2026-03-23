@@ -415,7 +415,9 @@ class ShareController extends Controller
         if ($this->shareService->verifyPassword($share, $password)) {
             $session = \OC::$server->getSession();
             $session->set("starrate_share_{$token}", true);
-            return new DataResponse(['ok' => true]);
+            // pw_token: persistenter Nachweis für mobile Browser (localStorage)
+            $pwToken = hash_hmac('sha256', $token, $share['password_hash']);
+            return new DataResponse(['ok' => true, 'pw_token' => $pwToken]);
         }
 
         return new DataResponse(['error' => 'Falsches Passwort'], Http::STATUS_UNAUTHORIZED);
@@ -437,8 +439,23 @@ class ShareController extends Controller
         if (empty($share['password_hash'])) {
             return true;
         }
+
+        // 1. PHP-Session (Desktop-Browser, kurze Sitzungen)
         $session = \OC::$server->getSession();
-        return $session->get("starrate_share_{$token}") === true;
+        if ($session->get("starrate_share_{$token}") === true) {
+            return true;
+        }
+
+        // 2. pw_token (Mobile: per Header oder Query-Parameter aus localStorage)
+        $pwToken = $this->request->getHeader('X-StarRate-Pw-Token')
+            ?: (string) ($this->request->getParam('pw_token', ''));
+
+        if ($pwToken !== '') {
+            $expected = hash_hmac('sha256', $token, $share['password_hash']);
+            return hash_equals($expected, $pwToken);
+        }
+
+        return false;
     }
 
     private function validateShareBody(array $body): array

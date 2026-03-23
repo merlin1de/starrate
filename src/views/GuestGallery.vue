@@ -64,17 +64,36 @@ const passwordDlg = ref(false)
 const password    = ref('')
 const passwordErr = ref('')
 
+// pw_token: persistenter Auth-Nachweis für mobile Browser (überlebt Tab-Wechsel)
+const STORAGE_KEY  = `sr_guest_pw_${props.token}`
+const storedPwToken = ref(localStorage.getItem(STORAGE_KEY) ?? '')
+
+function pwHeader() {
+  return storedPwToken.value ? { 'X-StarRate-Pw-Token': storedPwToken.value } : {}
+}
+
+function appendPwToken(url) {
+  if (!storedPwToken.value) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return url + sep + 'pw_token=' + encodeURIComponent(storedPwToken.value)
+}
+
+function handle401() {
+  // pw_token ungültig (Passwort geändert) → löschen und Dialog zeigen
+  localStorage.removeItem(STORAGE_KEY)
+  storedPwToken.value = ''
+  passwordDlg.value   = true
+}
+
 // ── Gast-API-Callbacks ────────────────────────────────────────────────────────
 
 async function loadImagesFn(path) {
   try {
     const url = generateUrl(`/apps/starrate/api/guest/${props.token}/images`)
-    const { data } = await axios.get(url, { params: { path }, timeout: 15000 })
+    const { data } = await axios.get(url, { params: { path }, headers: pwHeader(), timeout: 15000 })
     return data
   } catch (e) {
-    if (e?.response?.status === 401) {
-      passwordDlg.value = true
-    }
+    if (e?.response?.status === 401) handle401()
     throw e
   }
 }
@@ -86,7 +105,7 @@ async function rateFn(fileId, payload) {
     file_id:    fileId,
     guest_name: props.guestName || 'Gast',
     ...payload,
-  })
+  }, { headers: pwHeader() })
 }
 
 async function batchRateFn(ids, payload) {
@@ -97,17 +116,19 @@ async function batchRateFn(ids, payload) {
       file_id:    id,
       guest_name: props.guestName || 'Gast',
       ...payload,
-    })
+    }, { headers: pwHeader() })
   ))
 }
 
 function thumbnailUrlFn(fileId, sz) {
   const s = sz ?? 280
-  return generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}?width=${s}&height=${s}`)
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}?width=${s}&height=${s}`)
+  return appendPwToken(base)
 }
 
 function previewUrlFn(fileId) {
-  return generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  return appendPwToken(base)
 }
 
 // ── Passwort verifizieren ─────────────────────────────────────────────────────
@@ -115,10 +136,15 @@ function previewUrlFn(fileId) {
 async function verifyPassword() {
   passwordErr.value = ''
   try {
-    await axios.post(
+    const { data } = await axios.post(
       generateUrl(`/apps/starrate/api/guest/${props.token}/verify`),
       { password: password.value }
     )
+    // pw_token in localStorage speichern → überlebt Tab-Wechsel auf Mobile
+    if (data.pw_token) {
+      storedPwToken.value = data.pw_token
+      localStorage.setItem(STORAGE_KEY, data.pw_token)
+    }
     passwordDlg.value = false
     password.value    = ''
   } catch {
