@@ -677,6 +677,34 @@ watch(() => route.query, q => {
   display: contents; /* Desktop: transparent, Kinder nehmen am sr-app-Flex teil */
 }
 
+.sr-folders {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+  width: 100%;
+}
+
+.sr-folders__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sr-folders__item:hover {
+  color: #d4d4d8;
+  border-color: #5a5a8a;
+}
+
 /* Breadcrumb: scoped für höhere Spezifizität gegenüber NC-Styles */
 .sr-breadcrumb {
   display: flex;
