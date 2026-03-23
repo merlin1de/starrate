@@ -16,7 +16,16 @@ function resolveInitialPath() {
   if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#') {
     return null
   }
-  // 2. Kommen wir aus NC Files? → ?dir=/Fotos/E2E auslesen
+  // 2. localStorage – von files-context.js gesetzt, 5 Min. gültig
+  try {
+    const raw = localStorage.getItem('starrate_nc_path')
+    if (raw) {
+      const { dir, t } = JSON.parse(raw)
+      if (dir && dir !== '/' && (Date.now() - t) < 5 * 60_000) return dir
+    }
+  } catch {}
+
+  // 3. Referrer (funktioniert wenn NC kein no-referrer setzt)
   try {
     const ref = new URL(document.referrer)
     if (ref.pathname.includes('/apps/files')) {
