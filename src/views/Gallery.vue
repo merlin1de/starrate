@@ -349,6 +349,7 @@ async function loadImages() {
     allImages.value = (data.images || []).map(img => ({
       ...img,
       thumbLoaded: false,
+      thumbLoading: false,
       thumbUrl: null,
       thumbRetries: 0,
       thumbError: false,
