@@ -43,9 +43,12 @@
                   <span v-if="share.min_rating > 0" class="sr-share-list__badge sr-share-list__badge--filter">
                     ≥ {{ share.min_rating }} ★
                   </span>
-                  <span v-if="share.has_password" class="sr-share-list__badge sr-share-list__badge--pw">
-                    🔒
-                  </span>
+                  <span
+                    v-if="share.has_password"
+                    class="sr-share-list__badge sr-share-list__badge--pw sr-share-list__badge--pw-click"
+                    title="Passwort ändern"
+                    @click="openPwEdit(share.token)"
+                  >🔒</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
                     {{ isExpired(share) ? 'Abgelaufen' : formatDate(share.expires_at) }}
                   </span>
@@ -86,6 +89,15 @@
                   <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">Nein</button>
                 </template>
                 <template v-else>
+                  <!-- Passwort-Button -->
+                  <button
+                    class="sr-share-list__action-btn"
+                    :class="{ 'sr-share-list__action-btn--active': pwEditToken === share.token }"
+                    title="Passwort setzen / ändern"
+                    @click="openPwEdit(share.token)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 018 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </button>
                   <!-- Log-Button -->
                   <button
                     class="sr-share-list__action-btn"
@@ -104,6 +116,33 @@
                     <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                   </button>
                 </template>
+              </div>
+            </div>
+
+            <!-- Passwort-Panel (aufklappbar) -->
+            <div v-if="pwEditToken === share.token" class="sr-share-list__pw-panel">
+              <input
+                v-model="pwInput"
+                type="password"
+                class="sr-share-list__pw-input"
+                placeholder="Neues Passwort…"
+                autocomplete="new-password"
+                @keydown.enter="savePassword(share)"
+                @keydown.escape="closePwEdit"
+              />
+              <div class="sr-share-list__pw-actions">
+                <button
+                  class="sr-share-list__pw-save"
+                  :disabled="!pwInput || pwSaving"
+                  @click="savePassword(share)"
+                >Setzen</button>
+                <button
+                  v-if="share.has_password"
+                  class="sr-share-list__pw-remove"
+                  :disabled="pwSaving"
+                  @click="removePassword(share)"
+                >Entfernen</button>
+                <button class="sr-share-list__pw-cancel" @click="closePwEdit">Abbrechen</button>
               </div>
             </div>
 
@@ -189,6 +228,10 @@ const copiedToken = ref(null)
 const pendingDeleteToken = ref(null)
 const pendingClearToken  = ref(null)
 
+const pwEditToken = ref(null)
+const pwInput     = ref('')
+const pwSaving    = ref(false)
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function shareUrl(token) {
@@ -268,6 +311,48 @@ async function loadLog(token) {
     logs.value = { ...logs.value, [token]: data.log ?? [] }
   } finally {
     logsLoading.value = { ...logsLoading.value, [token]: false }
+  }
+}
+
+function openPwEdit(token) {
+  pwEditToken.value = pwEditToken.value === token ? null : token
+  pwInput.value = ''
+}
+
+function closePwEdit() {
+  pwEditToken.value = null
+  pwInput.value = ''
+}
+
+async function savePassword(share) {
+  if (!pwInput.value || pwSaving.value) return
+  pwSaving.value = true
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { password: pwInput.value }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+    closePwEdit()
+  } catch { /* ignore */ } finally {
+    pwSaving.value = false
+  }
+}
+
+async function removePassword(share) {
+  if (pwSaving.value) return
+  pwSaving.value = true
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { password: null }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+    closePwEdit()
+  } catch { /* ignore */ } finally {
+    pwSaving.value = false
   }
 }
 
@@ -594,4 +679,64 @@ defineExpose({ loadShares })
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* Passwort-Badge klickbar */
+.sr-share-list__badge--pw-click {
+  cursor: pointer;
+}
+.sr-share-list__badge--pw-click:hover { background: #3a2a4a; }
+
+/* Passwort-Panel */
+.sr-share-list__pw-panel {
+  background: #0f0f1a;
+  border-top: 1px solid #2a2a3e;
+  padding: 0.65rem 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sr-share-list__pw-input {
+  flex: 1;
+  min-width: 160px;
+  background: #16213e;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #d4d4d8;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}
+.sr-share-list__pw-input:focus { outline: none; border-color: #e94560; }
+.sr-share-list__pw-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.sr-share-list__pw-save {
+  background: #e94560;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-save:disabled { opacity: 0.4; cursor: not-allowed; }
+.sr-share-list__pw-remove {
+  background: none;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-remove:hover:not(:disabled) { color: #e94560; border-color: #e94560; }
+.sr-share-list__pw-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+.sr-share-list__pw-cancel {
+  background: none;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #52525b;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-cancel:hover { color: #71717a; }
 </style>
