@@ -514,11 +514,13 @@ function onShareCreated(share) {
   shareListRef.value?.loadShares()
 }
 
-// Escape auf Dokument-Ebene: klärt Auswahl unabhängig davon, welches Element Fokus hat
+// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
-  if (e.key === 'Escape' && selectedIds.value.size > 0) {
-    gridRef.value?.clearSelection()
-  }
+  if (e.key !== 'Escape') return
+  if (showShareModal.value)       { showShareModal.value = false; return }
+  if (showShareList.value)        { showShareList.value  = false; return }
+  if (showShortcuts.value)        { showShortcuts.value  = false; return }
+  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection() }
 }
 
 async function loadSettings() {
