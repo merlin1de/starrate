@@ -12,20 +12,28 @@ const router = createRouter({
 })
 
 function resolveInitialPath() {
-  // 1. Bereits ein Pfad in der URL? → nichts tun
-  if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#') {
-    return null
-  }
-  // 2. localStorage – von files-context.js gesetzt, 5 Min. gültig
+  // 1. localStorage – von files-context.js beim Klick auf StarRate gesetzt.
+  //    Hat Vorrang vor dem Hash: Chrome cached den alten Hash und würde sonst
+  //    den falschen Ordner öffnen, obwohl der Nutzer gerade aus NC Files kommt.
+  //    Einmal-Token: nach dem Lesen sofort löschen, damit Browser-Back danach
+  //    korrekt den Hash (= zuletzt besuchten Ordner) nutzt.
   try {
     const raw = localStorage.getItem('starrate_nc_path')
     if (raw) {
       const { dir, t } = JSON.parse(raw)
-      if (dir && dir !== '/' && (Date.now() - t) < 5 * 60_000) return dir
+      if (dir && dir !== '/' && (Date.now() - t) < 5 * 60_000) {
+        localStorage.removeItem('starrate_nc_path')
+        return dir
+      }
     }
   } catch {}
 
-  // 3. Referrer (funktioniert wenn NC kein no-referrer setzt)
+  // 2. Bereits ein Pfad im Hash? (Browser-Back, Bookmark) → nichts tun
+  if (window.location.hash && window.location.hash !== '#/' && window.location.hash !== '#') {
+    return null
+  }
+
+  // 3. Referrer (NC setzt no-referrer — greift in der Praxis nicht)
   try {
     const ref = new URL(document.referrer)
     if (ref.pathname.includes('/apps/files')) {
