@@ -157,7 +157,8 @@ class TagService
     public function setMetadata(string $fileId, array $data): void
     {
         // Validierung vorab
-        if (isset($data['rating']) && !in_array((int) $data['rating'], self::VALID_RATINGS, true)) {
+        if (array_key_exists('rating', $data) && $data['rating'] !== null
+            && !in_array((int) $data['rating'], self::VALID_RATINGS, true)) {
             throw new \InvalidArgumentException("Ungültige Bewertung: {$data['rating']}. Erlaubt: 0–5.");
         }
         if (array_key_exists('color', $data) && $data['color'] !== null
@@ -202,7 +203,7 @@ class TagService
         }
 
         // 3. Neue Werte setzen (1 Query pro geändertem Feld)
-        if (isset($data['rating']) && (int) $data['rating'] > 0) {
+        if (array_key_exists('rating', $data) && (int) $data['rating'] > 0) {
             $tag = $this->getOrCreateTag(self::TAG_PREFIX_RATING . (int) $data['rating']);
             $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
         }
