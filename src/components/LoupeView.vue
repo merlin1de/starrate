@@ -557,6 +557,7 @@ function onImgError() {
   if (previewRetries < 3) {
     // NC generiert Previews beim ersten Zugriff lazy — nach kurzer Pause nochmals versuchen
     loadingPreview.value = true
+    clearTimeout(previewRetryTimer)
     previewRetryTimer = setTimeout(() => {
       // Cache-Buster erzwingt neuen Request (Browser würde sonst gecachte 404 nehmen)
       actualSrc.value = previewUrl.value + (previewUrl.value.includes('?') ? '&' : '?') + '_r=' + previewRetries
