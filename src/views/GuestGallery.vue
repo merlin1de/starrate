@@ -9,20 +9,20 @@
         <div class="sr-guest-pw__brand-by">by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Merlin1.De</a></div>
       </div>
 
-      <h2 class="sr-guest-pw__title">Passwortgeschützte Galerie</h2>
-      <p class="sr-guest-pw__hint">Bitte gib das Passwort ein, um die Galerie zu öffnen.</p>
+      <h2 class="sr-guest-pw__title">{{ t('starrate', 'Passwortgeschützte Galerie') }}</h2>
+      <p class="sr-guest-pw__hint">{{ t('starrate', 'Bitte gib das Passwort ein, um die Galerie zu öffnen.') }}</p>
       <input
         v-model="password"
         class="sr-guest-pw__input"
         type="password"
-        placeholder="Passwort"
+        :placeholder="t('starrate', 'Passwort eingeben')"
         autofocus
         @keydown.enter="verifyPassword"
       />
       <span v-if="passwordErr" class="sr-guest-pw__error">{{ passwordErr }}</span>
       <div class="sr-guest-pw__actions">
         <button class="sr-guest-pw__btn" :disabled="!password" @click="verifyPassword">
-          Bestätigen
+          {{ t('starrate', 'Bestätigen') }}
         </button>
       </div>
     </div>
@@ -45,6 +45,7 @@
 import { ref } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { t } from '@nextcloud/l10n'
 import Gallery from './Gallery.vue'
 
 /* global __APP_VERSION__ */
@@ -103,7 +104,7 @@ async function rateFn(fileId, payload) {
   const url = generateUrl(`/apps/starrate/api/guest/${props.token}/rate`)
   await axios.post(url, {
     file_id:    fileId,
-    guest_name: props.guestName || 'Gast',
+    guest_name: props.guestName || t('starrate', 'Gast'),
     ...payload,
   }, { headers: pwHeader() })
 }
@@ -114,7 +115,7 @@ async function batchRateFn(ids, payload) {
   await Promise.all(ids.map(id =>
     axios.post(url, {
       file_id:    id,
-      guest_name: props.guestName || 'Gast',
+      guest_name: props.guestName || t('starrate', 'Gast'),
       ...payload,
     }, { headers: pwHeader() })
   ))
@@ -148,7 +149,7 @@ async function verifyPassword() {
     passwordDlg.value = false
     password.value    = ''
   } catch {
-    passwordErr.value = 'Falsches Passwort'
+    passwordErr.value = t('starrate', 'Falsches Passwort')
   }
 }
 </script>
