@@ -36,12 +36,11 @@ StarRate is a professional photo rating and culling tool for photographers, seam
     <bugs>https://github.com/merlin1de/starrate/issues</bugs>
     <repository type="git">https://github.com/merlin1de/starrate</repository>
 
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid-small.jpg">
-        https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid.jpg
-    </screenshot>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/loupe-small.jpg">
-        https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/loupe.jpg
-    </screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/main/screenshots/starrate-grid.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/main/screenshots/starrate-loupe.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/main/screenshots/starrate-share.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/main/screenshots/starrate-newshare.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/main/screenshots/starrate-guest.jpg</screenshot>
 
     <dependencies>
         <php min-version="8.1" max-version="8.4"/>
