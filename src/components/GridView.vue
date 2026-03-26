@@ -503,11 +503,19 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Fallback; wird via :style überschrieben */
   gap: 6px;
   padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   outline: none;
   align-content: start;
   /* max-height unabhängig von der Elternkette – NC-Header 50px + Breadcrumb ~36px + Filterbar ~62px + Puffer */
   max-height: calc(100vh - 160px);
   overflow-y: auto;
+}
+
+/* Android Nav-Bar (|||  O  <): sicherstellen dass letzte Zeile nicht verdeckt wird */
+@media (max-width: 768px) {
+  .sr-grid {
+    padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
+  }
 }
 
 /* ── Item ─────────────────────────────────────────────────────────────────── */
@@ -522,8 +530,10 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   user-select: none;
 }
 
-.sr-grid__item:hover {
-  border-color: rgba(255,255,255,0.15);
+@media (pointer: fine) {
+  .sr-grid__item:hover {
+    border-color: rgba(255,255,255,0.15);
+  }
 }
 
 .sr-grid__item--selected {
@@ -558,8 +568,10 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   transition: transform 200ms ease;
 }
 
-.sr-grid__item:hover .sr-grid__thumb {
-  transform: scale(1.02);
+@media (pointer: fine) {
+  .sr-grid__item:hover .sr-grid__thumb {
+    transform: scale(1.02);
+  }
 }
 
 .sr-grid__thumb-placeholder {

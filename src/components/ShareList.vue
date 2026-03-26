@@ -121,15 +121,21 @@
 
             <!-- Passwort-Panel (aufklappbar) -->
             <div v-if="pwEditToken === share.token" class="sr-share-list__pw-panel">
-              <input
-                v-model="pwInput"
-                type="password"
-                class="sr-share-list__pw-input"
-                :placeholder="t('starrate', 'Neues Passwort…')"
-                autocomplete="new-password"
-                @keydown.enter="savePassword(share)"
-                @keydown.escape="closePwEdit"
-              />
+              <div class="sr-share-list__pw-wrap">
+                <input
+                  v-model="pwInput"
+                  :type="showPwInput ? 'text' : 'password'"
+                  class="sr-share-list__pw-input"
+                  :placeholder="t('starrate', 'Neues Passwort…')"
+                  autocomplete="new-password"
+                  @keydown.enter="savePassword(share)"
+                  @keydown.escape="closePwEdit"
+                />
+                <button type="button" class="sr-share-list__pw-eye" @click="showPwInput = !showPwInput" :title="showPwInput ? t('starrate', 'Passwort verbergen') : t('starrate', 'Passwort anzeigen')">
+                  <svg v-if="!showPwInput" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
               <div class="sr-share-list__pw-actions">
                 <button
                   class="sr-share-list__pw-save"
@@ -232,6 +238,7 @@ const pendingClearToken  = ref(null)
 const pwEditToken = ref(null)
 const pwInput     = ref('')
 const pwSaving    = ref(false)
+const showPwInput = ref(false)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -323,6 +330,7 @@ function openPwEdit(token) {
 function closePwEdit() {
   pwEditToken.value = null
   pwInput.value = ''
+  showPwInput.value = false
 }
 
 async function savePassword(share) {
@@ -697,6 +705,12 @@ defineExpose({ loadShares })
   align-items: center;
   flex-wrap: wrap;
 }
+.sr-share-list__pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
 .sr-share-list__pw-input {
   flex: 1;
   min-width: 160px;
@@ -705,9 +719,21 @@ defineExpose({ loadShares })
   border-radius: 4px;
   color: #d4d4d8;
   font-size: 0.8rem;
-  padding: 0.3rem 0.6rem;
+  padding: 0.3rem 2rem 0.3rem 0.6rem;
 }
 .sr-share-list__pw-input:focus { outline: none; border-color: #e94560; }
+.sr-share-list__pw-eye {
+  position: absolute;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.sr-share-list__pw-eye:hover { color: #d4d4d8; }
 .sr-share-list__pw-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .sr-share-list__pw-save {
   background: #e94560;

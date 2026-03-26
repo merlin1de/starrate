@@ -145,9 +145,11 @@ function applyColor(colorKey) {
   transition: background 150ms, color 150ms;
 }
 
-.sr-selbar__clear:hover {
-  background: #2a2a4a;
-  color: #e94560;
+@media (pointer: fine) {
+  .sr-selbar__clear:hover {
+    background: #2a2a4a;
+    color: #e94560;
+  }
 }
 
 .sr-selbar__clear svg { width: 14px; height: 14px; }
@@ -190,10 +192,12 @@ function applyColor(colorKey) {
   box-shadow: none !important;
 }
 
-.sr-selbar__btn:hover {
-  background: #2a2a4a !important;
-  color: #ddd !important;
-  border-color: #3a3a5a !important;
+@media (pointer: fine) {
+  .sr-selbar__btn:hover {
+    background: #2a2a4a !important;
+    color: #ddd !important;
+    border-color: #3a3a5a !important;
+  }
 }
 
 .sr-selbar__btn--active {

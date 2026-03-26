@@ -377,7 +377,7 @@ function updateFilter(newFilter) {
   outline: none !important;
 }
 
-.sr-filterbar__op:hover      { color: #aaa; background: #2a2a4a; }
+@media (pointer: fine) { .sr-filterbar__op:hover { color: #aaa; background: #2a2a4a; } }
 .sr-filterbar__op--active    { background: #7a1e30; color: #f0b0bb; border-color: #a03050; }
 
 .sr-filterbar__pill--star {
@@ -426,9 +426,11 @@ function updateFilter(newFilter) {
 }
 
 
-.sr-filterbar__pill:hover {
-  background: #2a2a4a;
-  color: #ddd;
+@media (pointer: fine) {
+  .sr-filterbar__pill:hover {
+    background: #2a2a4a;
+    color: #ddd;
+  }
 }
 
 .sr-filterbar__pill--active {
@@ -437,9 +439,11 @@ function updateFilter(newFilter) {
   color: #d08090 !important;
 }
 
-.sr-filterbar__pill--active:hover {
-  background: #3a2030 !important;
-  border-color: #9a4060 !important;
+@media (pointer: fine) {
+  .sr-filterbar__pill--active:hover {
+    background: #3a2030 !important;
+    border-color: #9a4060 !important;
+  }
 }
 
 .sr-filterbar__pick-icon {
@@ -466,40 +470,51 @@ function updateFilter(newFilter) {
   height: 13px !important;
   min-height: 0 !important;
   border-radius: 50%;
-  border: 2px solid transparent !important;
+  border: none !important;
   padding: 0 !important;
   cursor: pointer;
   flex-shrink: 0;
-  transition: transform 120ms, border-color 120ms, box-shadow 120ms;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms, box-shadow 120ms;
   appearance: none !important;
   -webkit-appearance: none !important;
-  box-shadow: none !important;
-  background-clip: padding-box;
-}
-
-.sr-filterbar__colordot:hover {
-  transform: scale(1.25);
-  border-color: rgba(255,255,255,0.45) !important;
-}
-
-.sr-filterbar__colordot--active {
-  border-color: #fff !important;
-  transform: scale(1.15);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.5) !important;
-}
-
-.sr-filterbar__colordot:focus,
-.sr-filterbar__colordot:focus-visible,
-.sr-filterbar__colordot:active {
-  box-shadow: none !important;
   outline: none !important;
 }
 
-.sr-filterbar__colordot--active:focus,
-.sr-filterbar__colordot--active:focus-visible,
-.sr-filterbar__colordot--active:active {
-  border-color: #fff !important;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.5) !important;
+/* Hover nur auf Maus – verhindert klebende Zustände auf Touch */
+@media (pointer: fine) {
+  .sr-filterbar__colordot:hover {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.45) !important;
+  }
+}
+
+.sr-filterbar__colordot--active {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,0.5) !important;
+}
+
+/* Browser-Defaults entfernen – nur auf Maus, damit Touch-Feedback nicht unterdrückt wird */
+@media (pointer: fine) {
+  .sr-filterbar__colordot:focus,
+  .sr-filterbar__colordot:focus-visible,
+  .sr-filterbar__colordot:active {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .sr-filterbar__colordot--active:focus,
+  .sr-filterbar__colordot--active:focus-visible,
+  .sr-filterbar__colordot--active:active {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,0.5) !important;
+  }
+}
+
+/* outline immer entfernen (kein Visueller Browser-Default gewünscht) */
+.sr-filterbar__colordot:focus,
+.sr-filterbar__colordot:focus-visible {
+  outline: none !important;
 }
 
 /* ── Reset ────────────────────────────────────────────────────────────────── */
@@ -515,10 +530,12 @@ function updateFilter(newFilter) {
   transition: background 150ms, color 150ms;
 }
 
-.sr-filterbar__reset:hover {
-  background: #3a2030;
-  border-color: #9a4060;
-  color: #e0a0b0;
+@media (pointer: fine) {
+  .sr-filterbar__reset:hover {
+    background: #3a2030;
+    border-color: #9a4060;
+    color: #e0a0b0;
+  }
 }
 
 .sr-filterbar__reset--mobile {
@@ -602,9 +619,11 @@ function updateFilter(newFilter) {
   outline: none !important;
 }
 
-.sr-filterbar__mode-btn:hover {
-  color: #aaa;
-  background: #2a2a4a;
+@media (pointer: fine) {
+  .sr-filterbar__mode-btn:hover {
+    color: #aaa;
+    background: #2a2a4a;
+  }
 }
 
 .sr-filterbar__mode-btn--active {
