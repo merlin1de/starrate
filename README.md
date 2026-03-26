@@ -31,7 +31,7 @@ StarRate lets photographers rate, label and curate their images directly inside 
 |---|---|
 | **Star rating** | 0–5 stars, hover preview, keyboard shortcuts 0–5 |
 | **Color labels** | Red / Yellow / Green / Blue / Purple (keys 6–9) |
-| **Pick / Reject** | Flag images with P / X |
+| **Pick / Reject** | Flag images with P / X — enable in Settings |
 | **XMP metadata** | Ratings written directly into JPEG (APP1 segment) |
 | **XMP sidecar** | `.xmp` companion files generated for CR3/RAW files |
 | **Filter bar** | Combinable filters by stars, color, Pick/Reject, unrated |
