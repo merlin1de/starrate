@@ -12,7 +12,6 @@
       :class="[
         `sr-color-label__dot--${color.key.toLowerCase()}`,
         { 'sr-color-label__dot--active': modelValue === color.key },
-        { 'sr-color-label__dot--tapped': tappedKey === color.key },
       ]"
       type="button"
       role="radio"
@@ -53,7 +52,6 @@ export { COLORS } from '@/utils/colors.js'
 </script>
 
 <script setup>
-import { ref } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { COLORS } from '@/utils/colors.js'
 
@@ -77,20 +75,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'change'])
 
-const tappedKey = ref(null)
-let tapTimer = null
-
 function toggle(colorKey) {
   // Nochmals gleiche Farbe → entfernen
   const newColor = colorKey === props.modelValue ? null : colorKey
-
-  // Ring sofort zeigen (transition: none !important auf --tapped)
-  tappedKey.value = colorKey
-  clearTimeout(tapTimer)
-
-  // Nach 150ms entfernen → base-Transition box-shadow 600ms greift für Fade-out
-  tapTimer = setTimeout(() => { tappedKey.value = null }, 150)
-
   setColor(newColor)
 }
 
@@ -133,13 +120,14 @@ defineExpose({ setColor, setByShortcut, COLORS })
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   padding: 0;
   cursor: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 120ms ease;
-  outline: none;
+  box-shadow: none !important;
+  outline: none !important;
   position: relative;
 }
 
@@ -155,52 +143,33 @@ defineExpose({ setColor, setByShortcut, COLORS })
 .sr-color-label__dot--blue   { background: #5277e0; }
 .sr-color-label__dot--purple { background: #9b52e0; }
 
-/* Hover — nur auf Gerät mit Maus (pointer: fine), nicht auf Touch/Mobile */
+/* Aktiv: 3px weißer Rand + leichter Scale */
+.sr-color-label__dot--active {
+  border-color: #fff;
+  transform: scale(1.1);
+}
+
+/* NC focus/active border-color unterdrücken – base hat schon box-shadow/outline none !important */
+.sr-color-label__dot:not(.sr-color-label__dot--active):focus,
+.sr-color-label__dot:not(.sr-color-label__dot--active):focus-visible,
+.sr-color-label__dot:not(.sr-color-label__dot--active):active {
+  border-color: transparent !important;
+}
+.sr-color-label__dot--active:focus,
+.sr-color-label__dot--active:focus-visible,
+.sr-color-label__dot--active:active {
+  border-color: #fff !important;
+}
+
+/* Hover — nur auf Gerät mit Maus (pointer: fine) */
 @media (pointer: fine) {
   .sr-color-label--interactive .sr-color-label__dot:not(:disabled):hover {
     transform: scale(1.15);
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.6), 0 0 0 5px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.6), 0 0 0 5px rgba(0,0,0,0.4) !important;
   }
-}
-
-/* Touch: Browser-Focus-Border unterdrücken – verhindert Artefakte nach Tap */
-@media (pointer: coarse) {
-  .sr-color-label__dot:focus:not(.sr-color-label__dot--active) {
-    border-color: transparent !important;
-  }
-}
-
-/* Aktiv (dauerhaft gesetzte Farbe): nur weißer Rand – kein Scale, kein Schatten */
-.sr-color-label__dot--active {
-  border-color: #fff;
-}
-
-/* Tap-Feedback via ::after – isoliert vom base-Element, keine Seiteneffekte */
-.sr-color-label__dot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow: 0 0 0 5px rgba(255,255,255,0.85), 0 0 0 7px rgba(0,0,0,0.5);
-  opacity: 0;
-  transition: opacity 600ms ease-in;
-  pointer-events: none;
-}
-
-/* Instant show: opacity 0ms, Fade-out (600ms) greift beim Entfernen der Klasse */
-.sr-color-label__dot--tapped {
-  border-color: #fff !important;
-  transform: scale(1.15);
-}
-.sr-color-label__dot--tapped::after {
-  opacity: 1;
-  transition: opacity 0ms;
-}
-
-/* focus-visible nur auf Maus-Geräten – verhindert klebende Ringe nach Touch */
-@media (pointer: fine) {
+  /* focus-visible Ring – nur Maus, verhindert klebende Ringe nach Touch */
   .sr-color-label__dot:focus-visible {
-    box-shadow: 0 0 0 3px #e94560;
+    box-shadow: 0 0 0 3px #e94560 !important;
   }
 }
 
