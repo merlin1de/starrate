@@ -37,6 +37,9 @@ class TagService
         private readonly LoggerInterface        $logger,
     ) {}
 
+    /** Per-Request-Cache: tagName → ISystemTag (vermeidet doppelte DB-Lookups innerhalb eines Requests) */
+    private array $tagCache = [];
+
     // ─── Bewertung (Sterne) ───────────────────────────────────────────────────
 
     /**
@@ -147,35 +150,82 @@ class TagService
     // ─── Kombiniert: alle Metadaten auf einmal ────────────────────────────────
 
     /**
-     * Setzt Rating + Color + Pick in einem Aufruf (atomarer Batch).
+     * Setzt Rating + Color + Pick in einem Aufruf (optimiert: 1 Batch-Fetch statt 3 × removeTagsByPrefix).
      *
      * @param array{rating?: int, color?: string|null, pick?: string} $data
      */
     public function setMetadata(string $fileId, array $data): void
     {
-        if (isset($data['rating'])) {
-            $this->setRating($fileId, (int) $data['rating']);
+        // Validierung vorab
+        if (array_key_exists('rating', $data) && $data['rating'] !== null
+            && !in_array((int) $data['rating'], self::VALID_RATINGS, true)) {
+            throw new \InvalidArgumentException("Ungültige Bewertung: {$data['rating']}. Erlaubt: 0–5.");
         }
-        if (array_key_exists('color', $data)) {
-            $this->setColor($fileId, $data['color']);
+        if (array_key_exists('color', $data) && $data['color'] !== null
+            && !in_array($data['color'], self::VALID_COLORS, true)) {
+            throw new \InvalidArgumentException(
+                "Ungültige Farbe: {$data['color']}. Erlaubt: " . implode(', ', self::VALID_COLORS)
+            );
         }
-        if (isset($data['pick'])) {
-            $this->setPick($fileId, $data['pick']);
+        if (isset($data['pick']) && !in_array($data['pick'], self::VALID_PICKS, true)) {
+            throw new \InvalidArgumentException("Ungültiger Pick-Status: {$data['pick']}.");
+        }
+
+        // 1. Alle aktuellen StarRate-Tags der Datei auf einmal laden (2 Queries statt 3 × 2)
+        $toRemove = [];
+        try {
+            $allTagIds  = $this->tagMapper->getTagIdsForObjects([$fileId], self::OBJECT_TYPE);
+            $fileTagIds = $allTagIds[$fileId] ?? [];
+            if (!empty($fileTagIds)) {
+                $existing = $this->tagManager->getTagsByIds($fileTagIds);
+                foreach ($existing as $tag) {
+                    $name = $tag->getName();
+                    if (array_key_exists('rating', $data) && str_starts_with($name, self::TAG_PREFIX_RATING)) {
+                        $toRemove[] = $tag->getId();
+                    } elseif (array_key_exists('color', $data) && str_starts_with($name, self::TAG_PREFIX_COLOR)) {
+                        $toRemove[] = $tag->getId();
+                    } elseif (isset($data['pick']) && str_starts_with($name, self::TAG_PREFIX_PICK)) {
+                        $toRemove[] = $tag->getId();
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("StarRate: Fehler beim Lesen aktueller Tags: " . $e->getMessage());
+        }
+
+        // 2. Alte Tags auf einmal entfernen (1 Query statt 3)
+        if (!empty($toRemove)) {
+            try {
+                $this->tagMapper->unassignTags($fileId, self::OBJECT_TYPE, $toRemove);
+            } catch (\Exception $e) {
+                $this->logger->warning("StarRate: Fehler beim Entfernen von Tags: " . $e->getMessage());
+            }
+        }
+
+        // 3. Neue Werte setzen (1 Query pro geändertem Feld)
+        if (array_key_exists('rating', $data) && (int) $data['rating'] > 0) {
+            $tag = $this->getOrCreateTag(self::TAG_PREFIX_RATING . (int) $data['rating']);
+            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
+        }
+        if (array_key_exists('color', $data) && $data['color'] !== null) {
+            $tag = $this->getOrCreateTag(self::TAG_PREFIX_COLOR . $data['color']);
+            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
+        }
+        if (isset($data['pick']) && $data['pick'] !== 'none') {
+            $tag = $this->getOrCreateTag(self::TAG_PREFIX_PICK . $data['pick']);
+            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
         }
     }
 
     /**
-     * Liest alle Metadaten einer Datei.
+     * Liest alle Metadaten einer Datei (nutzt getMetadataBatch: 1 SQL-Abfrage).
      *
      * @return array{rating: int, color: string|null, pick: string}
      */
     public function getMetadata(string $fileId): array
     {
-        return [
-            'rating' => $this->getRating($fileId),
-            'color'  => $this->getColor($fileId),
-            'pick'   => $this->getPick($fileId),
-        ];
+        $batch = $this->getMetadataBatch([$fileId]);
+        return $batch[$fileId] ?? ['rating' => 0, 'color' => null, 'pick' => 'none'];
     }
 
     /**
@@ -300,21 +350,26 @@ class TagService
 
     /**
      * Gibt einen existierenden Tag zurück oder erstellt ihn (nicht sichtbar, nicht zuweisbar).
+     * Cached das Ergebnis im Request-Scope (vermeidet doppelte DB-Lookups z. B. bei setBatch).
      */
     private function getOrCreateTag(string $name): \OCP\SystemTag\ISystemTag
     {
+        if (isset($this->tagCache[$name])) {
+            return $this->tagCache[$name];
+        }
+
         try {
             $tags = $this->tagManager->getAllTags(null, $name);
             foreach ($tags as $tag) {
                 if ($tag->getName() === $name) {
-                    return $tag;
+                    return $this->tagCache[$name] = $tag;
                 }
             }
         } catch (\Exception) {
             // Tag nicht gefunden → neu anlegen
         }
 
-        return $this->tagManager->createTag($name, false, false);
+        return $this->tagCache[$name] = $this->tagManager->createTag($name, false, false);
     }
 
     /**

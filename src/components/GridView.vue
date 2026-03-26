@@ -23,8 +23,8 @@
         :class="{
           'sr-grid__item--selected': isSelected(image.id),
           'sr-grid__item--focused':  focusedIndex === index,
-          'sr-grid__item--pick':     image.pick === 'pick',
-          'sr-grid__item--reject':   image.pick === 'reject',
+          'sr-grid__item--pick':     enablePickUi && image.pick === 'pick',
+          'sr-grid__item--reject':   enablePickUi && image.pick === 'reject',
         }"
         :data-index="index"
         @click="onItemClick($event, image, index)"
@@ -40,10 +40,10 @@
             loading="lazy"
             draggable="false"
           />
-          <div v-else class="sr-grid__thumb-placeholder" />
+          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
 
           <!-- Reject-Overlay -->
-          <div v-if="image.pick === 'reject'" class="sr-grid__reject-overlay">
+          <div v-if="enablePickUi && image.pick === 'reject'" class="sr-grid__reject-overlay">
             <span>✕</span>
           </div>
 
@@ -52,23 +52,6 @@
             <svg viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
 
-          <!-- Hover-Overlay: Steuerelemente -->
-          <div class="sr-grid__hover-overlay">
-            <RatingStars
-              :model-value="image.rating"
-              :interactive="true"
-              :compact="true"
-              @change="(r) => $emit('rate', image, r, undefined)"
-              @click.stop
-            />
-            <ColorLabel
-              :model-value="image.color"
-              :interactive="true"
-              :compact="false"
-              @change="(c) => $emit('rate', image, undefined, c)"
-              @click.stop
-            />
-          </div>
         </div>
 
         <!-- Info-Leiste unten -->
@@ -117,7 +100,6 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import RatingStars from './RatingStars.vue'
-import ColorLabel from './ColorLabel.vue'
 
 const props = defineProps({
   /** Array von Bild-Objekten (von der API) */
@@ -154,6 +136,8 @@ const props = defineProps({
   showRatingInfo:    { type: Boolean, default: true },
   /** Farbpunkt in der Info-Leiste anzeigen */
   showColorInfo:     { type: Boolean, default: true },
+  /** Pick/Reject-UI anzeigen */
+  enablePickUi:      { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -191,6 +175,7 @@ const THUMB_CONCURRENCY = 5
 let thumbObserver = null
 let activeLoads   = 0
 const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
+const pendingLoads = new Set()  // hält Image-Objekte am Leben (verhindert GC auf Mobile)
 
 function setupThumbObserver() {
   thumbObserver = new IntersectionObserver((entries) => {
@@ -198,16 +183,19 @@ function setupThumbObserver() {
       if (!entry.isIntersecting) return
       const idx   = parseInt(entry.target.dataset.index, 10)
       const image = props.images[idx]
-      if (!image || image.thumbLoaded) return
+      if (!image || image.thumbLoaded || image.thumbLoading) return
       if (thumbCache.value[image.id]) {
         image.thumbUrl    = thumbCache.value[image.id]
         image.thumbLoaded = true
       } else {
-        enqueueThumb(image)
+        // Tatsächlich sichtbare Bilder (im echten Viewport) bekommen Priorität
+        const inViewport = entry.boundingClientRect.bottom > 0
+          && entry.boundingClientRect.top < (window.innerHeight || document.documentElement.clientHeight)
+        enqueueThumb(image, inViewport)
       }
       thumbObserver.unobserve(entry.target)
     })
-  }, { rootMargin: '400px 0px' })  // 400px Vorladen
+  }, { rootMargin: '400px 0px' })  // einzelner Threshold 0 → kein Doppel-Firing
 }
 
 function observeAllItems() {
@@ -222,9 +210,10 @@ function observeAllItems() {
   })
 }
 
-function enqueueThumb(image) {
-  if (loadQueue.some(i => i.id === image.id)) return
-  loadQueue.push(image)
+function enqueueThumb(image, priority = false) {
+  if (image.thumbLoading || loadQueue.some(i => i.id === image.id)) return
+  if (priority) loadQueue.unshift(image)
+  else loadQueue.push(image)
   drainQueue()
 }
 
@@ -238,21 +227,34 @@ function drainQueue() {
 }
 
 function loadThumb(image) {
+  image.thumbLoading = true
   const sz  = props.thumbnailSize
   const url = props.thumbnailUrlFn
     ? props.thumbnailUrlFn(image.id, sz)
     : generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
   const imgEl = new Image()
+  pendingLoads.add(imgEl)  // GC-Schutz: Image-Objekt am Leben halten bis Request abgeschlossen
   imgEl.onload = () => {
+    pendingLoads.delete(imgEl)
     thumbCache.value[image.id] = url
     const found = props.images.find(i => i.id === image.id)
-    if (found) { found.thumbUrl = url; found.thumbLoaded = true }
+    if (found) { found.thumbUrl = url; found.thumbLoaded = true; found.thumbLoading = false }
     activeLoads--
     drainQueue()
   }
   imgEl.onerror = () => {
+    pendingLoads.delete(imgEl)
     const found = props.images.find(i => i.id === image.id)
-    if (found) found.thumbLoaded = true
+    if (found) {
+      found.thumbLoading = false
+      found.thumbRetries = (found.thumbRetries ?? 0) + 1
+      if (found.thumbRetries < 3) {
+        // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen
+        setTimeout(() => enqueueThumb(found), found.thumbRetries * 3000)
+      } else {
+        found.thumbError = true
+      }
+    }
     activeLoads--
     drainQueue()
   }
@@ -396,14 +398,14 @@ function onGlobalKeydown(e) {
 
     // P = Pick, X = Reject
     case 'p': case 'P':
-      if (idx >= 0) {
+      if (props.enablePickUi && idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
         if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       }
       break
     case 'x': case 'X':
-      if (idx >= 0) {
+      if (props.enablePickUi && idx >= 0) {
         e.preventDefault()
         const img = props.images[idx]
         if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
@@ -525,12 +527,12 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 }
 
 .sr-grid__item--selected {
-  border-color: #e94560 !important;
-  box-shadow: 0 0 0 1px #e94560;
+  border-color: #4a90d9 !important;
+  box-shadow: 0 0 0 1px #4a90d9;
 }
 
 .sr-grid__item--focused {
-  box-shadow: 0 0 0 2px #e94560aa;
+  box-shadow: 0 0 0 2px #4a90d9aa;
 }
 
 .sr-grid__item--reject {
@@ -572,6 +574,10 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   0%   { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
+.sr-grid__thumb-placeholder--error {
+  animation: none;
+  background: #1a1a2a;
+}
 
 /* ── Overlays ─────────────────────────────────────────────────────────────── */
 .sr-grid__reject-overlay {
@@ -593,7 +599,7 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   left: 6px;
   width: 22px;
   height: 22px;
-  background: #e94560;
+  background: #4a90d9;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -607,27 +613,6 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   height: 14px;
 }
 
-.sr-grid__hover-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 8px 8px 6px;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 150ms ease, transform 150ms ease;
-  pointer-events: none;
-}
-
-.sr-grid__item:hover .sr-grid__hover-overlay {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
 
 /* ── Info-Leiste ─────────────────────────────────────────────────────────── */
 .sr-grid__info {
@@ -728,8 +713,4 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   font-size: 14px;
 }
 
-.sr-grid__empty-sub {
-  font-size: 12px !important;
-  color: #444;
-}
 </style>

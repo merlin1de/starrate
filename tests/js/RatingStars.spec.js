@@ -73,7 +73,7 @@ describe('RatingStars', () => {
 
   it('setzt hoverRating beim Mouseenter', async () => {
     const w = factory({ modelValue: 0 })
-    await w.findAll('.sr-stars__star')[2].trigger('mouseenter') // Stern 3
+    await w.findAll('.sr-stars__star')[2].trigger('pointerenter', { pointerType: 'mouse' }) // Stern 3
     // Die ersten 3 Sterne sollten den Hover-Zustand haben
     const stars = w.findAll('.sr-stars__star')
     expect(stars[0].classes()).toContain('sr-stars__star--hover')
@@ -83,8 +83,8 @@ describe('RatingStars', () => {
 
   it('setzt hoverRating zurück auf 0 beim Mouseleave', async () => {
     const w = factory({ modelValue: 0 })
-    await w.findAll('.sr-stars__star')[2].trigger('mouseenter')
-    await w.trigger('mouseleave')
+    await w.findAll('.sr-stars__star')[2].trigger('pointerenter', { pointerType: 'mouse' })
+    await w.trigger('pointerleave', { pointerType: 'mouse' })
     const stars = w.findAll('.sr-stars__star')
     expect(stars[2].classes()).not.toContain('sr-stars__star--hover')
   })

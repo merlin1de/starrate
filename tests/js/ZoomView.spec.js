@@ -215,6 +215,42 @@ describe('LoupeView – Zoom & Navigation', () => {
     expect(w.emitted('rate')[0][2]).toBe('Blue')
   })
 
+  // ── Pick / Reject ─────────────────────────────────────────────────────────
+
+  it('Pick/Reject-Buttons nicht sichtbar wenn enablePickUi=false (default)', () => {
+    const w = factory()
+    expect(w.find('.sr-loupe__pick-btn').exists()).toBe(false)
+  })
+
+  it('Pick/Reject-Buttons sichtbar wenn enablePickUi=true', () => {
+    const w = factory({ enablePickUi: true })
+    expect(w.findAll('.sr-loupe__pick-btn')).toHaveLength(2)
+  })
+
+  it('P-Taste ohne enablePickUi emittiert kein rate', async () => {
+    const w = factory()
+    await w.find('.sr-loupe').trigger('keydown', { key: 'p' })
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('P-Taste mit enablePickUi emittiert rate mit pick=pick', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-loupe').trigger('keydown', { key: 'p' })
+    expect(w.emitted('rate')?.[0][3]).toBe('pick')
+  })
+
+  it('X-Taste ohne enablePickUi emittiert kein rate', async () => {
+    const w = factory()
+    await w.find('.sr-loupe').trigger('keydown', { key: 'x' })
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('X-Taste mit enablePickUi emittiert rate mit pick=reject', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-loupe').trigger('keydown', { key: 'x' })
+    expect(w.emitted('rate')?.[0][3]).toBe('reject')
+  })
+
   // ── Footer ────────────────────────────────────────────────────────────────
 
   it('zeigt Dateinamen im Footer', () => {

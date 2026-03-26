@@ -19,15 +19,19 @@
         :key="currentIndex"
       >
         <img
-          v-if="currentImage"
+          v-if="currentImage && !previewError"
           ref="imgEl"
           class="sr-loupe__img"
-          :src="previewUrl"
+          :src="actualSrc"
           :alt="currentImage.name"
           :style="imgStyle"
           draggable="false"
           @load="onImgLoad"
+          @error="onImgError"
         />
+        <div v-else-if="previewError" class="sr-loupe__placeholder sr-loupe__placeholder--error">
+          <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="16" width="48" height="36" rx="4" stroke="#555" stroke-width="2"/><line x1="8" y1="52" x2="56" y2="16" stroke="#555" stroke-width="2"/></svg>
+        </div>
         <div v-else class="sr-loupe__placeholder">
           <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="16" width="48" height="36" rx="4" stroke="#333" stroke-width="2"/></svg>
         </div>
@@ -107,7 +111,7 @@
             @change="(c) => $emit('rate', currentImage, undefined, c)"
           />
         </div>
-        <div class="sr-loupe__footer-right">
+        <div v-if="enablePickUi" class="sr-loupe__footer-right">
           <!-- Pick / Reject Badges -->
           <button
             class="sr-loupe__pick-btn"
@@ -115,14 +119,18 @@
             type="button"
             :title="t('starrate', 'Pick (P)')"
             @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'pick' ? 'none' : 'pick')"
-          >P</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button
             class="sr-loupe__pick-btn sr-loupe__pick-btn--reject"
             :class="{ 'sr-loupe__pick-btn--active': currentImage?.pick === 'reject' }"
             type="button"
             :title="t('starrate', 'Ablehnen (X)')"
             @click="$emit('rate', currentImage, undefined, undefined, currentImage?.pick === 'reject' ? 'none' : 'reject')"
-          >X</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="17" y1="7" x2="7" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
         </div>
       </div>
     </Transition>
@@ -153,6 +161,10 @@ const props = defineProps({
     type: Function,
     default: null,
   },
+  enablePickUi: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['rate', 'close', 'index-change'])
@@ -162,7 +174,11 @@ const emit = defineEmits(['rate', 'close', 'index-change'])
 const loupeEl      = ref(null)
 const imgEl        = ref(null)
 const currentIndex = ref(props.initialIndex)
-const loadingPreview = ref(true)
+const loadingPreview  = ref(true)
+const previewError    = ref(false)
+const actualSrc       = ref('')
+let   previewRetries  = 0
+let   previewRetryTimer = null
 const showControls   = ref(true)
 let   hideControlsTimer = null
 
@@ -500,12 +516,14 @@ function onKeydown(e) {
     }
 
     case 'p': case 'P': {
+      if (!props.enablePickUi) break
       e.preventDefault()
       const img = currentImage.value
       if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
       break
     }
     case 'x': case 'X': {
+      if (!props.enablePickUi) break
       e.preventDefault()
       const img = currentImage.value
       if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
@@ -529,12 +547,34 @@ function resetControlsTimer() {
 
 function onImgLoad() {
   loadingPreview.value = false
+  previewError.value   = false
+  previewRetries       = 0
   resetControlsTimer()
 }
 
-watch(previewUrl, () => {
+function onImgError() {
+  previewRetries++
+  if (previewRetries < 3) {
+    // NC generiert Previews beim ersten Zugriff lazy — nach kurzer Pause nochmals versuchen
+    loadingPreview.value = true
+    clearTimeout(previewRetryTimer)
+    previewRetryTimer = setTimeout(() => {
+      // Cache-Buster erzwingt neuen Request (Browser würde sonst gecachte 404 nehmen)
+      actualSrc.value = previewUrl.value + (previewUrl.value.includes('?') ? '&' : '?') + '_r=' + previewRetries
+    }, previewRetries * 3000)
+  } else {
+    loadingPreview.value = false
+    previewError.value   = true
+  }
+}
+
+watch(previewUrl, (url) => {
+  actualSrc.value      = url
   loadingPreview.value = true
-})
+  previewError.value   = false
+  previewRetries       = 0
+  clearTimeout(previewRetryTimer)
+}, { immediate: true })
 
 // ─── Mount / Unmount ──────────────────────────────────────────────────────────
 
@@ -547,6 +587,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   clearTimeout(hideControlsTimer)
+  clearTimeout(previewRetryTimer)
 })
 
 watch(() => props.initialIndex, idx => {
@@ -785,8 +826,6 @@ watch(() => props.initialIndex, idx => {
   border-radius: 4px;
   background: transparent;
   color: #888;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
   transition: background 150ms, color 150ms, border-color 150ms;
 }

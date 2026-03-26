@@ -54,14 +54,18 @@ describe('StarRate E2E', () => {
     it('setzt Sternebewertung und filtert danach', () => {
       openFolder()
 
-      // Rating 4 auf erstes Bild setzen (force: hover-overlay hat pointer-events:none in headless)
-      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(3).click({ force: true })
+      // Rating 4 auf erstes Bild setzen via Keyboard-Shortcut
+      // Die Sterne in der Info-Leiste sind interactive:false — Rating läuft über Grid-Keydown (@keydown auf .sr-grid)
+      // ArrowRight: moveFocus(1) setzt focusedIndex 0 (startet von -1), dann Taste '4' für Rating 4
+      cy.get('.sr-grid').first().trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').first().trigger('keydown', { key: '4',          bubbles: true })
 
       // Toast erscheint
       cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
 
       // Filter auf ≥4★ setzen (Operator ≥ aktivieren, dann 4-Stern-Pill = Index 1 in [5,4,3,2,1])
-      cy.get('.sr-filterbar__op').contains('≥').click()
+      // cy.contains(selector, text) gibt immer genau 1 Element zurück
+      cy.contains('.sr-filterbar__op', '≥').click()
       cy.get('.sr-filterbar__pill--star').eq(1).click()
 
       // Nur noch bewertete Bilder sichtbar
@@ -71,7 +75,7 @@ describe('StarRate E2E', () => {
       })
 
       // Filter zurücksetzen
-      cy.get('.sr-filterbar__reset').click()
+      cy.get('.sr-filterbar__reset:not(.sr-filterbar__reset--mobile)').click()
       cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)')
         .should('have.length.greaterThan', 1)
     })
@@ -79,8 +83,11 @@ describe('StarRate E2E', () => {
     it('setzt Farbmarkierung und filtert nach Farbe', () => {
       openFolder()
 
-      // Green auf zweites Bild setzen
-      cy.get('.sr-grid__item').eq(1).find('.sr-color-label__dot--green').click({ force: true })
+      // Green auf zweites Bild (Index 1) setzen via Keyboard-Shortcut
+      // ArrowRight x2: focusedIndex 0 → 1, dann Taste '8' für Grün (6=Red,7=Yellow,8=Green,9=Blue)
+      cy.get('.sr-grid').first().trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').first().trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').first().trigger('keydown', { key: '8',          bubbles: true })
       cy.get('.sr-toast--success').should('be.visible')
 
       // Nach Grün filtern (colordot: Red=0, Yellow=1, Green=2)
@@ -90,7 +97,7 @@ describe('StarRate E2E', () => {
         cy.wrap($item).find('.sr-grid__info-color--green').should('exist')
       })
 
-      cy.get('.sr-filterbar__reset').click()
+      cy.get('.sr-filterbar__reset:not(.sr-filterbar__reset--mobile)').click()
     })
   })
 
@@ -175,8 +182,10 @@ describe('StarRate E2E', () => {
     let createdToken = null
 
     before(() => {
-      // Share via API erstellen (als eingeloggter User)
-      cy.session([NC_USER, NC_PASS], () => {
+      // Share via API erstellen — eigene Session mit eindeutigem Identifier,
+      // um Kollision mit dem beforeEach-Login (gleiche Identifier) zu vermeiden.
+      // NoCSRFRequired am Controller erlaubt den Aufruf mit Basic Auth.
+      cy.session('share-setup', () => {
         cy.visit(`${NC_URL}/login`)
         cy.get('#user').clear().type(NC_USER)
         cy.get('#password').clear().type(NC_PASS)
@@ -188,18 +197,19 @@ describe('StarRate E2E', () => {
         url:    `${NC_URL}/index.php/apps/starrate/api/share`,
         body:   { nc_path: '/Fotos/E2E-Test', permissions: 'rate', guest_name: 'E2E-Tester' },
         headers: { 'Content-Type': 'application/json' },
+        auth:   { user: NC_USER, pass: NC_PASS },
       }).then(resp => {
         createdToken = resp.body.share.token
       })
     })
 
     after(() => {
-      // Share wieder löschen
+      // Share wieder löschen — Basic Auth (NoCSRFRequired am Controller)
       if (!createdToken) return
-      cy.session([NC_USER, NC_PASS], () => {})
       cy.request({
         method: 'DELETE',
         url:    `${NC_URL}/index.php/apps/starrate/api/share/${createdToken}`,
+        auth:   { user: NC_USER, pass: NC_PASS },
       })
     })
 
@@ -219,7 +229,8 @@ describe('StarRate E2E', () => {
       cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
         .should('have.length.greaterThan', 0)
 
-      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(3).click({ force: true })
+      cy.get('.sr-grid').trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').trigger('keydown', { key: '4',          bubbles: true })
       cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
     })
   })
@@ -236,7 +247,8 @@ describe('StarRate E2E', () => {
       if (!Cypress.env('NC_MULTI_USER')) { cy.log('NC_MULTI_USER nicht gesetzt — Test übersprungen'); this.skip(); return }
       // Bereits als User A eingeloggt
       openFolder(SHARED_PATH)
-      cy.get('.sr-grid__item').first().find('.sr-stars__star').eq(4).click({ force: true })
+      cy.get('.sr-grid').trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').trigger('keydown', { key: '5',          bubbles: true })
       cy.get('.sr-toast--success').should('be.visible')
     })
 

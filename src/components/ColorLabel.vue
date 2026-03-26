@@ -21,6 +21,7 @@
       :tabindex="interactive ? 0 : -1"
       :disabled="!interactive"
       @click="interactive && toggle(color.key)"
+      @pointerup="e => e.pointerType === 'touch' && e.currentTarget.blur()"
       @keydown.prevent="onKeydown($event, color)"
     />
 
@@ -34,6 +35,7 @@
       :aria-label="t('starrate', 'Farbmarkierung entfernen')"
       :title="t('starrate', 'Farbmarkierung entfernen')"
       @click="modelValue !== null && setColor(null)"
+      @pointerup="e => e.pointerType === 'touch' && e.currentTarget.blur()"
     >
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -138,10 +140,12 @@ defineExpose({ setColor, setByShortcut, COLORS })
 .sr-color-label__dot--blue   { background: #5277e0; }
 .sr-color-label__dot--purple { background: #9b52e0; }
 
-/* Hover */
-.sr-color-label--interactive .sr-color-label__dot:not(:disabled):hover {
-  transform: scale(1.25);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+/* Hover — nur auf Gerät mit Maus (pointer: fine), nicht auf Touch/Mobile */
+@media (pointer: fine) {
+  .sr-color-label--interactive .sr-color-label__dot:not(:disabled):hover {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+  }
 }
 
 /* Aktiv */

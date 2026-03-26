@@ -288,12 +288,8 @@ class RatingController extends Controller
 
     private function getJsonBody(): array
     {
-        $raw = file_get_contents('php://input');
-        if (empty($raw)) {
-            return [];
-        }
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
+        $params = $this->request->getParams();
+        return is_array($params) ? $params : [];
     }
 
     private function getFileById(string $userId, int $fileId): ?File

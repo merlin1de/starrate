@@ -43,9 +43,12 @@
                   <span v-if="share.min_rating > 0" class="sr-share-list__badge sr-share-list__badge--filter">
                     ≥ {{ share.min_rating }} ★
                   </span>
-                  <span v-if="share.has_password" class="sr-share-list__badge sr-share-list__badge--pw">
-                    🔒
-                  </span>
+                  <span
+                    v-if="share.has_password"
+                    class="sr-share-list__badge sr-share-list__badge--pw sr-share-list__badge--pw-click"
+                    title="Passwort ändern"
+                    @click="openPwEdit(share.token)"
+                  >🔒</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
                     {{ isExpired(share) ? 'Abgelaufen' : formatDate(share.expires_at) }}
                   </span>
@@ -57,39 +60,89 @@
                     :value="shareUrl(share.token)"
                     @click="$event.target.select()"
                   />
-                  <button class="sr-share-list__copy" @click="copyUrl(share.token)" :title="'Link kopieren'">
-                    {{ copiedToken === share.token ? '✓' : '⎘' }}
+                  <button class="sr-share-list__copy" @click="copyUrl(share.token)" :class="{ 'sr-share-list__copy--done': copiedToken === share.token }">
+                    {{ copiedToken === share.token ? '✓ Kopiert' : 'Kopieren' }}
                   </button>
                 </div>
               </div>
 
               <div class="sr-share-list__actions">
-                <!-- Aktiv/Inaktiv Toggle -->
+                <!-- Aktiv/Inaktiv Toggle Switch -->
                 <button
-                  class="sr-share-list__action-btn"
-                  :class="share.active ? 'sr-share-list__action-btn--active' : 'sr-share-list__action-btn--inactive'"
+                  class="sr-share-list__toggle-switch"
+                  :class="{ 'sr-share-list__toggle-switch--on': share.active }"
                   :title="share.active ? 'Link deaktivieren' : 'Link aktivieren'"
                   @click="toggleActive(share)"
                 >
-                  {{ share.active ? '●' : '○' }}
+                  <span class="sr-share-list__toggle-thumb"></span>
                 </button>
-                <!-- Log-Button -->
+
+                <!-- Action buttons or inline confirm for delete -->
+                <template v-if="pendingDeleteToken === share.token">
+                  <span class="sr-share-list__confirm-label">Löschen?</span>
+                  <button class="sr-share-list__confirm-yes" @click="confirmDelete(share.token)">Ja</button>
+                  <button class="sr-share-list__confirm-no" @click="pendingDeleteToken = null">Nein</button>
+                </template>
+                <template v-else-if="pendingClearToken === share.token">
+                  <span class="sr-share-list__confirm-label">Log löschen?</span>
+                  <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">Ja</button>
+                  <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">Nein</button>
+                </template>
+                <template v-else>
+                  <!-- Passwort-Button -->
+                  <button
+                    class="sr-share-list__action-btn"
+                    :class="{ 'sr-share-list__action-btn--active': pwEditToken === share.token }"
+                    title="Passwort setzen / ändern"
+                    @click="openPwEdit(share.token)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 018 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </button>
+                  <!-- Log-Button -->
+                  <button
+                    class="sr-share-list__action-btn"
+                    :class="{ 'sr-share-list__action-btn--active': expandedLog === share.token }"
+                    title="Bewertungs-Log anzeigen"
+                    @click="toggleLog(share.token)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="9" y="2" width="6" height="4" rx="1" stroke="currentColor" stroke-width="2"/><path d="M8 4H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="2"/></svg>
+                  </button>
+                  <!-- Löschen -->
+                  <button
+                    class="sr-share-list__action-btn sr-share-list__action-btn--delete"
+                    title="Link löschen"
+                    @click="pendingDeleteToken = share.token"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Passwort-Panel (aufklappbar) -->
+            <div v-if="pwEditToken === share.token" class="sr-share-list__pw-panel">
+              <input
+                v-model="pwInput"
+                type="password"
+                class="sr-share-list__pw-input"
+                placeholder="Neues Passwort…"
+                autocomplete="new-password"
+                @keydown.enter="savePassword(share)"
+                @keydown.escape="closePwEdit"
+              />
+              <div class="sr-share-list__pw-actions">
                 <button
-                  class="sr-share-list__action-btn"
-                  :class="{ 'sr-share-list__action-btn--active': expandedLog === share.token }"
-                  title="Bewertungs-Log anzeigen"
-                  @click="toggleLog(share.token)"
-                >
-                  📋
-                </button>
-                <!-- Löschen -->
+                  class="sr-share-list__pw-save"
+                  :disabled="!pwInput || pwSaving"
+                  @click="savePassword(share)"
+                >Setzen</button>
                 <button
-                  class="sr-share-list__action-btn sr-share-list__action-btn--delete"
-                  title="Link löschen"
-                  @click="deleteShare(share.token)"
-                >
-                  🗑
-                </button>
+                  v-if="share.has_password"
+                  class="sr-share-list__pw-remove"
+                  :disabled="pwSaving"
+                  @click="removePassword(share)"
+                >Entfernen</button>
+                <button class="sr-share-list__pw-cancel" @click="closePwEdit">Abbrechen</button>
               </div>
             </div>
 
@@ -98,10 +151,16 @@
               <div class="sr-share-list__log-header">
                 <span class="sr-share-list__log-title">Bewertungs-Log</span>
                 <div class="sr-share-list__log-actions">
+                  <template v-if="pendingClearToken === share.token">
+                    <span class="sr-share-list__confirm-label">Log löschen?</span>
+                    <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">Ja</button>
+                    <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">Nein</button>
+                  </template>
                   <button
+                    v-else
                     class="sr-share-list__log-btn"
                     :disabled="!logs[share.token]?.length"
-                    @click="clearLog(share.token)"
+                    @click="pendingClearToken = share.token"
                   >
                     Log löschen
                   </button>
@@ -120,11 +179,18 @@
                 >
                   <span class="sr-share-list__log-name">{{ entry.guest_name }}</span>
                   <span class="sr-share-list__log-rating">
-                    {{ entry.rating !== null ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0)) : '–' }}
+                    {{ entry.rating !== null
+                        ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0))
+                        : (entry.pick && entry.pick !== 'none' ? '' : '–') }}
                   </span>
                   <span v-if="entry.color" class="sr-share-list__log-color" :class="`sr-share-list__log-color--${entry.color.toLowerCase()}`">
                     ●
                   </span>
+                  <span
+                    v-if="entry.pick && entry.pick !== 'none'"
+                    class="sr-share-list__log-pick"
+                    :class="`sr-share-list__log-pick--${entry.pick}`"
+                  >{{ entry.pick === 'pick' ? '✓' : '⊘' }}</span>
                   <span class="sr-share-list__log-file">{{ entry.filename ?? `#${entry.file_id}` }}</span>
                   <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
                 </div>
@@ -158,6 +224,13 @@ const expandedLog = ref(null)
 const logs        = ref({})       // token → log entries
 const logsLoading = ref({})
 const copiedToken = ref(null)
+
+const pendingDeleteToken = ref(null)
+const pendingClearToken  = ref(null)
+
+const pwEditToken = ref(null)
+const pwInput     = ref('')
+const pwSaving    = ref(false)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -211,8 +284,8 @@ async function toggleActive(share) {
   } catch { /* ignore */ }
 }
 
-async function deleteShare(token) {
-  if (!confirm('Freigabe-Link wirklich löschen?')) return
+async function confirmDelete(token) {
+  pendingDeleteToken.value = null
   try {
     await axios.delete(generateUrl(`/apps/starrate/api/share/${token}`))
     shares.value = shares.value.filter(s => s.token !== token)
@@ -241,8 +314,50 @@ async function loadLog(token) {
   }
 }
 
-async function clearLog(token) {
-  if (!confirm('Bewertungs-Log für diesen Link löschen?')) return
+function openPwEdit(token) {
+  pwEditToken.value = pwEditToken.value === token ? null : token
+  pwInput.value = ''
+}
+
+function closePwEdit() {
+  pwEditToken.value = null
+  pwInput.value = ''
+}
+
+async function savePassword(share) {
+  if (!pwInput.value || pwSaving.value) return
+  pwSaving.value = true
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { password: pwInput.value }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+    closePwEdit()
+  } catch { /* ignore */ } finally {
+    pwSaving.value = false
+  }
+}
+
+async function removePassword(share) {
+  if (pwSaving.value) return
+  pwSaving.value = true
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { password: null }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+    closePwEdit()
+  } catch { /* ignore */ } finally {
+    pwSaving.value = false
+  }
+}
+
+async function confirmClearLog(token) {
+  pendingClearToken.value = null
   try {
     await axios.delete(generateUrl(`/apps/starrate/api/share/${token}/log`))
     logs.value = { ...logs.value, [token]: [] }
@@ -370,8 +485,9 @@ defineExpose({ loadShares })
   word-break: break-all;
 }
 .sr-share-list__guest-name {
-  color: #a1a1aa;
-  font-size: 0.8rem;
+  color: #d4d4d8;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .sr-share-list__meta {
@@ -405,28 +521,49 @@ defineExpose({ loadShares })
   background: #0f0f1a;
   border: 1px solid #2a2a3e;
   border-radius: 4px;
-  color: #52525b;
-  font-size: 0.7rem;
+  color: #c4c4d4;
+  font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
 }
 .sr-share-list__copy {
-  background: none;
-  border: 1px solid #2a2a3e;
-  border-radius: 4px;
-  color: #71717a;
+  background: #2a2a4a;
+  border: 1px solid #3f3f6a;
+  border-radius: 5px;
+  color: #a1a1aa;
   cursor: pointer;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.3rem 0.75rem;
   flex-shrink: 0;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
 }
-.sr-share-list__copy:hover { color: #d4d4d8; }
+.sr-share-list__copy:hover { background: #3a3a5a; color: #d4d4d8; }
+.sr-share-list__copy--done { color: #4caf50; border-color: #4caf50; background: #1a2a1a; }
 
 .sr-share-list__actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 0.35rem;
   flex-shrink: 0;
 }
+
+/* Toggle Switch */
+.sr-share-list__toggle-switch {
+  display: inline-block;
+  width: 36px; height: 20px;
+  min-width: 36px; min-height: 20px; max-width: 36px; max-height: 20px;
+  border-radius: 10px; border: none; cursor: pointer;
+  background: #3f3f5a; position: relative; transition: background 0.2s;
+  flex-shrink: 0; padding: 0; align-self: center;
+}
+.sr-share-list__toggle-switch--on { background: #4caf50; }
+.sr-share-list__toggle-thumb {
+  position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
+  border-radius: 50%; background: #fff; transition: transform 0.2s; display: block;
+}
+.sr-share-list__toggle-switch--on .sr-share-list__toggle-thumb { transform: translateX(16px); }
 
 .sr-share-list__action-btn {
   background: none;
@@ -437,11 +574,18 @@ defineExpose({ loadShares })
   font-size: 0.85rem;
   padding: 0.25rem 0.4rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .sr-share-list__action-btn:hover { color: #d4d4d8; border-color: #3f3f5a; }
 .sr-share-list__action-btn--active { color: #4caf50; border-color: #4caf50; }
-.sr-share-list__action-btn--inactive { color: #52525b; }
 .sr-share-list__action-btn--delete:hover { color: #e94560; border-color: #e94560; }
+
+/* Inline Confirmation */
+.sr-share-list__confirm-label { color: #e94560; font-size: 0.75rem; white-space: nowrap; }
+.sr-share-list__confirm-yes { background: #e94560; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+.sr-share-list__confirm-no  { background: none; border: 1px solid #3f3f5a; border-radius: 4px; color: #71717a; cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.5rem; }
 
 /* Log-Bereich */
 .sr-share-list__log {
@@ -462,7 +606,7 @@ defineExpose({ loadShares })
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.sr-share-list__log-actions { display: flex; gap: 0.5rem; }
+.sr-share-list__log-actions { display: flex; gap: 0.5rem; align-items: center; }
 .sr-share-list__log-btn {
   background: none;
   border: 1px solid #3f3f5a;
@@ -519,6 +663,9 @@ defineExpose({ loadShares })
 .sr-share-list__log-color--green  { color: #4caf50; }
 .sr-share-list__log-color--blue   { color: #2196f3; }
 .sr-share-list__log-color--purple { color: #9c27b0; }
+.sr-share-list__log-pick          { font-size: 0.85rem; flex-shrink: 0; }
+.sr-share-list__log-pick--pick    { color: #80c080; }
+.sr-share-list__log-pick--reject  { color: #e94560; }
 .sr-share-list__log-file {
   color: #52525b;
   flex: 1;
@@ -532,4 +679,64 @@ defineExpose({ loadShares })
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* Passwort-Badge klickbar */
+.sr-share-list__badge--pw-click {
+  cursor: pointer;
+}
+.sr-share-list__badge--pw-click:hover { background: #3a2a4a; }
+
+/* Passwort-Panel */
+.sr-share-list__pw-panel {
+  background: #0f0f1a;
+  border-top: 1px solid #2a2a3e;
+  padding: 0.65rem 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sr-share-list__pw-input {
+  flex: 1;
+  min-width: 160px;
+  background: #16213e;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #d4d4d8;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}
+.sr-share-list__pw-input:focus { outline: none; border-color: #e94560; }
+.sr-share-list__pw-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.sr-share-list__pw-save {
+  background: #e94560;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-save:disabled { opacity: 0.4; cursor: not-allowed; }
+.sr-share-list__pw-remove {
+  background: none;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-remove:hover:not(:disabled) { color: #e94560; border-color: #e94560; }
+.sr-share-list__pw-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+.sr-share-list__pw-cancel {
+  background: none;
+  border: 1px solid #2a2a3e;
+  border-radius: 4px;
+  color: #52525b;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.65rem;
+}
+.sr-share-list__pw-cancel:hover { color: #71717a; }
 </style>

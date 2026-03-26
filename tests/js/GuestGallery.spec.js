@@ -182,7 +182,8 @@ describe('GuestGallery', () => {
     await rateFn(99, { rating: 4 })
     expect(axios.post).toHaveBeenCalledWith(
       expect.stringContaining('/guest/tok123/rate'),
-      expect.objectContaining({ file_id: 99, rating: 4, guest_name: 'Testgast' })
+      expect.objectContaining({ file_id: 99, rating: 4, guest_name: 'Testgast' }),
+      expect.any(Object)
     )
   })
 
@@ -205,7 +206,8 @@ describe('GuestGallery', () => {
     expect(axios.post).toHaveBeenCalledTimes(3)
     expect(axios.post).toHaveBeenCalledWith(
       expect.stringContaining('/guest/tok123/rate'),
-      expect.objectContaining({ file_id: 1, rating: 5 })
+      expect.objectContaining({ file_id: 1, rating: 5 }),
+      expect.any(Object)
     )
   })
 
