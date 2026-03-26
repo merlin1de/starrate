@@ -46,7 +46,7 @@
                   <span
                     v-if="share.has_password"
                     class="sr-share-list__badge sr-share-list__badge--pw sr-share-list__badge--pw-click"
-                    title="Passwort ändern"
+                    :title="t('starrate', 'Passwort setzen / ändern')"
                     @click="openPwEdit(share.token)"
                   >🔒</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
