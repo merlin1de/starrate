@@ -4,28 +4,27 @@
 
     <id>starrate</id>
     <name>StarRate</name>
-    <summary>Professionelles Foto-Bewertungs- und Lightroom-Sync-Tool für Fotografen</summary>
+    <summary>Professional photo rating and culling tool for photographers</summary>
     <description><![CDATA[
-StarRate ist ein professionelles Foto-Bewertungs-Tool für Fotografen, direkt in Nextcloud integriert.
+StarRate is a professional photo rating and culling tool for photographers, seamlessly integrated into Nextcloud.
 
 **Features:**
-- Vollbild-Galerie im Raster- und Lupen-Modus (wie Adobe Lightroom)
-- Sternebewertungen (0–5) und Farbmarkierungen (Rot/Gelb/Grün/Blau/Lila)
-- Bewertungen werden direkt in JPEG/XMP-Metadaten geschrieben
-- Lightroom-Sync: XMP-Sidecar für Canon CR3 und andere RAW-Formate
-- Stapel-Bewertung mit Mehrfachauswahl (Shift+Klick, Strg+Klick)
-- Freigabe-Links für Modelle (ohne Nextcloud-Login)
-- Tastaturkürzel wie in Lightroom (0–5 Sterne, 6–9 Farben, P/X)
-- Stufenloser Zoom bis 400%, Pan und Pinch-to-Zoom
-- Filterbarkait nach Sternen und Farben, kombinierbar
-- Dunkles, professionelles UI-Theme
+- Full-screen gallery with grid and loupe view (like Adobe Lightroom)
+- Star ratings (0–5) and color labels (Red/Yellow/Green/Blue/Purple)
+- Ratings written directly into JPEG/XMP metadata
+- Batch rating with multi-selection (Shift+click, Ctrl+click)
+- Guest share links for models and clients (no Nextcloud login required)
+- Keyboard shortcuts like Lightroom (0–5 stars, 6–9 colors, P/X for pick/reject)
+- Smooth zoom up to 400%, pan and pinch-to-zoom on mobile
+- Filter by stars and colors, combinable
+- Dark, professional UI theme optimized for photo work
     ]]></description>
 
     <version>1.0.0</version>
     <licence>agpl</licence>
 
-    <author mail="info@starrate.app" homepage="https://github.com/starrate-app/starrate">
-        StarRate Team
+    <author mail="starrate@merlin1.de" homepage="https://github.com/merlin1de/starrate">
+        Mathias Mischler
     </author>
 
     <namespace>StarRate</namespace>
@@ -33,9 +32,9 @@ StarRate ist ein professionelles Foto-Bewertungs-Tool für Fotografen, direkt in
     <category>multimedia</category>
     <category>files</category>
 
-    <website>https://github.com/starrate-app/starrate</website>
-    <bugs>https://github.com/starrate-app/starrate/issues</bugs>
-    <repository type="git">https://github.com/starrate-app/starrate</repository>
+    <website>https://github.com/merlin1de/starrate</website>
+    <bugs>https://github.com/merlin1de/starrate/issues</bugs>
+    <repository type="git">https://github.com/merlin1de/starrate</repository>
 
     <screenshot small-thumbnail="https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid-small.jpg">
         https://raw.githubusercontent.com/starrate-app/starrate/main/screenshots/grid.jpg
