@@ -47,7 +47,7 @@ StarRate is a professional photo rating and culling tool for photographers, seam
         <database>sqlite</database>
         <database>mysql</database>
         <database>pgsql</database>
-        <nextcloud min-version="31" max-version="32"/>
+        <nextcloud min-version="29" max-version="32"/>
     </dependencies>
 
     <navigations>
