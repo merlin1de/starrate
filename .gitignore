@@ -16,7 +16,7 @@
 /tests/results/junit-*.xml
 
 # Secrets – NIEMALS committen!
-docker/cypress.env
+/docker/
 .env
 .env.local
 .env.*.local
