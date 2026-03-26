@@ -120,7 +120,7 @@ defineExpose({ setColor, setByShortcut, COLORS })
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 3px solid transparent;
+  border: 3px solid transparent !important;
   padding: 0;
   cursor: inherit;
   touch-action: manipulation;
@@ -145,19 +145,23 @@ defineExpose({ setColor, setByShortcut, COLORS })
 
 /* Aktiv: 3px weißer Rand + leichter Scale */
 .sr-color-label__dot--active {
-  border-color: #fff;
+  border-color: #fff !important;
   transform: scale(1.1);
 }
 
-/* NC focus/active border-color unterdrücken – base hat schon box-shadow/outline none !important */
+/* NC focus/active komplett unterdrücken – spezifischer als base, schlägt NC's button:pseudo !important */
 .sr-color-label__dot:not(.sr-color-label__dot--active):focus,
 .sr-color-label__dot:not(.sr-color-label__dot--active):focus-visible,
 .sr-color-label__dot:not(.sr-color-label__dot--active):active {
+  box-shadow: none !important;
+  outline: none !important;
   border-color: transparent !important;
 }
 .sr-color-label__dot--active:focus,
 .sr-color-label__dot--active:focus-visible,
 .sr-color-label__dot--active:active {
+  box-shadow: none !important;
+  outline: none !important;
   border-color: #fff !important;
 }
 
