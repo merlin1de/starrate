@@ -700,9 +700,11 @@ watch(() => props.initialIndex, idx => {
   backdrop-filter: blur(4px);
 }
 
-.sr-loupe__close:hover {
-  background: rgba(233,69,96,0.7);
-  color: #fff;
+@media (pointer: fine) {
+  .sr-loupe__close:hover {
+    background: rgba(233,69,96,0.7);
+    color: #fff;
+  }
 }
 
 .sr-loupe__close svg { width: 16px; height: 16px; }
@@ -727,9 +729,11 @@ watch(() => props.initialIndex, idx => {
   backdrop-filter: blur(4px);
 }
 
-.sr-loupe__back:hover {
-  background: rgba(255,255,255,0.1);
-  color: #fff;
+@media (pointer: fine) {
+  .sr-loupe__back:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
 }
 
 .sr-loupe__back svg { width: 20px; height: 20px; }
@@ -754,13 +758,22 @@ watch(() => props.initialIndex, idx => {
   backdrop-filter: blur(4px);
 }
 
-.sr-loupe:hover .sr-loupe__nav {
-  opacity: 1;
+/* Desktop: Nav bei Hover einblenden */
+@media (pointer: fine) {
+  .sr-loupe:hover .sr-loupe__nav {
+    opacity: 1;
+  }
+  .sr-loupe__nav:hover {
+    background: rgba(233,69,96,0.7);
+    color: #fff;
+  }
 }
 
-.sr-loupe__nav:hover {
-  background: rgba(233,69,96,0.7);
-  color: #fff;
+/* Mobile: Nav immer sichtbar (kein Hover zum Einblenden) */
+@media (pointer: coarse) {
+  .sr-loupe__nav {
+    opacity: 1;
+  }
 }
 
 .sr-loupe__nav--prev { left: 0;  border-radius: 0 6px 6px 0; }
@@ -830,9 +843,11 @@ watch(() => props.initialIndex, idx => {
   transition: background 150ms, color 150ms, border-color 150ms;
 }
 
-.sr-loupe__pick-btn:hover {
-  border-color: #888;
-  color: #ddd;
+@media (pointer: fine) {
+  .sr-loupe__pick-btn:hover {
+    border-color: #888;
+    color: #ddd;
+  }
 }
 
 .sr-loupe__pick-btn--active {

@@ -88,13 +88,19 @@
 
           <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">{{ t('starrate', 'Passwort') }} <span class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span></label>
-            <input
-              v-model="form.password"
-              class="sr-share-modal__input"
-              type="password"
-              :placeholder="t('starrate', 'Leer lassen = kein Passwort')"
-              autocomplete="new-password"
-            />
+            <div class="sr-share-modal__pw-wrap">
+              <input
+                v-model="form.password"
+                class="sr-share-modal__input sr-share-modal__input--pw"
+                :type="showPassword ? 'text' : 'password'"
+                :placeholder="t('starrate', 'Leer lassen = kein Passwort')"
+                autocomplete="new-password"
+              />
+              <button type="button" class="sr-share-modal__pw-eye" @click="showPassword = !showPassword" :title="showPassword ? t('starrate', 'Passwort verbergen') : t('starrate', 'Passwort anzeigen')">
+                <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
           </div>
 
           <div class="sr-share-modal__field">
@@ -150,6 +156,7 @@ const saving      = ref(false)
 const formError   = ref('')
 const createdShare = ref(null)
 const copied      = ref(false)
+const showPassword = ref(false)
 
 const todayStr = computed(() => new Date().toISOString().split('T')[0])
 
@@ -319,6 +326,26 @@ async function create() {
   color: #a1a1aa;
   cursor: default;
 }
+.sr-share-modal__pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sr-share-modal__input--pw {
+  padding-right: 2.25rem;
+}
+.sr-share-modal__pw-eye {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.sr-share-modal__pw-eye:hover { color: #d4d4d8; }
 .sr-share-modal__select option { background: #16213e; }
 
 .sr-share-modal__toggle-group {

@@ -12,6 +12,7 @@
       :class="[
         `sr-color-label__dot--${color.key.toLowerCase()}`,
         { 'sr-color-label__dot--active': modelValue === color.key },
+        { 'sr-color-label__dot--tapped': tappedKey === color.key },
       ]"
       type="button"
       role="radio"
@@ -22,6 +23,7 @@
       :disabled="!interactive"
       @click="interactive && toggle(color.key)"
       @pointerup="e => e.pointerType === 'touch' && e.currentTarget.blur()"
+      @pointercancel="e => e.pointerType === 'touch' && e.currentTarget.blur()"
       @keydown.prevent="onKeydown($event, color)"
     />
 
@@ -51,6 +53,7 @@ export { COLORS } from '@/utils/colors.js'
 </script>
 
 <script setup>
+import { ref } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { COLORS } from '@/utils/colors.js'
 
@@ -74,9 +77,20 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'change'])
 
+const tappedKey = ref(null)
+let tapTimer = null
+
 function toggle(colorKey) {
   // Nochmals gleiche Farbe → entfernen
   const newColor = colorKey === props.modelValue ? null : colorKey
+
+  // Ring sofort zeigen (transition: none !important auf --tapped)
+  tappedKey.value = colorKey
+  clearTimeout(tapTimer)
+
+  // Nach 150ms entfernen → base-Transition box-shadow 600ms greift für Fade-out
+  tapTimer = setTimeout(() => { tappedKey.value = null }, 150)
+
   setColor(newColor)
 }
 
@@ -116,13 +130,15 @@ defineExpose({ setColor, setByShortcut, COLORS })
 }
 
 .sr-color-label__dot {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2px solid transparent;
   padding: 0;
   cursor: inherit;
-  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease;
   outline: none;
   position: relative;
 }
@@ -130,7 +146,6 @@ defineExpose({ setColor, setByShortcut, COLORS })
 .sr-color-label--compact .sr-color-label__dot {
   width: 10px;
   height: 10px;
-  border-width: 1.5px;
 }
 
 /* Farben */
@@ -143,20 +158,50 @@ defineExpose({ setColor, setByShortcut, COLORS })
 /* Hover — nur auf Gerät mit Maus (pointer: fine), nicht auf Touch/Mobile */
 @media (pointer: fine) {
   .sr-color-label--interactive .sr-color-label__dot:not(:disabled):hover {
-    transform: scale(1.25);
-    box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.6), 0 0 0 5px rgba(0,0,0,0.4);
   }
 }
 
-/* Aktiv */
-.sr-color-label__dot--active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.8), 0 0 0 4px rgba(0,0,0,0.4);
-  transform: scale(1.1);
+/* Touch: Browser-Focus-Border unterdrücken – verhindert Artefakte nach Tap */
+@media (pointer: coarse) {
+  .sr-color-label__dot:focus:not(.sr-color-label__dot--active) {
+    border-color: transparent !important;
+  }
 }
 
-.sr-color-label__dot:focus-visible {
-  box-shadow: 0 0 0 3px #e94560;
+/* Aktiv (dauerhaft gesetzte Farbe): nur weißer Rand – kein Scale, kein Schatten */
+.sr-color-label__dot--active {
+  border-color: #fff;
+}
+
+/* Tap-Feedback via ::after – isoliert vom base-Element, keine Seiteneffekte */
+.sr-color-label__dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(255,255,255,0.85), 0 0 0 7px rgba(0,0,0,0.5);
+  opacity: 0;
+  transition: opacity 600ms ease-in;
+  pointer-events: none;
+}
+
+/* Instant show: opacity 0ms, Fade-out (600ms) greift beim Entfernen der Klasse */
+.sr-color-label__dot--tapped {
+  border-color: #fff !important;
+  transform: scale(1.15);
+}
+.sr-color-label__dot--tapped::after {
+  opacity: 1;
+  transition: opacity 0ms;
+}
+
+/* focus-visible nur auf Maus-Geräten – verhindert klebende Ringe nach Touch */
+@media (pointer: fine) {
+  .sr-color-label__dot:focus-visible {
+    box-shadow: 0 0 0 3px #e94560;
+  }
 }
 
 .sr-color-label__dot:disabled {
@@ -186,9 +231,12 @@ defineExpose({ setColor, setByShortcut, COLORS })
   pointer-events: none;
 }
 
-.sr-color-label:hover .sr-color-label__clear:not(.sr-color-label__clear--hidden),
-.sr-color-label:focus-within .sr-color-label__clear:not(.sr-color-label__clear--hidden) {
-  opacity: 1;
+/* Clear-Button nur auf Maus-Hover einblenden – auf Touch würde er nach Tap kleben bleiben */
+@media (pointer: fine) {
+  .sr-color-label:hover .sr-color-label__clear:not(.sr-color-label__clear--hidden),
+  .sr-color-label:focus-within .sr-color-label__clear:not(.sr-color-label__clear--hidden) {
+    opacity: 1;
+  }
 }
 
 .sr-color-label__clear:hover {

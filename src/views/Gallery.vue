@@ -493,6 +493,26 @@ function openLoupe(image, index) {
   mode.value = 'loupe'
 }
 
+// Android Back-Button: Loupe → Grid statt Browser-Navigation
+// Beim Öffnen der Loupe einen History-Eintrag pushen; beim Schließen (ESC/X)
+// den Eintrag konsumieren; popstate (Android Back) setzt mode auf grid.
+function onPopState() {
+  if (mode.value === 'loupe') {
+    mode.value = 'grid'
+  }
+}
+
+watch(mode, (newVal, oldVal) => {
+  if (newVal === 'loupe') {
+    history.pushState({ srLoupe: true }, '')
+  } else if (oldVal === 'loupe') {
+    // Loupe per ESC/X geschlossen (nicht per popstate) → History-Eintrag konsumieren
+    if (history.state?.srLoupe) {
+      history.back()
+    }
+  }
+})
+
 // ─── Auswahl ──────────────────────────────────────────────────────────────────
 
 function onSelectionChange(ids) {
@@ -577,6 +597,7 @@ function onVisibilityChange() {
 onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('popstate', onPopState)
   startBackgroundSync()
 
   // Settings laden, dann erst Bilder (damit sort/order korrekt ist)
@@ -603,6 +624,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocKeydown)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('popstate', onPopState)
   stopBackgroundSync()
 })
 
@@ -703,9 +725,11 @@ watch(() => route.query, q => {
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
-.sr-folders__item:hover {
-  color: #d4d4d8;
-  border-color: #5a5a8a;
+@media (pointer: fine) {
+  .sr-folders__item:hover {
+    color: #d4d4d8;
+    border-color: #5a5a8a;
+  }
 }
 
 /* Breadcrumb: scoped für höhere Spezifizität gegenüber NC-Styles */
