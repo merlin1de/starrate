@@ -48,7 +48,7 @@
             class="sr-selbar__btn sr-selbar__btn--color"
             :class="{ 'sr-selbar__btn--active': lastColor === color.key }"
             type="button"
-            :title="`${color.label} (${color.shortcut})`"
+            :title="`${t('starrate', color.label)} (${color.shortcut})`"
             :style="{ '--dot-color': color.hex }"
             @click="applyColor(color.key)"
           >

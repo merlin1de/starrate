@@ -52,7 +52,7 @@
           :class="{ 'sr-filterbar__colordot--active': filter.color === color.key }"
           type="button"
           :aria-pressed="filter.color === color.key"
-          :title="color.label"
+          :title="t('starrate', color.label)"
           :style="{ background: color.hex }"
           @click="toggleColorFilter(color.key)"
         />
