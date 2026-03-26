@@ -10,10 +10,7 @@
 /sync-app/
 
 # Test results & coverage
-/tests/results/coverage-php/
-/tests/results/coverage-js/
-/tests/results/cypress/
-/tests/results/junit-*.xml
+/tests/results/
 
 # Secrets – NIEMALS committen!
 /docker/
