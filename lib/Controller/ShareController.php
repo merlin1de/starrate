@@ -44,6 +44,7 @@ class ShareController extends Controller
      * }
      */
     #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function create(): DataResponse
     {
         $userId = $this->getUserId();
@@ -152,6 +153,7 @@ class ShareController extends Controller
      * DELETE /api/share/{token} — Freigabe deaktivieren/löschen.
      */
     #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function delete(string $token): DataResponse
     {
         $userId = $this->getUserId();
@@ -365,10 +367,15 @@ class ShareController extends Controller
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
         $color     = $body['color'] ?? null;
+        $pick      = $body['pick'] ?? null;
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
         if ($rating !== null && ($rating < 0 || $rating > 5)) {
             return new DataResponse(['error' => 'rating muss zwischen 0 und 5 liegen'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($pick !== null && !in_array($pick, TagService::VALID_PICKS, true)) {
+            return new DataResponse(['error' => 'Ungültiger Pick-Status'], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
         try {
@@ -377,6 +384,7 @@ class ShareController extends Controller
                 (int) $body['file_id'],
                 $rating,
                 $color,
+                $pick,
                 $guestName,
             );
             return new DataResponse($result, Http::STATUS_OK);
@@ -407,7 +415,9 @@ class ShareController extends Controller
         if ($this->shareService->verifyPassword($share, $password)) {
             $session = \OC::$server->getSession();
             $session->set("starrate_share_{$token}", true);
-            return new DataResponse(['ok' => true]);
+            // pw_token: persistenter Nachweis für mobile Browser (localStorage)
+            $pwToken = hash_hmac('sha256', $token, $share['password_hash']);
+            return new DataResponse(['ok' => true, 'pw_token' => $pwToken]);
         }
 
         return new DataResponse(['error' => 'Falsches Passwort'], Http::STATUS_UNAUTHORIZED);
@@ -429,8 +439,23 @@ class ShareController extends Controller
         if (empty($share['password_hash'])) {
             return true;
         }
+
+        // 1. PHP-Session (Desktop-Browser, kurze Sitzungen)
         $session = \OC::$server->getSession();
-        return $session->get("starrate_share_{$token}") === true;
+        if ($session->get("starrate_share_{$token}") === true) {
+            return true;
+        }
+
+        // 2. pw_token (Mobile: per Header oder Query-Parameter aus localStorage)
+        $pwToken = $this->request->getHeader('X-StarRate-Pw-Token')
+            ?: (string) ($this->request->getParam('pw_token', ''));
+
+        if ($pwToken !== '') {
+            $expected = hash_hmac('sha256', $token, $share['password_hash']);
+            return hash_equals($expected, $pwToken);
+        }
+
+        return false;
     }
 
     private function validateShareBody(array $body): array

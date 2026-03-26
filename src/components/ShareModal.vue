@@ -175,7 +175,7 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { guestName: '', permissions: 'view', minRating: 0, password: '', expiresDate: '' }
+  form.value = { guestName: '', permissions: 'rate', minRating: 0, password: '', expiresDate: '' }
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ async function create() {
   border-color: #e94560;
 }
 .sr-share-modal__input--readonly {
-  color: #71717a;
+  color: #a1a1aa;
   cursor: default;
 }
 .sr-share-modal__select option { background: #16213e; }

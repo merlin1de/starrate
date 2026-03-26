@@ -2,6 +2,10 @@
   <div class="sr-filterbar">
     <!-- Linke Seite: Filter -->
     <div class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
+      <!-- Trichter-Icon -->
+      <svg class="sr-filterbar__funnel" :class="{ 'sr-filterbar__funnel--active': hasActiveFilter }" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M3 4h18l-7 8v6l-4 2V12L3 4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
       <span class="sr-filterbar__label">{{ t('starrate', 'Filter:') }}</span>
 
       <!-- Sterne-Filter -->
@@ -57,15 +61,16 @@
       <div class="sr-filterbar__sep" aria-hidden="true" />
 
       <!-- Pick/Reject-Filter -->
-      <div class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Auswahl')">
+      <div v-if="enablePickUi" class="sr-filterbar__group" role="group" :aria-label="t('starrate', 'Auswahl')">
+
         <button
-          class="sr-filterbar__pill"
+          class="sr-filterbar__pill sr-filterbar__pill--pick"
           :class="{ 'sr-filterbar__pill--active': filter.pick === 'pick' }"
           type="button"
           :title="t('starrate', 'Nur Picks anzeigen')"
           @click="togglePickFilter('pick')"
         >
-          P
+          <svg viewBox="0 0 24 24" fill="none" class="sr-filterbar__pick-icon" aria-hidden="true"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <button
           class="sr-filterbar__pill sr-filterbar__pill--reject"
@@ -74,9 +79,17 @@
           :title="t('starrate', 'Nur Ablehnungen anzeigen')"
           @click="togglePickFilter('reject')"
         >
-          X
+          <svg viewBox="0 0 24 24" fill="none" class="sr-filterbar__pick-icon" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="17" y1="7" x2="7" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
+
+      <!-- Mobile-Reset: nur sichtbar wenn Filter aktiv -->
+      <button
+        v-if="hasActiveFilter"
+        class="sr-filterbar__reset sr-filterbar__reset--mobile"
+        type="button"
+        @click="resetFilters"
+      >✕</button>
 
     </div>
 
@@ -163,6 +176,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'grid',
+  },
+  enablePickUi: {
+    type: Boolean,
+    default: false,
   },
 })
 
@@ -304,6 +321,19 @@ function updateFilter(newFilter) {
   flex-shrink: 0;
 }
 
+/* ── Trichter-Icon ────────────────────────────────────────────────────────── */
+.sr-filterbar__funnel {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #444;
+  transition: color 150ms;
+}
+
+.sr-filterbar__funnel--active {
+  color: #d08090;
+}
+
 /* ── Label ────────────────────────────────────────────────────────────────── */
 .sr-filterbar__label {
   font-size: 11px;
@@ -412,6 +442,18 @@ function updateFilter(newFilter) {
   border-color: #9a4060 !important;
 }
 
+.sr-filterbar__pick-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.sr-filterbar__pill--pick.sr-filterbar__pill--active {
+  background: #1a2e1a !important;
+  border-color: #306030 !important;
+  color: #80c080 !important;
+}
+
 .sr-filterbar__pill--reject.sr-filterbar__pill--active {
   background: #2e1a1a !important;
   border-color: #7a3030 !important;
@@ -477,6 +519,24 @@ function updateFilter(newFilter) {
   background: #3a2030;
   border-color: #9a4060;
   color: #e0a0b0;
+}
+
+.sr-filterbar__reset--mobile {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  font-size: 13px;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  border: none;
+  color: #fff;
+  background: #7a3050;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 /* ── Anzahl ───────────────────────────────────────────────────────────────── */
@@ -558,14 +618,10 @@ function updateFilter(newFilter) {
   height: 16px;
 }
 
-/* ── Transitions ──────────────────────────────────────────────────────────── */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 200ms;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+
+/* Desktop: Toggle ist in der Nav-Zeile, hier ausblenden */
+@media (pointer: fine) {
+  .sr-filterbar__mode { display: none; }
 }
 
 /* ── Mobile: single row, horizontal scroll ────────────────────────────────── */
@@ -584,8 +640,9 @@ function updateFilter(newFilter) {
   }
   .sr-filterbar__filters::-webkit-scrollbar { display: none; }
 
-  .sr-filterbar__label   { display: none; }
-  .sr-filterbar__sep     { display: none; }
-  .sr-filterbar__status  { display: none; }
+  .sr-filterbar__label              { display: none; }
+  .sr-filterbar__sep                { display: none; }
+  .sr-filterbar__status             { display: none; }
+  .sr-filterbar__reset--mobile      { display: inline-flex; }
 }
 </style>

@@ -13,6 +13,39 @@
           Teilen
         </button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
+        <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
+        <div class="sr-breadcrumb__mode">
+          <button
+            class="sr-breadcrumb__mode-btn"
+            :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'grid' }"
+            type="button"
+            :title="t('starrate', 'Rasteransicht')"
+            @click="toggleMode"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" fill="currentColor"/>
+              <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor"/>
+              <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor"/>
+              <rect x="14" y="14" width="7" height="7" rx="1" fill="currentColor"/>
+            </svg>
+          </button>
+          <button
+            class="sr-breadcrumb__mode-btn"
+            :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'loupe' }"
+            type="button"
+            :title="t('starrate', 'Lupenansicht')"
+            @click="toggleMode"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
+              <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Shortcut-Hilfe -->
+        <button class="sr-breadcrumb__help" title="Tastaturkürzel" @click="showShortcuts = true">?</button>
+
         <span class="sr-breadcrumb__version">
           StarRate v{{ appVersion }}<br>
           by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
@@ -39,6 +72,7 @@
       :total="allImages.length"
       :filtered-count="filteredImages.length"
       :mode="mode"
+      :enable-pick-ui="settings.enable_pick_ui"
       @toggle-mode="toggleMode"
     />
 
@@ -56,6 +90,7 @@
         :show-filename="settings.show_filename"
         :show-rating-info="settings.show_rating_overlay"
         :show-color-info="settings.show_color_overlay"
+        :enable-pick-ui="settings.enable_pick_ui"
         :thumbnail-url-fn="thumbnailUrlFn"
         @rate="onRate"
         @open-loupe="openLoupe"
@@ -70,6 +105,7 @@
         :initial-index="currentIndex"
         :on-refresh-rating="guestMode ? null : refreshImageRating"
         :preview-url-fn="previewUrlFn"
+        :enable-pick-ui="settings.enable_pick_ui"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -100,6 +136,44 @@
       @close="showShareModal = false"
       @created="onShareCreated"
     />
+
+    <!-- Shortcut-Hilfe-Modal -->
+    <Teleport to="body">
+      <Transition name="sr-shortcuts">
+        <div v-if="showShortcuts" class="sr-shortcuts-overlay" @click.self="showShortcuts = false">
+          <div class="sr-shortcuts-dialog">
+            <div class="sr-shortcuts-header">
+              <span>Tastaturkürzel</span>
+              <button class="sr-shortcuts-close" @click="showShortcuts = false">✕</button>
+            </div>
+            <div class="sr-shortcuts-body">
+              <div class="sr-shortcuts-group">
+                <div class="sr-shortcuts-group-title">Navigation</div>
+                <div class="sr-shortcuts-row"><kbd>← → ↑ ↓</kbd><span>Bild wechseln</span></div>
+                <div class="sr-shortcuts-row"><kbd>Shift + Pfeile</kbd><span>Mehrfachauswahl</span></div>
+                <div class="sr-shortcuts-row"><kbd>Strg + A</kbd><span>Alle auswählen</span></div>
+                <div class="sr-shortcuts-row"><kbd>Esc</kbd><span>Auswahl aufheben</span></div>
+                <div class="sr-shortcuts-row"><kbd>Enter</kbd><span>Lupenansicht öffnen</span></div>
+              </div>
+              <div class="sr-shortcuts-group">
+                <div class="sr-shortcuts-group-title">Bewertung</div>
+                <div class="sr-shortcuts-row"><kbd>0 – 5</kbd><span>Sterne setzen</span></div>
+                <div class="sr-shortcuts-row"><kbd>6</kbd><span>Rot</span></div>
+                <div class="sr-shortcuts-row"><kbd>7</kbd><span>Gelb</span></div>
+                <div class="sr-shortcuts-row"><kbd>8</kbd><span>Grün</span></div>
+                <div class="sr-shortcuts-row"><kbd>9</kbd><span>Blau</span></div>
+                <div class="sr-shortcuts-row"><kbd>V</kbd><span>Lila</span></div>
+              </div>
+              <div v-if="settings.enable_pick_ui" class="sr-shortcuts-group">
+                <div class="sr-shortcuts-group-title">Auswahl</div>
+                <div class="sr-shortcuts-row"><kbd>P</kbd><span>Pick</span></div>
+                <div class="sr-shortcuts-row"><kbd>X</kbd><span>Reject</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Toast-Nachrichten -->
     <Teleport to="body">
@@ -172,6 +246,7 @@ const settings = ref({
   show_rating_overlay:  true,
   show_color_overlay:   true,
   grid_columns:        'auto',
+  enable_pick_ui:       false,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
@@ -183,6 +258,7 @@ let   toastCounter = 0
 
 const showShareList  = ref(false)
 const showShareModal = ref(false)
+const showShortcuts  = ref(false)
 
 const activeFilter = ref({
   minRating: 0,     // 0 = alle  (>=)
@@ -208,6 +284,7 @@ function pathUpTo(index) {
 }
 
 function navigateTo(path) {
+  if (mode.value === 'loupe') mode.value = 'grid'
   if (path === '/') {
     router.push('/')
   } else {
@@ -234,7 +311,7 @@ const filteredImages = computed(() => {
     imgs = imgs.filter(i => i.color === f.color)
   }
 
-  if (f.pick) {
+  if (f.pick && settings.value.enable_pick_ui) {
     imgs = imgs.filter(i => i.pick === f.pick)
   }
 
@@ -246,7 +323,7 @@ const hasActiveFilter = computed(() =>
   activeFilter.value.exactRating !== null ||
   activeFilter.value.maxRating !== null ||
   activeFilter.value.color !== null ||
-  activeFilter.value.pick !== null
+  (settings.value.enable_pick_ui && activeFilter.value.pick !== null)
 )
 
 // ─── Bilder laden ─────────────────────────────────────────────────────────────
@@ -272,7 +349,10 @@ async function loadImages() {
     allImages.value = (data.images || []).map(img => ({
       ...img,
       thumbLoaded: false,
+      thumbLoading: false,
       thumbUrl: null,
+      thumbRetries: 0,
+      thumbError: false,
     }))
     subFolders.value = data.folders || []
   } catch (e) {
@@ -285,6 +365,13 @@ async function loadImages() {
 
 // Pfadwechsel → Bilder neu laden (kein immediate: erster Load passiert in onMounted nach Settings)
 watch(currentPath, loadImages)
+
+// Pick-Filter zurücksetzen wenn Pick-UI deaktiviert wird
+watch(() => settings.value.enable_pick_ui, enabled => {
+  if (!enabled && activeFilter.value.pick !== null) {
+    activeFilter.value = { ...activeFilter.value, pick: null }
+  }
+})
 
 // ─── Bewertung setzen ─────────────────────────────────────────────────────────
 
@@ -313,6 +400,9 @@ async function onRate(image, rating, color, pick) {
       showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
     } else if (payload.color !== undefined) {
       const label = payload.color || '○'
+      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+    } else if (payload.pick !== undefined) {
+      const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— kein Pick'
       showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
     }
   } catch (e) {
@@ -352,13 +442,11 @@ async function onBatchRate(rating, color) {
       }
     }
 
+    const bildText = n('starrate', '%n Bild', '%n Bilder', ids.length)
     const stars = payload.rating !== undefined
-      ? '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
+      ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
       : ''
-    showToast(
-      n('starrate', '%n Bild bewertet %s', '%n Bilder bewertet %s', ids.length, stars),
-      'success'
-    )
+    showToast(`${bildText} bewertet${stars}`, 'success')
   } catch (e) {
     await loadImages()
     showToast(t('starrate', 'Stapel-Bewertung fehlgeschlagen'), 'error')
@@ -429,11 +517,13 @@ function onShareCreated(share) {
   shareListRef.value?.loadShares()
 }
 
-// Escape auf Dokument-Ebene: klärt Auswahl unabhängig davon, welches Element Fokus hat
+// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
-  if (e.key === 'Escape' && selectedIds.value.size > 0) {
-    gridRef.value?.clearSelection()
-  }
+  if (e.key !== 'Escape') return
+  if (showShareModal.value)       { showShareModal.value = false; return }
+  if (showShareList.value)        { showShareList.value  = false; return }
+  if (showShortcuts.value)        { showShortcuts.value  = false; return }
+  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection() }
 }
 
 async function loadSettings() {
@@ -590,6 +680,34 @@ watch(() => route.query, q => {
   display: contents; /* Desktop: transparent, Kinder nehmen am sr-app-Flex teil */
 }
 
+.sr-folders {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+  width: 100%;
+}
+
+.sr-folders__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sr-folders__item:hover {
+  color: #d4d4d8;
+  border-color: #5a5a8a;
+}
+
 /* Breadcrumb: scoped für höhere Spezifizität gegenüber NC-Styles */
 .sr-breadcrumb {
   display: flex;
@@ -628,17 +746,6 @@ watch(() => route.query, q => {
   padding: 2px 8px;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.sr-breadcrumb__version {
-  margin-left: auto;
-  font-size: 10px;
-  color: #7a7a96;
-  user-select: none;
-  letter-spacing: 0.04em;
-  padding-left: 24px;
-  white-space: nowrap;
-  flex-shrink: 0;
   text-align: right;
   line-height: 1.5;
 }
@@ -654,6 +761,182 @@ watch(() => route.query, q => {
 .sr-breadcrumb__version-link:hover {
   text-decoration: underline;
 }
+
+.sr-breadcrumb__mode {
+  display: flex;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sr-breadcrumb__mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+}
+
+.sr-breadcrumb__mode-btn:hover { color: #aaa; background: #2a2a4a; }
+.sr-breadcrumb__mode-btn:focus,
+.sr-breadcrumb__mode-btn:focus-visible,
+.sr-breadcrumb__mode-btn:active { box-shadow: none !important; outline: none !important; }
+.sr-breadcrumb__mode-btn--active { background: #3a1a28 !important; color: #d08090 !important; }
+.sr-breadcrumb__mode-btn svg { width: 15px; height: 15px; }
+
+.sr-breadcrumb__version {
+  margin-left: 8px;
+  font-size: 10px;
+  color: #7a7a96;
+  user-select: none;
+  letter-spacing: 0.04em;
+  padding-left: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+  line-height: 1.5;
+  opacity: 0.35;
+  transition: opacity 250ms;
+}
+.sr-breadcrumb__version:hover { opacity: 1; }
+
+.sr-breadcrumb__version-link,
+.sr-breadcrumb__version-link:visited,
+.sr-breadcrumb__version-link:hover,
+.sr-breadcrumb__version-link:active {
+  color: #8a8aa8 !important;
+  text-decoration: underline !important;
+}
+
+/* ── Help-Button ─────────────────────────────────────────────────────────── */
+.sr-breadcrumb__help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #2a2a4a;
+  background: transparent;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 6px;
+  transition: color 150ms, border-color 150ms;
+  box-shadow: none !important;
+  line-height: 1;
+  padding: 0 !important;
+}
+.sr-breadcrumb__help:hover { color: #aaa; border-color: #555; }
+.sr-breadcrumb__help:focus,
+.sr-breadcrumb__help:active { outline: none !important; box-shadow: none !important; }
+
+/* ── Shortcut-Modal ──────────────────────────────────────────────────────── */
+.sr-shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.sr-shortcuts-dialog {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  width: min(480px, 92vw);
+  overflow: hidden;
+}
+
+.sr-shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #2a2a4a;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d4d4e8;
+}
+
+.sr-shortcuts-close {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+  transition: color 150ms;
+}
+.sr-shortcuts-close:hover { color: #aaa; }
+
+.sr-shortcuts-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
+.sr-shortcuts-group {
+  padding: 14px 16px;
+  border-right: 1px solid #2a2a4a;
+}
+.sr-shortcuts-group:last-child { border-right: none; }
+
+.sr-shortcuts-group-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #555;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.sr-shortcuts-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.sr-shortcuts-row kbd {
+  font-size: 10px;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #a1a1cc;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.sr-shortcuts-row span {
+  font-size: 11px;
+  color: #888;
+}
+
+.sr-shortcuts-enter-active,
+.sr-shortcuts-leave-active { transition: opacity 150ms; }
+.sr-shortcuts-enter-from,
+.sr-shortcuts-leave-to { opacity: 0; }
 
 /* ── Mobile: Nav-Zeile als einzelne scrollbare Reihe ─────────────────────── */
 @media (pointer: coarse) {
@@ -680,5 +963,6 @@ watch(() => route.query, q => {
     background: transparent;
   }
   .sr-breadcrumb__version { display: none; }
+  .sr-breadcrumb__mode    { display: none; }
 }
 </style>

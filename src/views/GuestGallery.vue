@@ -2,6 +2,13 @@
   <!-- Passwort-Dialog (vor der Galerie) -->
   <div v-if="passwordDlg" class="sr-guest-pw__overlay">
     <div class="sr-guest-pw__dialog">
+
+      <!-- Branding -->
+      <div class="sr-guest-pw__brand">
+        <div class="sr-guest-pw__brand-name">StarRate <span class="sr-guest-pw__brand-version">v{{ appVersion }}</span></div>
+        <div class="sr-guest-pw__brand-by">by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Merlin1.De</a></div>
+      </div>
+
       <h2 class="sr-guest-pw__title">Passwortgeschützte Galerie</h2>
       <p class="sr-guest-pw__hint">Bitte gib das Passwort ein, um die Galerie zu öffnen.</p>
       <input
@@ -40,6 +47,9 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import Gallery from './Gallery.vue'
 
+/* global __APP_VERSION__ */
+const appVersion = __APP_VERSION__
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 const props = defineProps({
@@ -54,17 +64,36 @@ const passwordDlg = ref(false)
 const password    = ref('')
 const passwordErr = ref('')
 
+// pw_token: persistenter Auth-Nachweis für mobile Browser (überlebt Tab-Wechsel)
+const STORAGE_KEY  = `sr_guest_pw_${props.token}`
+const storedPwToken = ref(localStorage.getItem(STORAGE_KEY) ?? '')
+
+function pwHeader() {
+  return storedPwToken.value ? { 'X-StarRate-Pw-Token': storedPwToken.value } : {}
+}
+
+function appendPwToken(url) {
+  if (!storedPwToken.value) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return url + sep + 'pw_token=' + encodeURIComponent(storedPwToken.value)
+}
+
+function handle401() {
+  // pw_token ungültig (Passwort geändert) → löschen und Dialog zeigen
+  localStorage.removeItem(STORAGE_KEY)
+  storedPwToken.value = ''
+  passwordDlg.value   = true
+}
+
 // ── Gast-API-Callbacks ────────────────────────────────────────────────────────
 
 async function loadImagesFn(path) {
   try {
     const url = generateUrl(`/apps/starrate/api/guest/${props.token}/images`)
-    const { data } = await axios.get(url, { params: { path }, timeout: 15000 })
+    const { data } = await axios.get(url, { params: { path }, headers: pwHeader(), timeout: 15000 })
     return data
   } catch (e) {
-    if (e?.response?.status === 401) {
-      passwordDlg.value = true
-    }
+    if (e?.response?.status === 401) handle401()
     throw e
   }
 }
@@ -76,7 +105,7 @@ async function rateFn(fileId, payload) {
     file_id:    fileId,
     guest_name: props.guestName || 'Gast',
     ...payload,
-  })
+  }, { headers: pwHeader() })
 }
 
 async function batchRateFn(ids, payload) {
@@ -87,17 +116,19 @@ async function batchRateFn(ids, payload) {
       file_id:    id,
       guest_name: props.guestName || 'Gast',
       ...payload,
-    })
+    }, { headers: pwHeader() })
   ))
 }
 
 function thumbnailUrlFn(fileId, sz) {
   const s = sz ?? 280
-  return generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}?width=${s}&height=${s}`)
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}?width=${s}&height=${s}`)
+  return appendPwToken(base)
 }
 
 function previewUrlFn(fileId) {
-  return generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  return appendPwToken(base)
 }
 
 // ── Passwort verifizieren ─────────────────────────────────────────────────────
@@ -105,10 +136,15 @@ function previewUrlFn(fileId) {
 async function verifyPassword() {
   passwordErr.value = ''
   try {
-    await axios.post(
+    const { data } = await axios.post(
       generateUrl(`/apps/starrate/api/guest/${props.token}/verify`),
       { password: password.value }
     )
+    // pw_token in localStorage speichern → überlebt Tab-Wechsel auf Mobile
+    if (data.pw_token) {
+      storedPwToken.value = data.pw_token
+      localStorage.setItem(STORAGE_KEY, data.pw_token)
+    }
     passwordDlg.value = false
     password.value    = ''
   } catch {
@@ -137,6 +173,41 @@ async function verifyPassword() {
   flex-direction: column;
   gap: 1rem;
 }
+.sr-guest-pw__brand {
+  text-align: center;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #2a2a3e;
+  margin-bottom: 0.25rem;
+}
+
+.sr-guest-pw__brand-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #d4d4e8;
+  letter-spacing: 0.04em;
+}
+
+.sr-guest-pw__brand-version {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #7a7a96;
+  letter-spacing: 0.04em;
+}
+
+.sr-guest-pw__brand-by {
+  font-size: 0.75rem;
+  color: #7a7a96;
+  margin-top: 2px;
+}
+
+.sr-guest-pw__brand-link,
+.sr-guest-pw__brand-link:visited,
+.sr-guest-pw__brand-link:hover,
+.sr-guest-pw__brand-link:active {
+  color: #8a8aa8 !important;
+  text-decoration: underline !important;
+}
+
 .sr-guest-pw__title {
   color: #fff;
   font-size: 1.1rem;
