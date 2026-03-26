@@ -4,10 +4,10 @@
       <div class="sr-share-list">
 
         <header class="sr-share-list__header">
-          <h2 class="sr-share-list__title">Freigabe-Links</h2>
+          <h2 class="sr-share-list__title">{{ t('starrate', 'Freigabe-Links') }}</h2>
           <div class="sr-share-list__header-actions">
             <button class="sr-share-list__new-btn" @click="$emit('create')">
-              + Neuer Link
+              + {{ t('starrate', 'Neuer Link') }}
             </button>
             <button class="sr-share-list__close" @click="$emit('close')">✕</button>
           </div>
@@ -20,7 +20,7 @@
 
         <!-- Leer -->
         <div v-else-if="shares.length === 0" class="sr-share-list__empty">
-          Noch keine Freigabe-Links. Erstelle deinen ersten Link.
+          {{ t('starrate', 'Noch keine Freigabe-Links. Erstelle deinen ersten Link.') }}
         </div>
 
         <!-- Liste -->
@@ -38,7 +38,7 @@
                 <span v-if="share.guest_name" class="sr-share-list__guest-name">{{ share.guest_name }}</span>
                 <div class="sr-share-list__meta">
                   <span class="sr-share-list__badge" :class="share.permissions === 'rate' ? 'sr-share-list__badge--rate' : 'sr-share-list__badge--view'">
-                    {{ share.permissions === 'rate' ? 'Bewerten' : 'Ansehen' }}
+                    {{ share.permissions === 'rate' ? t('starrate', 'Bewerten') : t('starrate', 'Ansehen') }}
                   </span>
                   <span v-if="share.min_rating > 0" class="sr-share-list__badge sr-share-list__badge--filter">
                     ≥ {{ share.min_rating }} ★
@@ -50,7 +50,7 @@
                     @click="openPwEdit(share.token)"
                   >🔒</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
-                    {{ isExpired(share) ? 'Abgelaufen' : formatDate(share.expires_at) }}
+                    {{ isExpired(share) ? t('starrate', 'Abgelaufen') : formatDate(share.expires_at) }}
                   </span>
                 </div>
                 <div class="sr-share-list__token-row">
@@ -61,7 +61,7 @@
                     @click="$event.target.select()"
                   />
                   <button class="sr-share-list__copy" @click="copyUrl(share.token)" :class="{ 'sr-share-list__copy--done': copiedToken === share.token }">
-                    {{ copiedToken === share.token ? '✓ Kopiert' : 'Kopieren' }}
+                    {{ copiedToken === share.token ? '✓ ' + t('starrate', 'Kopiert') : t('starrate', 'Kopieren') }}
                   </button>
                 </div>
               </div>
@@ -71,7 +71,7 @@
                 <button
                   class="sr-share-list__toggle-switch"
                   :class="{ 'sr-share-list__toggle-switch--on': share.active }"
-                  :title="share.active ? 'Link deaktivieren' : 'Link aktivieren'"
+                  :title="share.active ? t('starrate', 'Link deaktivieren') : t('starrate', 'Link aktivieren')"
                   @click="toggleActive(share)"
                 >
                   <span class="sr-share-list__toggle-thumb"></span>
@@ -79,21 +79,21 @@
 
                 <!-- Action buttons or inline confirm for delete -->
                 <template v-if="pendingDeleteToken === share.token">
-                  <span class="sr-share-list__confirm-label">Löschen?</span>
-                  <button class="sr-share-list__confirm-yes" @click="confirmDelete(share.token)">Ja</button>
-                  <button class="sr-share-list__confirm-no" @click="pendingDeleteToken = null">Nein</button>
+                  <span class="sr-share-list__confirm-label">{{ t('starrate', 'Löschen?') }}</span>
+                  <button class="sr-share-list__confirm-yes" @click="confirmDelete(share.token)">{{ t('starrate', 'Ja') }}</button>
+                  <button class="sr-share-list__confirm-no" @click="pendingDeleteToken = null">{{ t('starrate', 'Nein') }}</button>
                 </template>
                 <template v-else-if="pendingClearToken === share.token">
-                  <span class="sr-share-list__confirm-label">Log löschen?</span>
-                  <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">Ja</button>
-                  <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">Nein</button>
+                  <span class="sr-share-list__confirm-label">{{ t('starrate', 'Log löschen?') }}</span>
+                  <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">{{ t('starrate', 'Ja') }}</button>
+                  <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">{{ t('starrate', 'Nein') }}</button>
                 </template>
                 <template v-else>
                   <!-- Passwort-Button -->
                   <button
                     class="sr-share-list__action-btn"
                     :class="{ 'sr-share-list__action-btn--active': pwEditToken === share.token }"
-                    title="Passwort setzen / ändern"
+                    :title="t('starrate', 'Passwort setzen / ändern')"
                     @click="openPwEdit(share.token)"
                   >
                     <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 018 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -102,7 +102,7 @@
                   <button
                     class="sr-share-list__action-btn"
                     :class="{ 'sr-share-list__action-btn--active': expandedLog === share.token }"
-                    title="Bewertungs-Log anzeigen"
+                    :title="t('starrate', 'Bewertungs-Log anzeigen')"
                     @click="toggleLog(share.token)"
                   >
                     <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="9" y="2" width="6" height="4" rx="1" stroke="currentColor" stroke-width="2"/><path d="M8 4H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="2"/></svg>
@@ -110,7 +110,7 @@
                   <!-- Löschen -->
                   <button
                     class="sr-share-list__action-btn sr-share-list__action-btn--delete"
-                    title="Link löschen"
+                    :title="t('starrate', 'Link löschen')"
                     @click="pendingDeleteToken = share.token"
                   >
                     <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -125,7 +125,7 @@
                 v-model="pwInput"
                 type="password"
                 class="sr-share-list__pw-input"
-                placeholder="Neues Passwort…"
+                :placeholder="t('starrate', 'Neues Passwort…')"
                 autocomplete="new-password"
                 @keydown.enter="savePassword(share)"
                 @keydown.escape="closePwEdit"
@@ -135,26 +135,26 @@
                   class="sr-share-list__pw-save"
                   :disabled="!pwInput || pwSaving"
                   @click="savePassword(share)"
-                >Setzen</button>
+                >{{ t('starrate', 'Setzen') }}</button>
                 <button
                   v-if="share.has_password"
                   class="sr-share-list__pw-remove"
                   :disabled="pwSaving"
                   @click="removePassword(share)"
-                >Entfernen</button>
-                <button class="sr-share-list__pw-cancel" @click="closePwEdit">Abbrechen</button>
+                >{{ t('starrate', 'Entfernen') }}</button>
+                <button class="sr-share-list__pw-cancel" @click="closePwEdit">{{ t('starrate', 'Abbrechen') }}</button>
               </div>
             </div>
 
             <!-- Log-Bereich (aufklappbar) -->
             <div v-if="expandedLog === share.token" class="sr-share-list__log">
               <div class="sr-share-list__log-header">
-                <span class="sr-share-list__log-title">Bewertungs-Log</span>
+                <span class="sr-share-list__log-title">{{ t('starrate', 'Bewertungs-Log') }}</span>
                 <div class="sr-share-list__log-actions">
                   <template v-if="pendingClearToken === share.token">
-                    <span class="sr-share-list__confirm-label">Log löschen?</span>
-                    <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">Ja</button>
-                    <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">Nein</button>
+                    <span class="sr-share-list__confirm-label">{{ t('starrate', 'Log löschen?') }}</span>
+                    <button class="sr-share-list__confirm-yes" @click="confirmClearLog(share.token)">{{ t('starrate', 'Ja') }}</button>
+                    <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">{{ t('starrate', 'Nein') }}</button>
                   </template>
                   <button
                     v-else
@@ -162,14 +162,14 @@
                     :disabled="!logs[share.token]?.length"
                     @click="pendingClearToken = share.token"
                   >
-                    Log löschen
+                    {{ t('starrate', 'Log löschen') }}
                   </button>
                 </div>
               </div>
 
-              <div v-if="logsLoading[share.token]" class="sr-share-list__log-loading">Lädt…</div>
+              <div v-if="logsLoading[share.token]" class="sr-share-list__log-loading">{{ t('starrate', 'Lädt…') }}</div>
               <div v-else-if="!logs[share.token]?.length" class="sr-share-list__log-empty">
-                Noch keine Bewertungen über diesen Link.
+                {{ t('starrate', 'Noch keine Bewertungen über diesen Link.') }}
               </div>
               <div v-else class="sr-share-list__log-entries">
                 <div
@@ -209,6 +209,7 @@
 import { ref, onMounted } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { t } from '@nextcloud/l10n'
 
 defineProps({
   ncPath: { type: String, default: '/' },

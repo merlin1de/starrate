@@ -3,13 +3,13 @@
     <div class="sr-share-modal__overlay" @click.self="$emit('close')">
       <div class="sr-share-modal">
         <header class="sr-share-modal__header">
-          <h2 class="sr-share-modal__title">Neuen Freigabe-Link erstellen</h2>
+          <h2 class="sr-share-modal__title">{{ t('starrate', 'Neuen Freigabe-Link erstellen') }}</h2>
           <button class="sr-share-modal__close" @click="$emit('close')">✕</button>
         </header>
 
         <!-- Erfolg: Link anzeigen -->
         <div v-if="createdShare" class="sr-share-modal__success">
-          <p class="sr-share-modal__success-label">Dein Freigabe-Link:</p>
+          <p class="sr-share-modal__success-label">{{ t('starrate', 'Dein Freigabe-Link:') }}</p>
           <div class="sr-share-modal__link-row">
             <input
               class="sr-share-modal__link-input"
@@ -18,18 +18,18 @@
               @click="$event.target.select()"
             />
             <button class="sr-share-modal__copy-btn" :class="{ 'sr-share-modal__copy-btn--done': copied }" @click="copyUrl">
-              {{ copied ? '✓ Kopiert' : 'Kopieren' }}
+              {{ copied ? '✓ ' + t('starrate', 'Kopiert') : t('starrate', 'Kopieren') }}
             </button>
           </div>
           <p class="sr-share-modal__success-hint">
             <strong>Ordner:</strong> {{ createdShare.nc_path }}<br>
-            <strong>Berechtigung:</strong> {{ createdShare.permissions === 'rate' ? 'Ansehen + Bewerten' : 'Nur ansehen' }}<br>
-            <span v-if="createdShare.min_rating > 0"><strong>Vorfilter:</strong> ≥ {{ createdShare.min_rating }} ★<br></span>
-            <span v-if="createdShare.has_password"><strong>Passwortgeschützt</strong><br></span>
-            <span v-if="createdShare.expires_at"><strong>Läuft ab:</strong> {{ formatDate(createdShare.expires_at) }}</span>
+            <strong>{{ t('starrate', 'Berechtigung:') }}</strong> {{ createdShare.permissions === 'rate' ? t('starrate', 'Ansehen + Bewerten') : t('starrate', 'Nur ansehen') }}<br>
+            <span v-if="createdShare.min_rating > 0"><strong>{{ t('starrate', 'Vorfilter:') }}</strong> ≥ {{ createdShare.min_rating }} ★<br></span>
+            <span v-if="createdShare.has_password"><strong>{{ t('starrate', 'Passwortgeschützt') }}</strong><br></span>
+            <span v-if="createdShare.expires_at"><strong>{{ t('starrate', 'Läuft ab:') }}</strong> {{ formatDate(createdShare.expires_at) }}</span>
           </p>
           <button class="sr-share-modal__btn sr-share-modal__btn--secondary" @click="reset">
-            Weiteren Link erstellen
+            {{ t('starrate', 'Weiteren Link erstellen') }}
           </button>
         </div>
 
@@ -37,68 +37,68 @@
         <form v-else class="sr-share-modal__form" @submit.prevent="create">
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">Ordner</label>
+            <label class="sr-share-modal__label">{{ t('starrate', 'Ordner') }}</label>
             <input class="sr-share-modal__input sr-share-modal__input--readonly" readonly :value="ncPath" />
           </div>
 
           <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">
-              Name des Empfängers
+              {{ t('starrate', 'Name des Empfängers') }}
               <span v-if="form.permissions === 'rate'" class="sr-share-modal__required">*</span>
-              <span v-else class="sr-share-modal__optional">(optional)</span>
+              <span v-else class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span>
             </label>
             <input
               v-model="form.guestName"
               class="sr-share-modal__input"
               type="text"
-              placeholder="z.B. Anna, Model 1, Kunde Müller"
+              :placeholder="t('starrate', 'z.B. Anna, Model 1, Kunde Müller')"
               maxlength="60"
             />
           </div>
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">Berechtigung</label>
+            <label class="sr-share-modal__label">{{ t('starrate', 'Berechtigung') }}</label>
             <div class="sr-share-modal__toggle-group">
               <button
                 type="button"
                 class="sr-share-modal__toggle"
                 :class="{ 'sr-share-modal__toggle--active': form.permissions === 'view' }"
                 @click="form.permissions = 'view'"
-              >Nur ansehen</button>
+              >{{ t('starrate', 'Nur ansehen') }}</button>
               <button
                 type="button"
                 class="sr-share-modal__toggle"
                 :class="{ 'sr-share-modal__toggle--active': form.permissions === 'rate' }"
                 @click="form.permissions = 'rate'"
-              >Ansehen + Bewerten</button>
+              >{{ t('starrate', 'Ansehen + Bewerten') }}</button>
             </div>
           </div>
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">Vorfilter (Mindest-Bewertung)</label>
+            <label class="sr-share-modal__label">{{ t('starrate', 'Vorfilter (Mindest-Bewertung)') }}</label>
             <select class="sr-share-modal__select" v-model="form.minRating">
-              <option :value="0">Alle Bilder</option>
+              <option :value="0">{{ t('starrate', 'Alle Bilder') }}</option>
               <option :value="1">≥ 1 ★</option>
               <option :value="2">≥ 2 ★</option>
               <option :value="3">≥ 3 ★</option>
               <option :value="4">≥ 4 ★</option>
-              <option :value="5">5 ★ (nur Top)</option>
+              <option :value="5">{{ t('starrate', '5 ★ (nur Top)') }}</option>
             </select>
           </div>
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">Passwort <span class="sr-share-modal__optional">(optional)</span></label>
+            <label class="sr-share-modal__label">{{ t('starrate', 'Passwort') }} <span class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span></label>
             <input
               v-model="form.password"
               class="sr-share-modal__input"
               type="password"
-              placeholder="Leer lassen = kein Passwort"
+              :placeholder="t('starrate', 'Leer lassen = kein Passwort')"
               autocomplete="new-password"
             />
           </div>
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">Ablaufdatum <span class="sr-share-modal__optional">(optional)</span></label>
+            <label class="sr-share-modal__label">{{ t('starrate', 'Ablaufdatum') }} <span class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span></label>
             <input
               v-model="form.expiresDate"
               class="sr-share-modal__input"
@@ -111,10 +111,10 @@
 
           <div class="sr-share-modal__actions">
             <button type="button" class="sr-share-modal__btn sr-share-modal__btn--secondary" @click="$emit('close')">
-              Abbrechen
+              {{ t('starrate', 'Abbrechen') }}
             </button>
             <button type="submit" class="sr-share-modal__btn sr-share-modal__btn--primary" :disabled="saving">
-              {{ saving ? 'Erstelle…' : 'Link erstellen' }}
+              {{ saving ? t('starrate', 'Erstelle…') : t('starrate', 'Link erstellen') }}
             </button>
           </div>
         </form>
@@ -128,6 +128,7 @@
 import { ref, computed } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { t } from '@nextcloud/l10n'
 
 const props = defineProps({
   ncPath: { type: String, required: true },
@@ -186,7 +187,7 @@ async function create() {
 
   // Pflichtfeld-Check: bei rate muss ein Name angegeben sein
   if (form.value.permissions === 'rate' && !form.value.guestName.trim()) {
-    formError.value = 'Bitte einen Namen für den Empfänger eingeben.'
+    formError.value = t('starrate', 'Bitte einen Namen für den Empfänger eingeben.')
     saving.value    = false
     return
   }
@@ -217,7 +218,7 @@ async function create() {
     createdShare.value = data.share
     emit('created', data.share)
   } catch (e) {
-    formError.value = e?.response?.data?.error ?? 'Fehler beim Erstellen des Links'
+    formError.value = e?.response?.data?.error ?? t('starrate', 'Fehler beim Erstellen des Links')
   } finally {
     saving.value = false
   }
