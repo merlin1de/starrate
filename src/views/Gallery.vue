@@ -9,8 +9,8 @@
           <span class="sr-breadcrumb__sep">/</span>
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
-        <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" title="Freigabe-Links verwalten">
-          Teilen
+        <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" :title="t('starrate', 'Freigabe-Links verwalten')">
+          {{ t('starrate', 'Teilen') }}
         </button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
         <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
@@ -44,7 +44,7 @@
         </div>
 
         <!-- Shortcut-Hilfe -->
-        <button class="sr-breadcrumb__help" title="Tastaturkürzel" @click="showShortcuts = true">?</button>
+        <button class="sr-breadcrumb__help" :title="t('starrate', 'Tastaturkürzel')" @click="showShortcuts = true">?</button>
 
         <span class="sr-breadcrumb__version">
           StarRate v{{ appVersion }}<br>
@@ -143,29 +143,29 @@
         <div v-if="showShortcuts" class="sr-shortcuts-overlay" @click.self="showShortcuts = false">
           <div class="sr-shortcuts-dialog">
             <div class="sr-shortcuts-header">
-              <span>Tastaturkürzel</span>
+              <span>{{ t('starrate', 'Tastaturkürzel') }}</span>
               <button class="sr-shortcuts-close" @click="showShortcuts = false">✕</button>
             </div>
             <div class="sr-shortcuts-body">
               <div class="sr-shortcuts-group">
-                <div class="sr-shortcuts-group-title">Navigation</div>
-                <div class="sr-shortcuts-row"><kbd>← → ↑ ↓</kbd><span>Bild wechseln</span></div>
-                <div class="sr-shortcuts-row"><kbd>Shift + Pfeile</kbd><span>Mehrfachauswahl</span></div>
-                <div class="sr-shortcuts-row"><kbd>Strg + A</kbd><span>Alle auswählen</span></div>
-                <div class="sr-shortcuts-row"><kbd>Esc</kbd><span>Auswahl aufheben</span></div>
-                <div class="sr-shortcuts-row"><kbd>Enter</kbd><span>Lupenansicht öffnen</span></div>
+                <div class="sr-shortcuts-group-title">{{ t('starrate', 'Navigation') }}</div>
+                <div class="sr-shortcuts-row"><kbd>← → ↑ ↓</kbd><span>{{ t('starrate', 'Bild wechseln') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>Shift + Pfeile</kbd><span>{{ t('starrate', 'Mehrfachauswahl') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>Strg + A</kbd><span>{{ t('starrate', 'Alle auswählen') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>Esc</kbd><span>{{ t('starrate', 'Auswahl aufheben') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>Enter</kbd><span>{{ t('starrate', 'Lupenansicht öffnen') }}</span></div>
               </div>
               <div class="sr-shortcuts-group">
-                <div class="sr-shortcuts-group-title">Bewertung</div>
-                <div class="sr-shortcuts-row"><kbd>0 – 5</kbd><span>Sterne setzen</span></div>
-                <div class="sr-shortcuts-row"><kbd>6</kbd><span>Rot</span></div>
-                <div class="sr-shortcuts-row"><kbd>7</kbd><span>Gelb</span></div>
-                <div class="sr-shortcuts-row"><kbd>8</kbd><span>Grün</span></div>
-                <div class="sr-shortcuts-row"><kbd>9</kbd><span>Blau</span></div>
-                <div class="sr-shortcuts-row"><kbd>V</kbd><span>Lila</span></div>
+                <div class="sr-shortcuts-group-title">{{ t('starrate', 'Bewertung') }}</div>
+                <div class="sr-shortcuts-row"><kbd>0 – 5</kbd><span>{{ t('starrate', 'Sterne setzen') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>6</kbd><span>{{ t('starrate', 'Rot') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>7</kbd><span>{{ t('starrate', 'Gelb') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>8</kbd><span>{{ t('starrate', 'Grün') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>9</kbd><span>{{ t('starrate', 'Blau') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>V</kbd><span>{{ t('starrate', 'Lila') }}</span></div>
               </div>
               <div v-if="settings.enable_pick_ui" class="sr-shortcuts-group">
-                <div class="sr-shortcuts-group-title">Auswahl</div>
+                <div class="sr-shortcuts-group-title">{{ t('starrate', 'Auswahl') }}</div>
                 <div class="sr-shortcuts-row"><kbd>P</kbd><span>Pick</span></div>
                 <div class="sr-shortcuts-row"><kbd>X</kbd><span>Reject</span></div>
               </div>
