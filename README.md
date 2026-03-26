@@ -38,7 +38,6 @@ StarRate lets photographers rate, label and curate their images directly inside 
 | **Loupe view** | Zoom 25–400 %, pan, pinch-to-zoom, keyboard navigation |
 | **Batch rating** | Shift+click / Ctrl+click, Ctrl+A, floating selection bar |
 | **Guest sharing** | Public gallery links with optional password and expiry |
-| **Lightroom sync** | Bidirectional XMP sync, conflict detection via mtime |
 | **Dark theme** | Anthracite UI (#1a1a2e) with red accent (#e94560) |
 | **i18n** | English and German |
 
@@ -156,11 +155,15 @@ Available under **Nextcloud → Settings → Personal → StarRate**:
 |---|---|---|
 | `default_sort` | `name` | Sort order: `name`, `date`, `size` |
 | `thumbnail_size` | `200` | Thumbnail width in pixels (120–600) |
-| `write_exif` | `true` | Write XMP directly into JPEG |
-| `show_filename` | `true` | Show filename in grid |
-| `show_rating_overlay` | `true` | Star overlay in grid |
-| `show_color_overlay` | `true` | Color dot overlay in grid |
 | `grid_columns` | `auto` | Column count (`auto` or 2–8) |
+| `write_exif` | `true` | Write XMP directly into JPEG |
+| `show_filename` | `true` | Show filename on thumbnails |
+| `show_rating_overlay` | `true` | Show star overlay on thumbnails |
+| `show_color_overlay` | `true` | Show color dot on thumbnails |
+
+**Pick / Reject** flags are also enabled here. Once active, images can be flagged with **P** (Pick) or **X** (Reject) and filtered accordingly in the gallery.
+
+Layout and thumbnail density can be adjusted to fit your screen and workflow — from compact multi-column grids to large single-column previews.
 
 ---
 
@@ -172,17 +175,6 @@ Available under **Nextcloud → Settings → Personal → StarRate**:
 4. Copy the link and send it to your client or model
 
 Guests can rate images without a Nextcloud account. The photographer sees all guest ratings in the share management panel.
-
----
-
-## Lightroom sync
-
-1. Open **StarRate** → **Sync** → **Add mapping**
-2. Enter the Nextcloud folder path and the local Lightroom folder
-3. Choose direction: NC→LR / LR→NC / Bidirectional
-4. Click **Start sync**
-
-The sync writes `.xmp` sidecar files for RAW files (CR3, NEF, ARW …) in a Lightroom-compatible format. In bidirectional mode the file with the newer `mtime` wins.
 
 ---
 
@@ -204,11 +196,6 @@ All endpoints under `/apps/starrate/api/`:
 | `DELETE` | `share/{token}` | Delete share link |
 | `GET` | `guest/{token}/images` | Guest: load images |
 | `POST` | `guest/{token}/rate` | Guest: rate image |
-| `GET` | `sync/mappings` | List sync mappings |
-| `POST` | `sync/mappings` | Create mapping |
-| `PUT` | `sync/mappings/{id}` | Update mapping |
-| `DELETE` | `sync/mappings/{id}` | Delete mapping |
-| `POST` | `sync/run/{id}` | Run sync |
 | `GET` | `settings` | User settings |
 | `POST` | `settings` | Save settings |
 
