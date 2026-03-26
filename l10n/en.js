@@ -57,6 +57,7 @@ OC.L10N.register(
         "Nächstes Bild" : "Next image",
         "Pick (P)" : "Pick (P)",
         "Ablehnen (X)" : "Reject (X)",
+        "kein Pick" : "no pick",
 
         // ── Selection bar ─────────────────────────────────────────────────────
         "Stapel-Bewertung" : "Batch rating",

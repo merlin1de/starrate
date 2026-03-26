@@ -131,7 +131,7 @@ import { generateUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
 
 const props = defineProps({
-  ncPath: { type: String, required: true },
+  ncPath: { type: String, default: '/' },
 })
 
 const emit = defineEmits(['close', 'created'])

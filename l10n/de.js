@@ -57,6 +57,7 @@ OC.L10N.register(
         "Nächstes Bild" : "Nächstes Bild",
         "Pick (P)" : "Pick (P)",
         "Ablehnen (X)" : "Ablehnen (X)",
+        "kein Pick" : "kein Pick",
 
         // ── Stapelauswahl ─────────────────────────────────────────────────────
         "Stapel-Bewertung" : "Stapel-Bewertung",
