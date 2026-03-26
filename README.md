@@ -1,34 +1,53 @@
 # StarRate
 
-**Professionelles Fotobewertungs-Tool für Nextcloud** – inspiriert von Lightroom Classic.
+**Professional photo rating and review tool for Nextcloud** — inspired by Lightroom Classic.
 
-StarRate ermöglicht es Fotografen, ihre Bilder direkt in Nextcloud mit Sternebewertungen (0–5), Farbmarkierungen und Pick/Reject-Flags zu versehen. Die Bewertungen werden sowohl in Nextcloud Collaborative Tags als auch direkt in die JPEG-XMP-Metadaten geschrieben. Über den Lightroom-Sync-Panel können Bewertungen bidirektional mit einem lokalen Lightroom-Katalog abgeglichen werden.
+StarRate lets photographers rate, label and curate their images directly inside Nextcloud using star ratings (0–5), color labels and Pick/Reject flags. Ratings are written both to Nextcloud Collaborative Tags and into JPEG XMP metadata. A guest-share feature lets clients or models review and rate a selection without a Nextcloud account.
 
 ---
 
-## Funktionen
+## Screenshots
 
-| Feature | Beschreibung |
+### Grid view with star ratings and color labels
+![Grid view](screenshots/starrate-grid.jpg)
+
+### Loupe view with zoom and keyboard navigation
+![Loupe view](screenshots/starrate-loupe.jpg)
+
+### Share link management
+![Share links](screenshots/starrate-share.jpg)
+
+### Create a new share link
+![New share link](screenshots/starrate-newshare.jpg)
+
+### Guest gallery — rate without a Nextcloud account
+![Guest gallery](screenshots/starrate-guest.jpg)
+
+---
+
+## Features
+
+| Feature | Description |
 |---|---|
-| **Sternebewertung** | 0–5 Sterne, Hover-Preview, Tastaturkürzel (0–5) |
-| **Farbmarkierungen** | Red / Yellow / Green / Blue / Purple (Kürzel 6–9) |
-| **Pick / Reject** | Markierung mit P / X |
-| **XMP-Metadaten** | Bewertungen werden direkt ins JPEG geschrieben (APP1) |
-| **XMP-Sidecar** | Für CR3/RAW-Dateien werden `.xmp`-Begleiter erzeugt |
-| **Filterliste** | Kombinierbare Filter nach Sternen, Farbe, Pick/Reject |
-| **Lupenansicht** | Zoom 25–400 %, Pan, Pinch-to-Zoom, Tastaturnavigation |
-| **Stapelbewertung** | Shift+Klick / Strg+Klick, Ctrl+A, schwebendes SelectionBar |
-| **Gast-Freigabe** | Öffentliche Galerie-Links mit optionalem Passwortschutz |
-| **Lightroom-Sync** | Bidirektionaler XMP-Sync, Konflikterkennung per mtime |
-| **Dark Theme** | Anthrazit-UI (#1a1a2e) mit rotem Akzent (#e94560) |
-| **i18n** | Deutsch (primär) und Englisch |
+| **Star rating** | 0–5 stars, hover preview, keyboard shortcuts 0–5 |
+| **Color labels** | Red / Yellow / Green / Blue / Purple (keys 6–9) |
+| **Pick / Reject** | Flag images with P / X |
+| **XMP metadata** | Ratings written directly into JPEG (APP1 segment) |
+| **XMP sidecar** | `.xmp` companion files generated for CR3/RAW files |
+| **Filter bar** | Combinable filters by stars, color, Pick/Reject, unrated |
+| **Loupe view** | Zoom 25–400 %, pan, pinch-to-zoom, keyboard navigation |
+| **Batch rating** | Shift+click / Ctrl+click, Ctrl+A, floating selection bar |
+| **Guest sharing** | Public gallery links with optional password and expiry |
+| **Lightroom sync** | Bidirectional XMP sync, conflict detection via mtime |
+| **Dark theme** | Anthracite UI (#1a1a2e) with red accent (#e94560) |
+| **i18n** | English and German |
 
 ---
 
-## Systemvoraussetzungen
+## Requirements
 
-- **Nextcloud** 31 oder 32 (Hub 10)
-- **PHP** 8.1 – 8.4
+- **Nextcloud** 29–32
+- **PHP** 8.1–8.4
 - **Node.js** 18+ / npm 9+
 - **Composer** 2
 
@@ -36,82 +55,44 @@ StarRate ermöglicht es Fotografen, ihre Bilder direkt in Nextcloud mit Sternebe
 
 ## Installation
 
-### 1. Quellcode holen
+### From the Nextcloud App Store
+
+Search for **StarRate** in the Apps section of your Nextcloud admin panel and click **Install**.
+
+### Manual installation
 
 ```bash
-git clone https://github.com/youruser/starrate.git /var/www/nextcloud/apps/starrate
-cd /var/www/nextcloud/apps/starrate
-```
-
-### 2. Abhängigkeiten installieren
-
-```bash
-make install-deps
-# oder manuell:
+git clone https://github.com/merlin1de/starrate.git /var/www/nextcloud/custom_apps/starrate
+cd /var/www/nextcloud/custom_apps/starrate
 composer install --no-dev
-npm ci
-```
-
-### 3. JavaScript-Bundle bauen
-
-```bash
-make build
-# oder:
-npm run build
-```
-
-### 4. App in Nextcloud aktivieren
-
-```bash
+npm ci && npm run build
 sudo -u www-data /var/www/nextcloud/occ app:enable starrate
 ```
 
-Alternativ: Nextcloud Admin-Bereich → Apps → „StarRate" aktivieren.
-
-### 5. Git-Hooks einrichten (Entwicklung)
-
-```bash
-make hooks
-```
-
-Dies installiert einen **pre-commit**-Hook (PHP-Syntax + Unit-Tests) und einen **pre-push**-Hook (vollständige Testsuite + Build).
-
 ---
 
-## Entwicklung
+## Development
 
-### Abhängigkeiten
+### Install dependencies
 
 ```bash
 make install-deps
 ```
 
-### Tests ausführen
+### Run tests
 
 ```bash
 make test          # PHPUnit + Vitest
-make test-php      # nur PHPUnit
-make test-js       # nur Vitest
-make test-e2e      # Cypress (Nextcloud muss laufen)
-make test-coverage # Berichte nach tests/results/
+make test-php      # PHPUnit only
+make test-js       # Vitest only
+make test-e2e      # Cypress (requires a running Nextcloud instance)
+make test-coverage # Reports written to tests/results/
 ```
 
-### Einzelne Testdatei
+### Build
 
 ```bash
-# PHPUnit
-php vendor/bin/phpunit tests/Unit/Service/ExifServiceTest.php
-
-# Vitest (watch)
-npm run test -- tests/js/RatingStars.spec.js
-```
-
-### Fixtures neu generieren
-
-```bash
-make fixtures
-# oder direkt:
-python3 tests/fixtures/generate_fixtures.py
+make build         # production bundle → js/
 ```
 
 ### Lint
@@ -122,153 +103,142 @@ make lint          # PHP_CodeSniffer + ESLint
 
 ---
 
-## Verzeichnisstruktur
+## Directory structure
 
 ```
 starrate/
 ├── appinfo/
-│   ├── info.xml             # App-Manifest (NC-Metadaten, Routen)
-│   └── routes.php           # API-Routen
+│   ├── info.xml             # App manifest (metadata, routes)
+│   └── routes.php           # API routes
 ├── css/
-│   └── starrate.css         # Dark-Theme Basisstile
-├── js/                      # Vite-Build-Output (nicht einchecken)
+│   └── starrate.css         # Dark theme base styles
+├── js/                      # Vite build output (not committed)
 ├── l10n/
-│   ├── de.js / de.json      # Deutsche Übersetzungen
-│   └── en.js / en.json      # Englische Übersetzungen
+│   ├── de.js / de.json      # German translations
+│   └── en.js / en.json      # English translations
 ├── lib/
-│   ├── Controller/          # OCA HTTP-Controller
-│   ├── Migration/           # Datenbank-Migration (InstallStep)
-│   ├── Service/             # Business-Logik
-│   └── Settings/            # Nutzereinstellungen
-├── scripts/
-│   └── hooks/               # Git-Hook-Quellen
+│   ├── Controller/          # OCA HTTP controllers
+│   ├── Migration/           # Database migration (InstallStep)
+│   ├── Service/             # Business logic
+│   └── Settings/            # User settings
+├── screenshots/             # App Store / README screenshots
 ├── src/
-│   ├── components/          # Vue-Komponenten
-│   ├── views/               # Vue-Views (Gallery, Sync)
-│   ├── main.js              # Haupt-App-Einstiegspunkt
-│   └── guest.js             # Gast-Galerie-Einstiegspunkt
+│   ├── components/          # Vue components
+│   ├── views/               # Vue views (Gallery, Sync, Guest)
+│   ├── main.js              # Main app entry point
+│   └── guest.js             # Guest gallery entry point
 ├── templates/
-│   ├── index.php            # Haupt-SPA-Template
-│   ├── guest.php            # Gast-Galerie (kein NC-Layout)
+│   ├── index.php            # Main SPA template
+│   ├── guest.php            # Guest gallery (no NC layout)
 │   └── settings/
-│       └── personal.php     # Persönliche Einstellungen
+│       └── personal.php     # Personal settings page
 ├── tests/
-│   ├── Unit/                # PHPUnit-Tests
-│   ├── e2e/                 # Cypress-Tests
-│   ├── fixtures/            # Binäre Test-Fixtures
-│   ├── js/                  # Vitest-Komponententests
-│   └── results/             # Test-Ausgaben, Coverage
+│   ├── Unit/                # PHPUnit tests
+│   ├── e2e/                 # Cypress tests
+│   ├── fixtures/            # Binary test fixtures
+│   └── js/                  # Vitest component tests
 ├── composer.json
 ├── package.json
 ├── phpunit.xml
 ├── vite.config.js
-├── vitest.config.js
-└── Makefile
+└── vitest.config.js
 ```
 
 ---
 
-## Konfiguration
+## Configuration
 
-### Persönliche Einstellungen
+### Personal settings
 
-Über **Nextcloud → Einstellungen → Persönlich → StarRate**:
+Available under **Nextcloud → Settings → Personal → StarRate**:
 
-| Einstellung | Standard | Beschreibung |
+| Setting | Default | Description |
 |---|---|---|
-| `default_sort` | `name` | Sortierung: `name`, `date`, `rating`, `color` |
-| `thumbnail_size` | `200` | Thumbnail-Breite in Pixel (120–600) |
-| `write_exif` | `true` | XMP direkt ins JPEG schreiben |
-| `show_filename` | `true` | Dateinamen im Grid anzeigen |
-| `show_rating_overlay` | `true` | Sterne-Overlay im Grid |
-| `show_color_overlay` | `true` | Farb-Overlay im Grid |
-| `grid_columns` | `auto` | Spaltenanzahl (`auto` oder 2–8) |
-
-### Umgebungsvariablen (E2E-Tests)
-
-```bash
-NC_URL=http://localhost:8080
-NC_USER=admin
-NC_PASS=admin
-NC_USER_B=user2
-NC_PASS_B=user2
-```
+| `default_sort` | `name` | Sort order: `name`, `date`, `size` |
+| `thumbnail_size` | `200` | Thumbnail width in pixels (120–600) |
+| `write_exif` | `true` | Write XMP directly into JPEG |
+| `show_filename` | `true` | Show filename in grid |
+| `show_rating_overlay` | `true` | Star overlay in grid |
+| `show_color_overlay` | `true` | Color dot overlay in grid |
+| `grid_columns` | `auto` | Column count (`auto` or 2–8) |
 
 ---
 
-## Gast-Freigabe
+## Guest sharing
 
-1. Ordner öffnen → Share-Button klicken
-2. Berechtigung **„Bewerten"** aktivieren
-3. Optional: Passwort und Ablaufdatum setzen
-4. Link kopieren und teilen
+1. Open a folder → click the **Share** button
+2. Set permission to **View + Rate** or **View only**
+3. Optionally set a password, expiry date and minimum star filter
+4. Copy the link and send it to your client or model
 
-Gäste können ohne Nextcloud-Account Bilder bewerten. Der Fotograf sieht alle Gast-Bewertungen in der Sidebar.
-
----
-
-## Lightroom-Sync
-
-1. **StarRate** → **Sync** → **Zuordnung hinzufügen**
-2. Nextcloud-Pfad und lokalen Lightroom-Ordner eingeben
-3. Richtung wählen: NC→LR / LR→NC / Bidirektional
-4. **Sync starten**
-
-Der Sync schreibt `.xmp`-Sidecar-Dateien für RAW-Dateien (CR3, NEF, ARW …) im Lightroom-kompatiblen Format. Bei bidirektionalem Sync gewinnt die Datei mit dem neueren `mtime`.
+Guests can rate images without a Nextcloud account. The photographer sees all guest ratings in the share management panel.
 
 ---
 
-## API-Übersicht
+## Lightroom sync
 
-Alle Endpunkte unter `/apps/starrate/api/`:
+1. Open **StarRate** → **Sync** → **Add mapping**
+2. Enter the Nextcloud folder path and the local Lightroom folder
+3. Choose direction: NC→LR / LR→NC / Bidirectional
+4. Click **Start sync**
 
-| Methode | Pfad | Beschreibung |
+The sync writes `.xmp` sidecar files for RAW files (CR3, NEF, ARW …) in a Lightroom-compatible format. In bidirectional mode the file with the newer `mtime` wins.
+
+---
+
+## API overview
+
+All endpoints under `/apps/starrate/api/`:
+
+| Method | Path | Description |
 |---|---|---|
-| `GET` | `images` | Bilder eines Ordners mit Metadaten |
-| `GET` | `thumbnail/{fileId}` | JPEG-Thumbnail (gecacht) |
-| `GET` | `rating/{fileId}` | Bewertung eines Bildes |
-| `POST` | `rating/{fileId}` | Bewertung setzen |
-| `POST` | `rating/batch` | Stapel-Bewertung |
-| `DELETE` | `rating/{fileId}` | Bewertung löschen |
-| `GET` | `share` | Eigene Freigaben |
-| `POST` | `share` | Neue Freigabe erstellen |
-| `PUT` | `share/{token}` | Freigabe bearbeiten |
-| `DELETE` | `share/{token}` | Freigabe löschen |
-| `GET` | `guest/{token}/images` | Gast: Bilder laden |
-| `POST` | `guest/{token}/rate` | Gast: Bild bewerten |
-| `GET` | `sync/mappings` | Sync-Zuordnungen |
-| `POST` | `sync/mappings` | Zuordnung anlegen |
-| `PUT` | `sync/mappings/{id}` | Zuordnung bearbeiten |
-| `DELETE` | `sync/mappings/{id}` | Zuordnung löschen |
-| `POST` | `sync/run/{id}` | Sync starten |
-| `GET` | `settings` | Nutzereinstellungen |
-| `POST` | `settings` | Einstellungen speichern |
+| `GET` | `images` | Images in a folder with metadata |
+| `GET` | `thumbnail/{fileId}` | JPEG thumbnail (cached) |
+| `GET` | `rating/{fileId}` | Rating for an image |
+| `POST` | `rating/{fileId}` | Set rating |
+| `POST` | `rating/batch` | Batch rating |
+| `DELETE` | `rating/{fileId}` | Remove rating |
+| `GET` | `share` | List own share links |
+| `POST` | `share` | Create share link |
+| `PUT` | `share/{token}` | Update share link |
+| `DELETE` | `share/{token}` | Delete share link |
+| `GET` | `guest/{token}/images` | Guest: load images |
+| `POST` | `guest/{token}/rate` | Guest: rate image |
+| `GET` | `sync/mappings` | List sync mappings |
+| `POST` | `sync/mappings` | Create mapping |
+| `PUT` | `sync/mappings/{id}` | Update mapping |
+| `DELETE` | `sync/mappings/{id}` | Delete mapping |
+| `POST` | `sync/run/{id}` | Run sync |
+| `GET` | `settings` | User settings |
+| `POST` | `settings` | Save settings |
 
 ---
 
-## Erstellen eines Release-Pakets
+## Building a release package
 
 ```bash
 make package
 # → dist/starrate.tar.gz
 ```
 
-Das Paket enthält nur die für den Betrieb notwendigen Dateien (kein `node_modules`, kein `vendor`, keine Tests).
+The package contains only the files required for production (no `node_modules`, no `vendor`, no tests).
 
 ---
 
-## Lizenz
+## License
 
-AGPL-3.0-or-later – siehe [COPYING](COPYING).
+AGPL-3.0-or-later — see [LICENSE](LICENSE).
+
+For commercial licensing (e.g. mobile apps), contact: starrate@merlin1.de
 
 ---
 
-## Mitwirken
+## Contributing
 
-Pull Requests und Bug-Reports sind willkommen. Bitte vor dem Einreichen sicherstellen:
+Pull requests and bug reports are welcome. Please ensure before submitting:
 
 ```bash
-make test    # alle Tests grün
-make lint    # kein Lint-Fehler
-make build   # Build erfolgreich
+make test    # all tests green
+make lint    # no lint errors
+make build   # build succeeds
 ```
