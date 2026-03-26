@@ -154,16 +154,13 @@ Available under **Nextcloud → Settings → Personal → StarRate**:
 | Setting | Default | Description |
 |---|---|---|
 | `default_sort` | `name` | Sort order: `name`, `date`, `size` |
-| `thumbnail_size` | `200` | Thumbnail width in pixels (120–600) |
-| `grid_columns` | `auto` | Column count (`auto` or 2–8) |
-| `write_exif` | `true` | Write XMP directly into JPEG |
+| `default_sort_order` | `asc` | Sort direction: `asc`, `desc` |
+| `thumbnail_size` | `280` | Thumbnail width in pixels |
+| `grid_columns` | `auto` | Column count (`auto` or fixed) |
 | `show_filename` | `true` | Show filename on thumbnails |
 | `show_rating_overlay` | `true` | Show star overlay on thumbnails |
 | `show_color_overlay` | `true` | Show color dot on thumbnails |
-
-**Pick / Reject** flags are also enabled here. Once active, images can be flagged with **P** (Pick) or **X** (Reject) and filtered accordingly in the gallery.
-
-Layout and thumbnail density can be adjusted to fit your screen and workflow — from compact multi-column grids to large single-column previews.
+| `enable_pick_ui` | `false` | Enable Pick (P) / Reject (X) flags and filter |
 
 ---
 
