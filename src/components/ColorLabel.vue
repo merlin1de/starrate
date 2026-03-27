@@ -120,14 +120,17 @@ defineExpose({ setColor, setByShortcut, COLORS })
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 3px solid transparent !important;
+  border: none !important;
   padding: 0;
   cursor: inherit;
+  -webkit-appearance: none;
+  appearance: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: transform 120ms ease;
   box-shadow: none !important;
   outline: none !important;
+  filter: none !important;
   position: relative;
 }
 
@@ -143,26 +146,25 @@ defineExpose({ setColor, setByShortcut, COLORS })
 .sr-color-label__dot--blue   { background: #5277e0; }
 .sr-color-label__dot--purple { background: #9b52e0; }
 
-/* Aktiv: 3px weißer Rand + leichter Scale */
+/* Aktiv: weißer Ring via ::after – NC's button-Styles greifen auf Pseudo-Elemente nicht */
 .sr-color-label__dot--active {
-  border-color: #fff !important;
   transform: scale(1.1);
 }
-
-/* NC focus/active komplett unterdrücken – spezifischer als base, schlägt NC's button:pseudo !important */
-.sr-color-label__dot:not(.sr-color-label__dot--active):focus,
-.sr-color-label__dot:not(.sr-color-label__dot--active):focus-visible,
-.sr-color-label__dot:not(.sr-color-label__dot--active):active {
-  box-shadow: none !important;
-  outline: none !important;
-  border-color: transparent !important;
+.sr-color-label__dot--active::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  pointer-events: none;
 }
-.sr-color-label__dot--active:focus,
-.sr-color-label__dot--active:focus-visible,
-.sr-color-label__dot--active:active {
+
+/* NC focus/active unterdrücken – schlägt NC's button:pseudo !important (Ring kommt vom ::after) */
+.sr-color-label__dot:focus,
+.sr-color-label__dot:focus-visible,
+.sr-color-label__dot:active {
   box-shadow: none !important;
   outline: none !important;
-  border-color: #fff !important;
 }
 
 /* Hover — nur auf Gerät mit Maus (pointer: fine) */
