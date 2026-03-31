@@ -20,7 +20,7 @@ StarRate is a professional photo rating and culling tool for photographers, seam
 - Dark, professional UI theme optimized for photo work
     ]]></description>
 
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     <licence>agpl</licence>
 
     <author mail="starrate@merlin1.de" homepage="https://github.com/merlin1de/starrate">
@@ -47,7 +47,7 @@ StarRate is a professional photo rating and culling tool for photographers, seam
         <database>sqlite</database>
         <database>mysql</database>
         <database>pgsql</database>
-        <nextcloud min-version="29" max-version="32"/>
+        <nextcloud min-version="29" max-version="33"/>
     </dependencies>
 
     <navigations>
