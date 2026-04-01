@@ -1,3 +1,6 @@
+# Android app (eigenes Repo)
+/android/
+
 # Build output
 /js/
 /dist/
@@ -28,6 +31,7 @@
 # OS
 .DS_Store
 Thumbs.db
+bash.exe.stackdump
 
 # PHP
 *.log
