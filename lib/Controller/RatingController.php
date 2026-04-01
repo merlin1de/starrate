@@ -18,6 +18,8 @@ use Psr\Log\LoggerInterface;
 
 class RatingController extends Controller
 {
+    use StarRateControllerTrait;
+
     public function __construct(
         string                        $appName,
         IRequest                      $request,
@@ -40,10 +42,9 @@ class RatingController extends Controller
     #[NoAdminRequired]
     public function get(int $fileId): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $file = $this->getFileById($userId, $fileId);
         if ($file === null) {
@@ -73,10 +74,9 @@ class RatingController extends Controller
     #[NoAdminRequired]
     public function set(int $fileId): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $body = $this->getJsonBody();
 
@@ -147,10 +147,9 @@ class RatingController extends Controller
     #[NoAdminRequired]
     public function setBatch(): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $body = $this->getJsonBody();
 
@@ -231,10 +230,9 @@ class RatingController extends Controller
     #[NoAdminRequired]
     public function delete(int $fileId): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $file = $this->getFileById($userId, $fileId);
         if ($file === null) {
@@ -286,26 +284,4 @@ class RatingController extends Controller
         return $errors;
     }
 
-    private function getJsonBody(): array
-    {
-        $params = $this->request->getParams();
-        return is_array($params) ? $params : [];
-    }
-
-    private function getFileById(string $userId, int $fileId): ?File
-    {
-        $userFolder = $this->rootFolder->getUserFolder($userId);
-        $nodes      = $userFolder->getById($fileId);
-        foreach ($nodes as $node) {
-            if ($node instanceof File) {
-                return $node;
-            }
-        }
-        return null;
-    }
-
-    private function getUserId(): ?string
-    {
-        return $this->userSession->getUser()?->getUID();
-    }
 }

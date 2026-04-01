@@ -21,6 +21,15 @@ use Psr\Log\LoggerInterface;
  */
 class XmpService
 {
+    // Lightroom-kompatible Label-Namen
+    public const LABEL_MAP = [
+        'Red'    => 'Red',
+        'Yellow' => 'Yellow',
+        'Green'  => 'Green',
+        'Blue'   => 'Blue',
+        'Purple' => 'Purple',
+    ];
+
     // RAW-Formate die per Sidecar verwaltet werden
     public const RAW_EXTENSIONS = ['cr3', 'cr2', 'nef', 'arw', 'orf', 'rw2', 'dng', 'raf', 'pef', 'srw'];
 
@@ -280,7 +289,7 @@ XMP;
         }
 
         // xmp:Label als Attribut oder Element
-        $validLabels = ExifService::LABEL_MAP;
+        $validLabels = self::LABEL_MAP;
         if (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)) {
             $val = trim($m[1]);
             $label = isset($validLabels[$val]) ? $val : null;
