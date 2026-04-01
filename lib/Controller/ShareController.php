@@ -44,7 +44,6 @@ class ShareController extends Controller
      * }
      */
     #[NoAdminRequired]
-    #[NoCSRFRequired]
     public function create(): DataResponse
     {
         $userId = $this->getUserId();
@@ -153,7 +152,6 @@ class ShareController extends Controller
      * DELETE /api/share/{token} — Freigabe deaktivieren/löschen.
      */
     #[NoAdminRequired]
-    #[NoCSRFRequired]
     public function delete(string $token): DataResponse
     {
         $userId = $this->getUserId();
