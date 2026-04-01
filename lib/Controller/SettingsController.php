@@ -14,6 +14,8 @@ use OCP\IUserSession;
 
 class SettingsController extends Controller
 {
+    use StarRateControllerTrait;
+
     public function __construct(
         string                        $appName,
         IRequest                      $request,
@@ -27,10 +29,10 @@ class SettingsController extends Controller
     #[NoAdminRequired]
     public function getSettings(): DataResponse
     {
-        $userId = $this->userSession->getUser()?->getUID();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
         return new DataResponse($this->userSettings->getSettings($userId));
     }
 
@@ -38,16 +40,11 @@ class SettingsController extends Controller
     #[NoAdminRequired]
     public function saveSettings(): DataResponse
     {
-        $userId = $this->userSession->getUser()?->getUID();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
-        $raw  = file_get_contents('php://input');
-        $data = json_decode($raw ?: '{}', true);
-        if (!is_array($data)) {
-            return new DataResponse(['error' => 'Ungültiger JSON-Body'], Http::STATUS_BAD_REQUEST);
-        }
+        $data = $this->getJsonBody();
 
         try {
             $this->userSettings->saveSettings($userId, $data);

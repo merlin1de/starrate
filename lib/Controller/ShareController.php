@@ -19,6 +19,8 @@ use Psr\Log\LoggerInterface;
 
 class ShareController extends Controller
 {
+    use StarRateControllerTrait;
+
     public function __construct(
         string                        $appName,
         IRequest                      $request,
@@ -46,10 +48,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function create(): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $body   = $this->getJsonBody();
         $errors = $this->validateShareBody($body);
@@ -82,10 +83,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function list(): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         try {
             $shares = $this->shareService->getSharesByOwner($userId);
@@ -102,10 +102,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function get(string $token): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         try {
             $share = $this->shareService->getShare($token);
@@ -125,10 +124,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function update(string $token): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $body  = $this->getJsonBody();
         $share = $this->shareService->getShare($token);
@@ -154,10 +152,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function delete(string $token): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
@@ -181,10 +178,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function getLog(string $token): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
@@ -203,10 +199,9 @@ class ShareController extends Controller
     #[NoAdminRequired]
     public function deleteLog(string $token): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
@@ -484,15 +479,4 @@ class ShareController extends Controller
         return $errors;
     }
 
-    private function getJsonBody(): array
-    {
-        $raw     = file_get_contents('php://input');
-        $decoded = json_decode($raw ?: '{}', true);
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    private function getUserId(): ?string
-    {
-        return $this->userSession->getUser()?->getUID();
-    }
 }

@@ -24,19 +24,14 @@ class ExifService
     private const XMP_NAMESPACE  = 'http://ns.adobe.com/xap/1.0/';
     private const XMP_MAGIC      = "http://ns.adobe.com/xap/1.0/\x00";
 
-    // Lightroom-kompatible Label-Namen
-    public const LABEL_MAP = [
-        'Red'    => 'Red',
-        'Yellow' => 'Yellow',
-        'Green'  => 'Green',
-        'Blue'   => 'Blue',
-        'Purple' => 'Purple',
-    ];
+    // Lightroom-kompatible Label-Namen (kanonische Quelle: XmpService::LABEL_MAP)
+    public const LABEL_MAP = XmpService::LABEL_MAP;
 
     // Maximale Dateigröße für direktes In-Memory-Bearbeiten (50 MB)
     private const MAX_MEMORY_SIZE = 52_428_800;
 
     public function __construct(
+        private readonly XmpService      $xmpService,
         private readonly LoggerInterface $logger,
     ) {}
 
@@ -192,45 +187,13 @@ class ExifService
 
     /**
      * Parst einen XMP-String und extrahiert Rating und Label.
+     * Delegiert an XmpService::parseXmpContent().
      *
      * @return array{rating: int, label: string|null}
      */
     private function parseXmp(string $xmp): array
     {
-        $rating = 0;
-        $label  = null;
-
-        // xmp:Rating als Attribut: xmp:Rating='5' oder xmp:Rating="5"
-        if (preg_match('/xmp:Rating\s*=\s*[\'"](\d+)[\'"]/', $xmp, $m)) {
-            $val = (int) $m[1];
-            if ($val >= 0 && $val <= 5) {
-                $rating = $val;
-            }
-        }
-        // xmp:Rating als Element: <xmp:Rating>5</xmp:Rating>
-        elseif (preg_match('/<xmp:Rating>(\d+)<\/xmp:Rating>/', $xmp, $m)) {
-            $val = (int) $m[1];
-            if ($val >= 0 && $val <= 5) {
-                $rating = $val;
-            }
-        }
-
-        // xmp:Label als Attribut
-        if (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)) {
-            $val = trim($m[1]);
-            if (isset(self::LABEL_MAP[$val])) {
-                $label = $val;
-            }
-        }
-        // xmp:Label als Element
-        elseif (preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m)) {
-            $val = trim($m[1]);
-            if (isset(self::LABEL_MAP[$val])) {
-                $label = $val;
-            }
-        }
-
-        return ['rating' => $rating, 'label' => $label];
+        return $this->xmpService->parseXmpContent($xmp);
     }
 
     // ─── XMP schreiben ────────────────────────────────────────────────────────
@@ -250,24 +213,11 @@ class ExifService
 
     /**
      * Baut ein vollständiges XMP-Paket als String.
+     * Delegiert an XmpService::buildXmpContent().
      */
     private function buildXmpPacket(int $rating, ?string $label): string
     {
-        $ratingAttr = "xmp:Rating=\"{$rating}\"";
-        $labelAttr  = $label ? "\n      xmp:Label=\"{$label}\"" : '';
-
-        return <<<XMP
-<?xpacket begin='\xEF\xBB\xBF' id='W5M0MpCehiHzreSzNTczkc9d'?>
-<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='StarRate 1.0'>
-  <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
-    <rdf:Description rdf:about=''
-      xmlns:xmp='http://ns.adobe.com/xap/1.0/'
-      {$ratingAttr}{$labelAttr}>
-    </rdf:Description>
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end='w'?>
-XMP;
+        return $this->xmpService->buildXmpContent($rating, $label);
     }
 
     /**
