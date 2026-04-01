@@ -240,21 +240,18 @@ class TagService
             return [];
         }
 
-        // Alle StarRate-Tags für die angefragten Dateien laden
-        $placeholders = implode(',', array_fill(0, count($fileIds), '?'));
-        $sql = "
-            SELECT stom.objectid, st.name
-            FROM   oc_systemtag_object_mapping stom
-            JOIN   oc_systemtag st ON st.id = stom.systemtagid
-            WHERE  stom.objecttype = ?
-              AND  stom.objectid IN ({$placeholders})
-              AND  st.name LIKE 'starrate:%'
-        ";
+        // Alle StarRate-Tags für die angefragten Dateien laden (QueryBuilder für korrekten Tabellen-Prefix)
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('stom.objectid', 'st.name')
+            ->from('systemtag_object_mapping', 'stom')
+            ->innerJoin('stom', 'systemtag', 'st', $qb->expr()->eq('st.id', 'stom.systemtagid'))
+            ->where($qb->expr()->eq('stom.objecttype', $qb->createNamedParameter(self::OBJECT_TYPE)))
+            ->andWhere($qb->expr()->in('stom.objectid', $qb->createNamedParameter($fileIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+            ->andWhere($qb->expr()->like('st.name', $qb->createNamedParameter('starrate:%')));
 
-        $params = array_merge([self::OBJECT_TYPE], $fileIds);
-        $result = $this->db->executeQuery($sql, $params);
-
+        $result = $qb->executeQuery();
         $rows = $result->fetchAll();
+        $result->closeCursor();
 
         // Initialisiere alle Dateien mit Default-Werten
         $metadata = [];
