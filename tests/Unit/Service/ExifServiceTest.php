@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\StarRate\Tests\Unit\Service;
 
 use OCA\StarRate\Service\ExifService;
+use OCA\StarRate\Service\XmpService;
 use OCP\Files\File;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -18,8 +19,9 @@ class ExifServiceTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->logger  = $this->createMock(LoggerInterface::class);
-        $this->service = new ExifService($this->logger);
+        $this->logger     = $this->createMock(LoggerInterface::class);
+        $xmpService       = new XmpService($this->logger);
+        $this->service    = new ExifService($xmpService, $this->logger);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────

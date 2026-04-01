@@ -26,6 +26,8 @@ use Psr\Log\LoggerInterface;
 
 class GalleryController extends Controller
 {
+    use StarRateControllerTrait;
+
     // Unterstützte Bildformate
     private const SUPPORTED_MIME = [
         'image/jpeg',
@@ -89,10 +91,9 @@ class GalleryController extends Controller
     #[NoAdminRequired]
     public function images(): DataResponse
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $path  = $this->request->getParam('path', '/');
         $sort  = $this->request->getParam('sort', 'name');   // name | mtime | size
@@ -159,10 +160,9 @@ class GalleryController extends Controller
     #[NoCSRFRequired]
     public function thumbnail(int $fileId): Response
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $width  = (int) ($this->request->getParam('width', 300));
         $height = (int) ($this->request->getParam('height', 300));
@@ -202,10 +202,9 @@ class GalleryController extends Controller
     #[NoCSRFRequired]
     public function preview(int $fileId): Response
     {
-        $userId = $this->getUserId();
-        if ($userId === null) {
-            return new DataResponse(['error' => 'Nicht authentifiziert'], Http::STATUS_UNAUTHORIZED);
-        }
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
 
         $width  = (int) ($this->request->getParam('width', 1920));
         $height = (int) ($this->request->getParam('height', 1200));
@@ -282,25 +281,4 @@ class GalleryController extends Controller
         return array_values($images);
     }
 
-    /**
-     * Sucht eine Datei anhand der ID im User-Ordner.
-     */
-    private function getFileById(string $userId, int $fileId): ?File
-    {
-        $userFolder = $this->rootFolder->getUserFolder($userId);
-        $nodes      = $userFolder->getById($fileId);
-
-        foreach ($nodes as $node) {
-            if ($node instanceof File) {
-                return $node;
-            }
-        }
-        return null;
-    }
-
-    private function getUserId(): ?string
-    {
-        $user = $this->userSession->getUser();
-        return $user?->getUID();
-    }
 }
