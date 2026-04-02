@@ -13,6 +13,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -28,6 +29,7 @@ class ShareController extends Controller
         private readonly TagService    $tagService,
         private readonly IUserSession  $userSession,
         private readonly LoggerInterface $logger,
+        private readonly IConfig         $config,
     ) {
         parent::__construct($appName, $request);
     }
@@ -236,12 +238,17 @@ class ShareController extends Controller
         // Passwortprüfung läuft über die API (guestImages gibt 401 zurück),
         // die Vue-SPA zeigt den Passwort-Dialog — keine separate PHP-Seite nötig.
 
+        $showBanner = $this->config->getAppValue(
+            $this->appName, 'show_app_banner', 'no'
+        ) === 'yes';
+
         return new TemplateResponse($this->appName, 'guest', [
-            'token'      => $token,
-            'share'      => $share,
-            'min_rating' => $share['min_rating'] ?? 0,
-            'can_rate'   => $share['permissions'] === ShareService::PERM_RATE,
-            'guest_name' => $share['guest_name'] ?? '',
+            'token'           => $token,
+            'share'           => $share,
+            'min_rating'      => $share['min_rating'] ?? 0,
+            'can_rate'        => $share['permissions'] === ShareService::PERM_RATE,
+            'guest_name'      => $share['guest_name'] ?? '',
+            'show_app_banner' => $showBanner,
         ], 'public');
     }
 
