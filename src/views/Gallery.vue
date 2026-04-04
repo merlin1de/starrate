@@ -373,6 +373,32 @@ watch(() => settings.value.enable_pick_ui, enabled => {
   }
 })
 
+// Loupe: Index anpassen wenn Filter das aktuelle Bild entfernt
+watch(filteredImages, (newList, oldList) => {
+  if (mode.value !== 'loupe') return
+
+  if (newList.length === 0) {
+    // Kein Bild übrig → zurück zur Grid-Ansicht (dort CTA "Alle Filter löschen")
+    mode.value = 'grid'
+    return
+  }
+
+  // Gleiches Bild in neuer Liste suchen
+  const currentImg = oldList?.[currentIndex.value]
+  if (currentImg) {
+    const newIdx = newList.findIndex(i => i.id === currentImg.id)
+    if (newIdx >= 0) {
+      currentIndex.value = newIdx
+      return
+    }
+  }
+
+  // Bild wurde rausgefiltert → Index clampen (nächstes verfügbares Bild)
+  if (currentIndex.value >= newList.length) {
+    currentIndex.value = newList.length - 1
+  }
+})
+
 // ─── Bewertung setzen ─────────────────────────────────────────────────────────
 
 async function onRate(image, rating, color, pick) {
