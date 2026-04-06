@@ -13,8 +13,16 @@ export default defineConfig({
     setupFiles: [resolve(__dir, 'tests/js/setup.js')],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'json-summary'],
       reportsDirectory: './tests/results/coverage-js',
+      include: ['src/**/*.{js,vue}'],
+      all: false,
+      thresholds: {
+        statements: 90,
+        branches: 80,
+        lines: 90,
+        functions: 70,
+      },
     },
     reporters: ['verbose', 'junit'],
     outputFile: {
