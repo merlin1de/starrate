@@ -41,3 +41,6 @@ starrate.ico
 
 # LR Plugin (eigenes lokales Plugin, nicht für GitHub)
 /lr-plugin/
+
+# Notizen (lokal)
+/notes/
