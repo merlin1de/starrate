@@ -85,7 +85,8 @@ make install-deps
 make test          # PHPUnit + Vitest
 make test-php      # PHPUnit only
 make test-js       # Vitest only
-make test-e2e      # Cypress (requires a running Nextcloud instance)
+make test-e2e      # Cypress headless (requires a running Nextcloud instance)
+npm run e2e:open   # Cypress GUI with browser selection
 make test-coverage # Reports written to tests/results/
 ```
 
