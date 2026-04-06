@@ -152,8 +152,16 @@
                 <div class="sr-shortcuts-row"><kbd>← → ↑ ↓</kbd><span>{{ t('starrate', 'Bild wechseln') }}</span></div>
                 <div class="sr-shortcuts-row"><kbd>Shift + Pfeile</kbd><span>{{ t('starrate', 'Mehrfachauswahl') }}</span></div>
                 <div class="sr-shortcuts-row"><kbd>Strg + A</kbd><span>{{ t('starrate', 'Alle auswählen') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>Home / End</kbd><span>{{ t('starrate', 'Erstes / Letztes Bild') }}</span></div>
                 <div class="sr-shortcuts-row"><kbd>Esc</kbd><span>{{ t('starrate', 'Auswahl aufheben') }}</span></div>
                 <div class="sr-shortcuts-row"><kbd>Enter</kbd><span>{{ t('starrate', 'Lupenansicht öffnen') }}</span></div>
+              </div>
+              <div class="sr-shortcuts-group">
+                <div class="sr-shortcuts-group-title">{{ t('starrate', 'Zoom (Lupe)') }}</div>
+                <div class="sr-shortcuts-row"><kbd>+ / −</kbd><span>{{ t('starrate', 'Rein- / Rauszoomen') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>{{ t('starrate', 'Leertaste') }}</kbd><span>{{ t('starrate', 'Eingepasst') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>{{ t('starrate', 'Doppelklick') }}</kbd><span>{{ t('starrate', '100% / Eingepasst') }}</span></div>
+                <div class="sr-shortcuts-row"><kbd>{{ t('starrate', 'Mausrad') }}</kbd><span>{{ t('starrate', 'Zoom auf Cursor') }}</span></div>
               </div>
               <div class="sr-shortcuts-group">
                 <div class="sr-shortcuts-group-title">{{ t('starrate', 'Bewertung') }}</div>

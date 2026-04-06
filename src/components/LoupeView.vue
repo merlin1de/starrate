@@ -274,8 +274,8 @@ function setZoom(newZoom, pivot = null) {
     const dx      = pivot.x - rect.left - cx
     const dy      = pivot.y - rect.top  - cy
     const ratio   = newZoom / zoom.value
-    panX.value    = panX.value + (dx - panX.value) * (1 - 1 / ratio)
-    panY.value    = panY.value + (dy - panY.value) * (1 - 1 / ratio)
+    panX.value    = panX.value - (dx - panX.value) * (1 - 1 / ratio)
+    panY.value    = panY.value - (dy - panY.value) * (1 - 1 / ratio)
   }
 
   zoom.value = newZoom
@@ -328,13 +328,14 @@ function constrainPan() {
 // ─── Events: Maus ────────────────────────────────────────────────────────────
 
 function onWheel(e) {
-  const delta  = e.deltaY > 0 ? 0.85 : 1 / 0.85
-  const newZoom = isFit.value ? zoom.value * delta : zoom.value * delta
+  // Im Fit-Modus: nur Reinzoomen erlaubt, Rauszoomen ignorieren
+  if (isFit.value && e.deltaY > 0) return
 
-  if (newZoom <= MIN_ZOOM + 0.02 && e.deltaY > 0) {
-    resetZoom()
-    return
-  }
+  const delta   = e.deltaY > 0 ? 0.85 : 1 / 0.85
+  const newZoom = zoom.value * delta
+
+  // Bei MIN_ZOOM angekommen → nicht weiter rauszoomen
+  if (newZoom <= MIN_ZOOM && e.deltaY > 0) return
 
   isFit.value = false
   setZoom(newZoom, { x: e.clientX, y: e.clientY })
@@ -476,8 +477,8 @@ function onKeydown(e) {
     case '-':
     case '_':
       e.preventDefault()
-      if (zoom.value * 0.8 <= MIN_ZOOM + 0.02) { resetZoom(); break }
-      isFit.value = false
+      if (isFit.value) break
+      if (zoom.value * 0.8 <= MIN_ZOOM) break
       setZoom(zoom.value * 0.8)
       break
     case ' ':
