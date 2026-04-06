@@ -58,6 +58,7 @@ class ShareService
         int     $minRating,
         string  $permissions,
         ?string $guestName = null,
+        bool    $allowPick = false,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -75,6 +76,7 @@ class ShareService
             'min_rating'    => max(0, min(5, $minRating)),
             'permissions'   => $permissions,
             'guest_name'    => $guestName ? trim($guestName) : null,
+            'allow_pick'    => $allowPick,
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -160,6 +162,9 @@ class ShareService
         }
         if (isset($data['active'])) {
             $all[$token]['active'] = (bool) $data['active'];
+        }
+        if (isset($data['allow_pick'])) {
+            $all[$token]['allow_pick'] = (bool) $data['allow_pick'];
         }
 
         $this->saveShares($ownerId, $all);

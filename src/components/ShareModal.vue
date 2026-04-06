@@ -25,6 +25,7 @@
             <strong>Ordner:</strong> {{ createdShare.nc_path }}<br>
             <strong>{{ t('starrate', 'Berechtigung:') }}</strong> {{ createdShare.permissions === 'rate' ? t('starrate', 'Ansehen + Bewerten') : t('starrate', 'Nur ansehen') }}<br>
             <span v-if="createdShare.min_rating > 0"><strong>{{ t('starrate', 'Vorfilter:') }}</strong> ≥ {{ createdShare.min_rating }} ★<br></span>
+            <span v-if="createdShare.allow_pick"><strong>{{ t('starrate', 'Pick/Reject:') }}</strong> {{ t('starrate', 'Aktiviert') }}<br></span>
             <span v-if="createdShare.has_password"><strong>{{ t('starrate', 'Passwortgeschützt') }}</strong><br></span>
             <span v-if="createdShare.expires_at"><strong>{{ t('starrate', 'Läuft ab:') }}</strong> {{ formatDate(createdShare.expires_at) }}</span>
           </p>
@@ -72,6 +73,13 @@
                 @click="form.permissions = 'rate'"
               >{{ t('starrate', 'Ansehen + Bewerten') }}</button>
             </div>
+          </div>
+
+          <div v-if="form.permissions === 'rate'" class="sr-share-modal__field">
+            <label class="sr-share-modal__checkbox-label">
+              <input type="checkbox" v-model="form.allowPick" class="sr-share-modal__checkbox" />
+              {{ t('starrate', 'Pick/Reject erlauben') }}
+            </label>
           </div>
 
           <div class="sr-share-modal__field">
@@ -147,6 +155,7 @@ const emit = defineEmits(['close', 'created'])
 const form = ref({
   guestName:   '',
   permissions: 'rate',
+  allowPick:   false,
   minRating:   0,
   password:    '',
   expiresDate: '',
@@ -183,7 +192,7 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { guestName: '', permissions: 'rate', minRating: 0, password: '', expiresDate: '' }
+  form.value = { guestName: '', permissions: 'rate', allowPick: false, minRating: 0, password: '', expiresDate: '' }
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -202,6 +211,7 @@ async function create() {
   const body = {
     nc_path:     props.ncPath,
     permissions: form.value.permissions,
+    allow_pick:  form.value.permissions === 'rate' && form.value.allowPick,
     min_rating:  form.value.minRating,
   }
 
@@ -368,6 +378,21 @@ async function create() {
 .sr-share-modal__toggle--active {
   background: #e94560;
   color: #fff;
+}
+
+.sr-share-modal__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.sr-share-modal__checkbox {
+  accent-color: #4caf50;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 .sr-share-modal__error {

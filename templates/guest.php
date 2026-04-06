@@ -5,6 +5,7 @@
 
 $token     = $_['token']      ?? '';
 $canRate   = $_['can_rate']   ?? false;
+$allowPick = $_['allow_pick'] ?? false;
 $guestName = $_['guest_name'] ?? '';
 
 // Server-URL für den App Deep Link (starrate://guest?token=...&server=...)
@@ -15,6 +16,7 @@ $serverUrl = rtrim($serverUrl, '/');
   id="starrate-guest-root"
   data-token="<?= htmlspecialchars($token, ENT_QUOTES) ?>"
   data-can-rate="<?= $canRate ? 'true' : 'false' ?>"
+  data-allow-pick="<?= $allowPick ? 'true' : 'false' ?>"
   data-guest-name="<?= htmlspecialchars($guestName, ENT_QUOTES) ?>"
 ></div>
 
