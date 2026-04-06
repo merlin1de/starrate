@@ -228,7 +228,7 @@ const props = defineProps({
   /** Weitergereicht an LoupeView */
   previewUrlFn:   { type: Function, default: null },
   /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
-  enablePickOverride: { type: Boolean, default: null },
+  enablePickOverride: { type: [Boolean, null], default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
