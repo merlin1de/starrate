@@ -2,15 +2,28 @@
 
 declare(strict_types=1);
 
+// Load the app's own vendor autoloader (PHPUnit, etc.).
+require_once __DIR__ . '/../vendor/autoload.php';
+
 // Load Nextcloud's composer autoloader so OCP\* interfaces are available for mocking.
-// The path is absolute to the NC server root inside the Docker container.
+// In Docker: NC server root. In CI: nextcloud/ocp stubs from Composer.
 $ncAutoload = '/var/www/html/lib/composer/autoload.php';
 if (file_exists($ncAutoload)) {
     require_once $ncAutoload;
 }
 
-// Load the app's own vendor autoloader (PHPUnit, etc.).
-require_once __DIR__ . '/../vendor/autoload.php';
+// CI fallback: if OCP is not available via NC server, load stubs from nextcloud/ocp package.
+if (!interface_exists('OCP\IRequest') && is_dir(__DIR__ . '/../vendor/nextcloud/ocp/OCP')) {
+    $ocpDir = __DIR__ . '/../vendor/nextcloud/ocp/OCP';
+    spl_autoload_register(function (string $class) use ($ocpDir) {
+        if (str_starts_with($class, 'OCP\\')) {
+            $file = $ocpDir . '/' . str_replace('\\', '/', substr($class, 4)) . '.php';
+            if (file_exists($file)) {
+                require_once $file;
+            }
+        }
+    });
+}
 
 // Polyfill: OCP\DB interfaces reference Doctrine\DBAL classes that are not installed
 // in the test environment. Define minimal stand-ins so PHPUnit can mock them.
