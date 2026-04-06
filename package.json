@@ -9,7 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src --ext .vue,.js"
+    "lint": "eslint src --ext .vue,.js",
+    "e2e": "dotenv -e .env.local -- cypress run --headless",
+    "e2e:open": "dotenv -e .env.local -- cypress open"
   },
   "dependencies": {
     "@nextcloud/axios": "^2.4.0",
@@ -23,6 +25,7 @@
     "@nextcloud/vite-config": "^2.2.0",
     "@vue/test-utils": "^2.4.0",
     "cypress": "^15.13.0",
+    "dotenv-cli": "^11.0.0",
     "jsdom": "^24.0.0",
     "vitest": "^1.4.0"
   }
