@@ -19,6 +19,7 @@ const el = document.getElementById('starrate-guest-root')
 if (el) {
   const token     = el.dataset.token     ?? ''
   const canRate   = el.dataset.canRate   === 'true'
+  const allowPick = el.dataset.allowPick === 'true'
   const guestName = el.dataset.guestName ?? ''
 
   // Memory-Router: dieselben Routen wie main.js, aber ohne URL-Seiteneffekte
@@ -30,7 +31,7 @@ if (el) {
     ],
   })
 
-  const app = createApp(GuestGallery, { token, canRate, guestName })
+  const app = createApp(GuestGallery, { token, canRate, allowPick, guestName })
   app.use(router)
   router.isReady().then(() => app.mount(el))
 }

@@ -69,6 +69,7 @@ class ShareController extends Controller
                 isset($body['min_rating']) ? (int) $body['min_rating'] : 0,
                 $body['permissions'] ?? ShareService::PERM_VIEW,
                 $body['guest_name']  ?? null,
+                !empty($body['allow_pick']),
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -247,6 +248,7 @@ class ShareController extends Controller
             'share'           => $share,
             'min_rating'      => $share['min_rating'] ?? 0,
             'can_rate'        => $share['permissions'] === ShareService::PERM_RATE,
+            'allow_pick'      => !empty($share['allow_pick']),
             'guest_name'      => $share['guest_name'] ?? '',
             'show_app_banner' => $showBanner,
         ], 'public');
@@ -367,7 +369,7 @@ class ShareController extends Controller
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
         $color     = $body['color'] ?? null;
-        $pick      = $body['pick'] ?? null;
+        $pick      = !empty($share['allow_pick']) ? ($body['pick'] ?? null) : null;
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
         if ($rating !== null && ($rating < 0 || $rating > 5)) {

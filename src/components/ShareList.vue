@@ -49,6 +49,13 @@
                     :title="t('starrate', 'Passwort setzen / ändern')"
                     @click="openPwEdit(share.token)"
                   >🔒</span>
+                  <span
+                    v-if="share.permissions === 'rate'"
+                    class="sr-share-list__badge sr-share-list__badge--pick-click"
+                    :class="share.allow_pick ? 'sr-share-list__badge--pick-on' : 'sr-share-list__badge--pick-off'"
+                    :title="share.allow_pick ? t('starrate', 'Pick/Reject deaktivieren') : t('starrate', 'Pick/Reject aktivieren')"
+                    @click="togglePick(share)"
+                  >{{ share.allow_pick ? '✓' : '✗' }} Pick</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
                     {{ isExpired(share) ? t('starrate', 'Abgelaufen') : formatDate(share.expires_at) }}
                   </span>
@@ -279,6 +286,17 @@ async function loadShares() {
   } finally {
     loading.value = false
   }
+}
+
+async function togglePick(share) {
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { allow_pick: !share.allow_pick }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+  } catch { /* ignore */ }
 }
 
 async function toggleActive(share) {
@@ -516,6 +534,10 @@ defineExpose({ loadShares })
 .sr-share-list__badge--rate   { background: #2a1a1a; color: #e94560; }
 .sr-share-list__badge--filter { background: #2a2a1a; color: #f5c518; }
 .sr-share-list__badge--pw     { background: #2a2a3e; }
+.sr-share-list__badge--pick-click { cursor: pointer; transition: background 0.15s, color 0.15s; }
+.sr-share-list__badge--pick-click:hover { opacity: 0.85; }
+.sr-share-list__badge--pick-on  { background: #1a2a1a; color: #4caf50; }
+.sr-share-list__badge--pick-off { background: #2a2a3e; color: #52525b; }
 .sr-share-list__badge--date   { background: #1a2a1a; color: #7ecf7e; }
 .sr-share-list__badge--expired{ background: #3a1a1a; color: #e94560; }
 

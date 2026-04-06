@@ -227,6 +227,8 @@ const props = defineProps({
   thumbnailUrlFn: { type: Function, default: null },
   /** Weitergereicht an LoupeView */
   previewUrlFn:   { type: Function, default: null },
+  /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
+  enablePickOverride: { type: Boolean, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -573,7 +575,13 @@ function onDocKeydown(e) {
 }
 
 async function loadSettings() {
-  if (props.guestMode) return  // Gast nutzt Standardwerte
+  if (props.guestMode) {
+    // Gast: Pick-UI vom Share-Override steuern
+    if (props.enablePickOverride != null) {
+      settings.value.enable_pick_ui = props.enablePickOverride
+    }
+    return
+  }
   try {
     const url = generateUrl('/apps/starrate/api/settings')
     const { data } = await axios.get(url)

@@ -33,6 +33,7 @@
     v-else
     :guest-mode="true"
     :guest-label="props.guestName"
+    :enable-pick-override="props.allowPick"
     :load-images-fn="loadImagesFn"
     :rate-fn="rateFn"
     :batch-rate-fn="batchRateFn"
@@ -56,6 +57,7 @@ const appVersion = __APP_VERSION__
 const props = defineProps({
   token:     { type: String,  required: true },
   canRate:   { type: Boolean, default: false },
+  allowPick: { type: Boolean, default: false },
   guestName: { type: String,  default: '' },
 })
 
