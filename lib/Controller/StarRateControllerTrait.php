@@ -63,13 +63,20 @@ trait StarRateControllerTrait
 
     /**
      * Liest den JSON-Body des Requests als assoziatives Array.
-     * Nutzt php://input direkt, da $this->request->getParams() auch
-     * NC-interne Route-Parameter enthält, die Validierungen stören können.
+     * Nutzt php://input direkt, fällt bei leerem Stream (z.B. PHPUnit)
+     * auf $this->request->getParams() zurück (gefiltert um NC-Route-Keys).
      */
     private function getJsonBody(): array
     {
-        $raw     = file_get_contents('php://input');
-        $decoded = json_decode($raw ?: '{}', true);
-        return is_array($decoded) ? $decoded : [];
+        $raw = file_get_contents('php://input');
+        if ($raw !== false && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        // Fallback: Request-Params (ohne NC-interne Route-Keys)
+        $params = $this->request->getParams();
+        unset($params['_route'], $params['_rawParams']);
+        return $params;
     }
 }
