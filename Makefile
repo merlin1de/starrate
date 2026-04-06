@@ -146,17 +146,36 @@ package: build
 	@mkdir -p $(DIST_DIR)
 	@tar \
 	  --exclude='.git' \
+	  --exclude='.claude' \
+	  --exclude='.gitignore' \
+	  --exclude='.npmrc' \
+	  --exclude='.env*' \
 	  --exclude='node_modules' \
 	  --exclude='vendor' \
 	  --exclude='tests' \
+	  --exclude='src' \
+	  --exclude='android' \
+	  --exclude='docker' \
+	  --exclude='scripts' \
+	  --exclude='screenshots' \
+	  --exclude='notes' \
+	  --exclude='lr-plugin' \
+	  --exclude='sync-app' \
+	  --exclude='dist' \
+	  --exclude='build' \
 	  --exclude='*.cy.js' \
 	  --exclude='*.spec.js' \
-	  --exclude='.env*' \
+	  --exclude='*.stackdump' \
+	  --exclude='*.ico' \
+	  --exclude='CLAUDE.md' \
+	  --exclude='README.md' \
 	  --exclude='Makefile' \
+	  --exclude='cypress.config.cjs' \
 	  --exclude='vite.config.js' \
 	  --exclude='vitest.config.js' \
 	  --exclude='phpunit.xml' \
 	  --exclude='composer.json' \
+	  --exclude='composer.lock' \
 	  --exclude='package.json' \
 	  --exclude='package-lock.json' \
 	  -czf $(DIST_DIR)/$(APP_ID).tar.gz \

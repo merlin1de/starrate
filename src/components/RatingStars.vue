@@ -3,7 +3,7 @@
     class="sr-stars"
     :class="{ 'sr-stars--interactive': interactive, 'sr-stars--compact': compact }"
     role="radiogroup"
-    :aria-label="t('starrate', 'Bewertung')"
+    :aria-label="t('starrate', 'Rating')"
     @pointerleave="e => e.pointerType === 'mouse' && (hoverRating = 0)"
     @keydown="onKeydown"
     :tabindex="interactive ? 0 : -1"
@@ -20,7 +20,7 @@
       type="button"
       role="radio"
       :aria-checked="star === modelValue"
-      :aria-label="n('starrate', '%n Stern', '%n Sterne', star)"
+      :aria-label="n('starrate', '%n star', '%n stars', star)"
       :tabindex="-1"
       :disabled="!interactive"
       @pointerenter="e => interactive && e.pointerType === 'mouse' && (hoverRating = star)"
@@ -42,8 +42,8 @@
       :class="{ 'sr-stars__clear--hidden': modelValue === 0 }"
       type="button"
       :tabindex="modelValue > 0 ? 0 : -1"
-      :aria-label="t('starrate', 'Bewertung entfernen')"
-      :title="t('starrate', 'Bewertung entfernen')"
+      :aria-label="t('starrate', 'Remove rating')"
+      :title="t('starrate', 'Remove rating')"
       @click="modelValue > 0 && setRating(0)"
     >
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

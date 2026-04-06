@@ -3,7 +3,7 @@
     class="sr-color-label"
     :class="{ 'sr-color-label--interactive': interactive, 'sr-color-label--compact': compact }"
     role="radiogroup"
-    :aria-label="t('starrate', 'Farbmarkierung')"
+    :aria-label="t('starrate', 'Color label')"
   >
     <button
       v-for="color in COLORS"
@@ -33,8 +33,8 @@
       :class="{ 'sr-color-label__clear--hidden': modelValue === null }"
       type="button"
       :tabindex="modelValue !== null ? 0 : -1"
-      :aria-label="t('starrate', 'Farbmarkierung entfernen')"
-      :title="t('starrate', 'Farbmarkierung entfernen')"
+      :aria-label="t('starrate', 'Remove color label')"
+      :title="t('starrate', 'Remove color label')"
       @click="modelValue !== null && setColor(null)"
       @pointerup="e => e.pointerType === 'touch' && e.currentTarget.blur()"
     >
