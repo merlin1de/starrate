@@ -2,12 +2,15 @@ import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+const __dir = new URL('.', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
+
 export default defineConfig({
   plugins: [vue()],
+  root: __dir,
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./tests/js/setup.js'],
+    setupFiles: [resolve(__dir, 'tests/js/setup.js')],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
