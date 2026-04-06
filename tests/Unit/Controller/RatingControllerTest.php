@@ -32,6 +32,8 @@ class RatingControllerTest extends TestCase
     private TagService $tagService;
     /** @var ExifService&MockObject */
     private ExifService $exifService;
+    /** @var LoggerInterface&MockObject */
+    private LoggerInterface $logger;
 
     private const USER_ID = 'testuser';
     private const FILE_ID = 1234;
@@ -43,6 +45,7 @@ class RatingControllerTest extends TestCase
         $this->userSession = $this->createMock(IUserSession::class);
         $this->tagService  = $this->createMock(TagService::class);
         $this->exifService = $this->createMock(ExifService::class);
+        $this->logger      = $this->createMock(LoggerInterface::class);
 
         $user = $this->createMock(IUser::class);
         $user->method('getUID')->willReturn(self::USER_ID);
@@ -55,7 +58,7 @@ class RatingControllerTest extends TestCase
             $this->userSession,
             $this->tagService,
             $this->exifService,
-            $this->createMock(LoggerInterface::class),
+            $this->logger,
         );
     }
 
@@ -294,6 +297,50 @@ class RatingControllerTest extends TestCase
         $this->assertSame(3, $response->getData()['errors']);
     }
 
+    // ─── Tests: POST /api/rating/{fileId} – Pick & Multi-Field ─────────────
+
+    public function testSetPickWritesTag(): void
+    {
+        $file = $this->mockFileById(self::FILE_ID, 'image/jpeg');
+        $this->mockJsonBody(['pick' => 'reject']);
+
+        $this->tagService->method('setMetadata');
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 0, 'color' => null, 'pick' => 'reject']);
+
+        // Pick-only: writeMetadata gets null for both rating and color (= no EXIF change)
+        $this->exifService->expects($this->once())
+            ->method('writeMetadata')
+            ->with($file, null, null);
+
+        $response = $this->controller->set(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame('reject', $response->getData()['pick']);
+    }
+
+    public function testSetMultipleFieldsAtOnce(): void
+    {
+        $file = $this->mockFileById(self::FILE_ID, 'image/jpeg');
+        $this->mockJsonBody(['rating' => 5, 'color' => 'Red', 'pick' => 'pick']);
+
+        $this->tagService->expects($this->once())
+            ->method('setMetadata')
+            ->with((string) self::FILE_ID, ['rating' => 5, 'color' => 'Red', 'pick' => 'pick']);
+
+        $this->exifService->expects($this->once())
+            ->method('writeMetadata')
+            ->with($file, 5, 'Red');
+
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 5, 'color' => 'Red', 'pick' => 'pick']);
+
+        $response = $this->controller->set(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame(5, $response->getData()['rating']);
+        $this->assertSame('Red', $response->getData()['color']);
+        $this->assertSame('pick', $response->getData()['pick']);
+    }
+
     // ─── Tests: DELETE /api/rating/{fileId} ──────────────────────────────────
 
     public function testDeleteClearsAllTags(): void
@@ -311,6 +358,17 @@ class RatingControllerTest extends TestCase
         $response = $this->controller->delete(self::FILE_ID);
         $this->assertSame(Http::STATUS_OK, $response->getStatus());
         $this->assertTrue($response->getData()['ok']);
+    }
+
+    public function testDeleteSkipsExifForNonJpeg(): void
+    {
+        $this->mockFileById(self::FILE_ID, 'image/png');
+
+        $this->tagService->expects($this->once())->method('clearAll');
+        $this->exifService->expects($this->never())->method('writeMetadata');
+
+        $response = $this->controller->delete(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
     }
 
     public function testDeleteReturns404ForUnknownFile(): void
