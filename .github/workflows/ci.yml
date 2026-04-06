@@ -26,8 +26,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Vitest
-        run: npm run test
+      - name: Vitest + Coverage
+        run: npx vitest run --coverage
 
       - name: Upload test results
         if: always()

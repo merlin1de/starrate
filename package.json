@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@nextcloud/vite-config": "^2.2.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "@vue/test-utils": "^2.4.0",
     "cypress": "^15.13.0",
     "dotenv-cli": "^11.0.0",
