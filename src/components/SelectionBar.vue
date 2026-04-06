@@ -74,7 +74,7 @@ import { ref } from 'vue'
 import { t, n } from '@nextcloud/l10n'
 import { COLORS } from './ColorLabel.vue'
 
-const props = defineProps({
+defineProps({
   count: {
     type: Number,
     required: true,

@@ -47,7 +47,7 @@
         <button class="sr-breadcrumb__help" :title="t('starrate', 'Tastaturkürzel')" @click="showShortcuts = true">?</button>
 
         <span class="sr-breadcrumb__version">
-          StarRate v{{ appVersion }}<br>
+          StarRate v{{ appVersion }}<br/>
           by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
         </span>
       </div>
@@ -357,7 +357,7 @@ async function loadImages() {
       thumbError: false,
     }))
     subFolders.value = data.folders || []
-  } catch (e) {
+  } catch {
     if (seq !== loadSeq) return
     showToast(t('starrate', 'Bilder konnten nicht geladen werden'), 'error')
   } finally {
@@ -433,7 +433,7 @@ async function onRate(image, rating, color, pick) {
       const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— ' + t('starrate', 'kein Pick')
       showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
     }
-  } catch (e) {
+  } catch {
     // Rollback
     if (local) await loadImages()
     showToast(t('starrate', 'Bewertung konnte nicht gespeichert werden'), 'error')
@@ -475,7 +475,7 @@ async function onBatchRate(rating, color) {
       ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
       : ''
     showToast(`${bildText} bewertet${stars}`, 'success')
-  } catch (e) {
+  } catch {
     await loadImages()
     showToast(t('starrate', 'Stapel-Bewertung fehlgeschlagen'), 'error')
   }
@@ -559,7 +559,7 @@ function showToast(message, type = 'success') {
 
 // ─── Share ────────────────────────────────────────────────────────────────────
 
-function onShareCreated(share) {
+function onShareCreated() {
   showShareModal.value = false
   // Liste neu laden damit der neue Share erscheint
   shareListRef.value?.loadShares()

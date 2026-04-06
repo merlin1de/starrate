@@ -22,11 +22,11 @@
             </button>
           </div>
           <p class="sr-share-modal__success-hint">
-            <strong>Ordner:</strong> {{ createdShare.nc_path }}<br>
-            <strong>{{ t('starrate', 'Berechtigung:') }}</strong> {{ createdShare.permissions === 'rate' ? t('starrate', 'Ansehen + Bewerten') : t('starrate', 'Nur ansehen') }}<br>
-            <span v-if="createdShare.min_rating > 0"><strong>{{ t('starrate', 'Vorfilter:') }}</strong> ≥ {{ createdShare.min_rating }} ★<br></span>
-            <span v-if="createdShare.allow_pick"><strong>{{ t('starrate', 'Pick/Reject:') }}</strong> {{ t('starrate', 'Aktiviert') }}<br></span>
-            <span v-if="createdShare.has_password"><strong>{{ t('starrate', 'Passwortgeschützt') }}</strong><br></span>
+            <strong>Ordner:</strong> {{ createdShare.nc_path }}<br/>
+            <strong>{{ t('starrate', 'Berechtigung:') }}</strong> {{ createdShare.permissions === 'rate' ? t('starrate', 'Ansehen + Bewerten') : t('starrate', 'Nur ansehen') }}<br/>
+            <span v-if="createdShare.min_rating > 0"><strong>{{ t('starrate', 'Vorfilter:') }}</strong> ≥ {{ createdShare.min_rating }} ★<br/></span>
+            <span v-if="createdShare.allow_pick"><strong>{{ t('starrate', 'Pick/Reject:') }}</strong> {{ t('starrate', 'Aktiviert') }}<br/></span>
+            <span v-if="createdShare.has_password"><strong>{{ t('starrate', 'Passwortgeschützt') }}</strong><br/></span>
             <span v-if="createdShare.expires_at"><strong>{{ t('starrate', 'Läuft ab:') }}</strong> {{ formatDate(createdShare.expires_at) }}</span>
           </p>
           <button class="sr-share-modal__btn sr-share-modal__btn--secondary" @click="reset">

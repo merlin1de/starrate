@@ -228,7 +228,7 @@ defineProps({
   ncPath: { type: String, default: '/' },
 })
 
-const emit = defineEmits(['close', 'create'])
+defineEmits(['close', 'create'])
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
