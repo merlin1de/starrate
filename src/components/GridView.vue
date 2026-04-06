@@ -42,6 +42,14 @@
           />
           <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
 
+          <!-- Pick-Badge -->
+          <div v-if="enablePickUi && image.pick === 'pick'" class="sr-grid__pick-badge" aria-label="Picked">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <circle cx="12" cy="12" r="10" fill="rgba(0,0,0,0.45)"/>
+              <polyline points="7 12.5 10.5 16 17 9" stroke="#4caf50" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
           <!-- Reject-Overlay -->
           <div v-if="enablePickUi && image.pick === 'reject'" class="sr-grid__reject-overlay">
             <span>✕</span>
@@ -592,6 +600,14 @@ defineExpose({ clearSelection, selectAll, selectedIds })
 }
 
 /* ── Overlays ─────────────────────────────────────────────────────────────── */
+.sr-grid__pick-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .sr-grid__reject-overlay {
   position: absolute;
   inset: 0;
