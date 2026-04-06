@@ -197,4 +197,65 @@ describe('FilterBar', () => {
     expect(w.findAll('.sr-filterbar__mode-btn')[1].classes())
       .toContain('sr-filterbar__mode-btn--active')
   })
+
+  // ── Edge Cases ────────────────────────────────────────────────────────────
+
+  it('Unbewertet-Filter (★0 / exactRating=0)', async () => {
+    const w = factory()
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    const unrated = stars[stars.length - 1] // letzter = ○ (unbewertet)
+    await unrated.trigger('click')
+    const emitted = w.emitted('update:filter')
+    expect(emitted[0][0].exactRating).toBe(0)
+  })
+
+  it('wechselt Operator von = auf ≥ bei aktivem exactRating', async () => {
+    const w = factory({ filter: { ...defaultFilter(), exactRating: 4 } })
+    // Operator-Wechsel zu ≥
+    await w.findAll('.sr-filterbar__op')[0].trigger('click') // ≥
+    // Jetzt den gleichen Stern klicken
+    const stars = w.findAll('.sr-filterbar__pill--star')
+    await stars[1].trigger('click') // ★★★★ = index 1
+    const emitted = w.emitted('update:filter')
+    const last = emitted[emitted.length - 1][0]
+    expect(last.minRating).toBe(4)
+    expect(last.exactRating).toBeNull()
+  })
+
+  it('Pick-Wechsel: pick → reject direkt', async () => {
+    const w = factory({ filter: { ...defaultFilter(), pick: 'pick' }, enablePickUi: true })
+    await w.find('.sr-filterbar__pill--reject').trigger('click')
+    expect(w.emitted('update:filter')[0][0].pick).toBe('reject')
+  })
+
+  it('Status zeigt Anzahl gefiltert / total', () => {
+    const w = factory({
+      filter: { ...defaultFilter(), minRating: 3 },
+      total: 100,
+      filteredCount: 25,
+    })
+    const status = w.find('.sr-filterbar__status')
+    expect(status.text()).toContain('25')
+    expect(status.text()).toContain('100')
+  })
+
+  it('Mobile Reset-Button nur bei aktiven Filtern', () => {
+    const w = factory()
+    expect(w.find('.sr-filterbar__reset--mobile').exists()).toBe(false)
+
+    const w2 = factory({ filter: { ...defaultFilter(), color: 'Blue' } })
+    expect(w2.find('.sr-filterbar__reset--mobile').exists()).toBe(true)
+  })
+
+  it('mehrere Filter gleichzeitig: Sterne + Farbe + Pick', async () => {
+    const w = factory({
+      filter: { ...defaultFilter(), exactRating: 5, color: 'Green' },
+      enablePickUi: true,
+    })
+    await w.find('.sr-filterbar__pill--pick').trigger('click')
+    const emitted = w.emitted('update:filter')
+    expect(emitted[0][0].exactRating).toBe(5)
+    expect(emitted[0][0].color).toBe('Green')
+    expect(emitted[0][0].pick).toBe('pick')
+  })
 })

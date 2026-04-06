@@ -108,4 +108,64 @@ describe('SelectionBar', () => {
     const w = factory({ count: 5 })
     expect(w.find('.sr-selbar__count').text()).toContain('5 Bilder ausgewählt')
   })
+
+  // ── Edge Cases ────────────────────────────────────────────────────────────
+
+  it('sequenzielle Klicks: Star → Color → Star aktualisiert aktive Klasse', async () => {
+    const w = factory()
+    const stars = w.findAll('.sr-selbar__btn--star')
+    const colors = w.findAll('.sr-selbar__btn--color')
+
+    await stars[3].trigger('click') // Rating 3
+    expect(stars[3].classes()).toContain('sr-selbar__btn--active')
+
+    await colors[0].trigger('click') // Red
+    expect(colors[0].classes()).toContain('sr-selbar__btn--active')
+
+    await stars[5].trigger('click') // Rating 5
+    expect(stars[5].classes()).toContain('sr-selbar__btn--active')
+    // Stern 3 nicht mehr aktiv
+    expect(stars[3].classes()).not.toContain('sr-selbar__btn--active')
+  })
+
+  it('verschiedene Farben hintereinander — nur letzte aktiv', async () => {
+    const w = factory()
+    const colors = w.findAll('.sr-selbar__btn--color')
+
+    await colors[0].trigger('click') // Red
+    await colors[2].trigger('click') // Green
+    expect(colors[0].classes()).not.toContain('sr-selbar__btn--active')
+    expect(colors[2].classes()).toContain('sr-selbar__btn--active')
+  })
+
+  it('alle 5 Ratings (1–5) emittieren korrekt', async () => {
+    const w = factory()
+    const stars = w.findAll('.sr-selbar__btn--star')
+    for (let i = 1; i <= 5; i++) {
+      await stars[i].trigger('click')
+      const emitted = w.emitted('rate')
+      const last = emitted[emitted.length - 1]
+      expect(last[0]).toBe(i)
+      expect(last[1]).toBeNull()
+    }
+  })
+
+  it('alle 5 Farben emittieren korrekt', async () => {
+    const expectedColors = ['Red', 'Yellow', 'Green', 'Blue', 'Purple']
+    const w = factory()
+    const colorBtns = w.findAll('.sr-selbar__btn--color')
+
+    for (let i = 0; i < 5; i++) {
+      await colorBtns[i].trigger('click')
+      const emitted = w.emitted('rate')
+      const last = emitted[emitted.length - 1]
+      expect(last[0]).toBeNull()
+      expect(last[1]).toBe(expectedColors[i])
+    }
+  })
+
+  it('große Anzahl wird korrekt angezeigt', () => {
+    const w = factory({ count: 999 })
+    expect(w.find('.sr-selbar__count').text()).toContain('999')
+  })
 })
