@@ -1,6 +1,3 @@
-# Android app (eigenes Repo)
-/android/
-
 # Build output
 /js/
 /dist/
@@ -10,12 +7,11 @@
 # Dependencies
 /node_modules/
 /vendor/
-/sync-app/
 
 # Test results & coverage
 /tests/results/
 
-# Secrets – NIEMALS committen!
+# Secrets
 /docker/
 .env
 .env.local
@@ -35,12 +31,3 @@ bash.exe.stackdump
 
 # PHP
 *.log
-
-/scripts/
-starrate.ico
-
-# LR Plugin (eigenes lokales Plugin, nicht für GitHub)
-/lr-plugin/
-
-# Notizen (lokal)
-/notes/

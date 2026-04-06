@@ -154,13 +154,9 @@ package: build
 	  --exclude='vendor' \
 	  --exclude='tests' \
 	  --exclude='src' \
-	  --exclude='android' \
 	  --exclude='docker' \
-	  --exclude='scripts' \
+	  --exclude='docs' \
 	  --exclude='screenshots' \
-	  --exclude='notes' \
-	  --exclude='lr-plugin' \
-	  --exclude='sync-app' \
 	  --exclude='dist' \
 	  --exclude='build' \
 	  --exclude='*.cy.js' \
@@ -179,7 +175,8 @@ package: build
 	  --exclude='package.json' \
 	  --exclude='package-lock.json' \
 	  -czf $(DIST_DIR)/$(APP_ID).tar.gz \
-	  -C $(dir $(APP_DIR)) $(APP_ID)/
+	  --transform 's|^nextcloud|$(APP_ID)|' \
+	  -C $(dir $(APP_DIR)) nextcloud/
 	@echo "Package ready: $(DIST_DIR)/$(APP_ID).tar.gz"
 
 # ── Deployment ────────────────────────────────────────────────────────────────
@@ -188,11 +185,11 @@ package: build
 .PHONY: deploy
 deploy:
 	@echo "── Deploy → sixpack/Nextcloud ───────────────────────────"
-	powershell -ExecutionPolicy Bypass -File scripts/deploy-nc.ps1
+	powershell -ExecutionPolicy Bypass -File ../scripts/deploy-nc.ps1
 
 .PHONY: deploy-skip-build
 deploy-skip-build:
-	powershell -ExecutionPolicy Bypass -File scripts/deploy-nc.ps1 -SkipBuild
+	powershell -ExecutionPolicy Bypass -File ../scripts/deploy-nc.ps1 -SkipBuild
 
 .PHONY: install
 install: build
@@ -218,8 +215,8 @@ uninstall:
 hooks:
 	@echo "── Installing git hooks ─────────────────────────────────"
 	@mkdir -p .git/hooks
-	@cp scripts/hooks/pre-commit  .git/hooks/pre-commit
-	@cp scripts/hooks/pre-push    .git/hooks/pre-push
+	@cp ../scripts/hooks/pre-commit  .git/hooks/pre-commit
+	@cp ../scripts/hooks/pre-push    .git/hooks/pre-push
 	@chmod +x .git/hooks/pre-commit .git/hooks/pre-push
 	@echo "Hooks installed: pre-commit, pre-push"
 
