@@ -1,5 +1,7 @@
 # StarRate
 
+[![CI](https://github.com/merlin1de/starrate/actions/workflows/ci.yml/badge.svg)](https://github.com/merlin1de/starrate/actions/workflows/ci.yml)
+
 **Professional photo rating and review tool for Nextcloud** — inspired by Lightroom Classic.
 
 StarRate lets photographers rate, label and curate their images directly inside Nextcloud using star ratings (0–5), color labels and Pick/Reject flags. Ratings are written both to Nextcloud Collaborative Tags and into JPEG XMP metadata. A guest-share feature lets clients or models review and rate a selection without a Nextcloud account.
@@ -44,7 +46,7 @@ StarRate lets photographers rate, label and curate their images directly inside 
 
 ## Requirements
 
-- **Nextcloud** 29–32
+- **Nextcloud** 29–33
 - **PHP** 8.1–8.4
 - **Node.js** 18+ / npm 9+
 - **Composer** 2
@@ -191,7 +193,12 @@ All endpoints under `/apps/starrate/api/`:
 | `PUT` | `share/{token}` | Update share link |
 | `DELETE` | `share/{token}` | Delete share link |
 | `GET` | `guest/{token}/images` | Guest: load images |
+| `GET` | `guest/{token}/thumbnail/{fileId}` | Guest: thumbnail |
+| `GET` | `guest/{token}/preview/{fileId}` | Guest: full preview |
 | `POST` | `guest/{token}/rate` | Guest: rate image |
+| `POST` | `guest/{token}/verify` | Guest: verify password |
+| `GET` | `share/{token}/log` | Guest activity log |
+| `DELETE` | `share/{token}/log` | Clear guest log |
 | `GET` | `settings` | User settings |
 | `POST` | `settings` | Save settings |
 
@@ -218,10 +225,14 @@ For commercial licensing (e.g. mobile apps), contact: starrate@merlin1.de
 
 ## Contributing
 
-Pull requests and bug reports are welcome. Please ensure before submitting:
+Pull requests and bug reports are welcome. CI runs automatically on every PR:
+
+- **Vitest** (230 component tests with coverage gate)
+- **PHPUnit** (PHP 8.1 + 8.3)
+
+Before submitting, ensure locally:
 
 ```bash
 make test    # all tests green
-make lint    # no lint errors
 make build   # build succeeds
 ```
