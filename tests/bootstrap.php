@@ -25,6 +25,14 @@ if (!interface_exists('OCP\IRequest') && is_dir(__DIR__ . '/../vendor/nextcloud/
     });
 }
 
+// Polyfill: OCP stubs reference internal OC\* classes not shipped in the ocp package.
+if (!interface_exists('OC\Hooks\Emitter')) {
+    eval('namespace OC\Hooks; interface Emitter {}');
+}
+if (!interface_exists('OC\Hooks\BasicEmitter')) {
+    eval('namespace OC\Hooks; abstract class BasicEmitter implements Emitter {}');
+}
+
 // Polyfill: OCP\DB interfaces reference Doctrine\DBAL classes that are not installed
 // in the test environment. Define minimal stand-ins so PHPUnit can mock them.
 $doctrinePolyfills = [

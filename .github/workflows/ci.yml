@@ -55,12 +55,6 @@ jobs:
       - name: Install dependencies
         run: composer update --no-interaction --prefer-dist
 
-      - name: Debug OCP stubs
-        run: |
-          ls vendor/nextcloud/ocp/ | head -20
-          ls vendor/nextcloud/ocp/OCP/Files/ 2>/dev/null | head -10 || echo "no OCP/Files dir"
-          php -r "require 'vendor/autoload.php'; var_dump(interface_exists('OCP\IRequest')); var_dump(interface_exists('OCP\Files\IRootFolder'));"
-
       - name: PHPUnit
         run: vendor/bin/phpunit --configuration phpunit.xml --no-coverage
 
