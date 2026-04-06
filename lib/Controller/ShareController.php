@@ -8,6 +8,7 @@ use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -228,6 +229,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
     public function guestView(string $token): TemplateResponse
     {
         $share = $this->shareService->getShare($token);
@@ -259,6 +261,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
     public function guestImages(string $token): DataResponse
     {
         $share = $this->getValidShare($token);
@@ -290,6 +293,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 600, period: 60)]
     public function guestThumbnail(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
     {
         $share = $this->getValidShare($token);
@@ -316,6 +320,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 120, period: 60)]
     public function guestPreview(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
     {
         $share = $this->getValidShare($token);
@@ -346,6 +351,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 200, period: 60)]
     public function guestRate(string $token): DataResponse
     {
         $share = $this->getValidShare($token);
@@ -389,6 +395,7 @@ class ShareController extends Controller
                 $pick,
                 $guestName,
             );
+            $this->logger->info("StarRate guest rating: guest=\"{$guestName}\" token={$token} file={$body['file_id']} rating={$rating} color={$color} pick={$pick}");
             return new DataResponse($result, Http::STATUS_OK);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::guestRate – {$e->getMessage()}");
@@ -403,6 +410,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 10, period: 60)]
     public function guestVerifyPassword(string $token): DataResponse
     {
         $share = $this->shareService->getShare($token);
@@ -422,6 +430,7 @@ class ShareController extends Controller
             return new DataResponse(['ok' => true, 'pw_token' => $pwToken]);
         }
 
+        $this->logger->warning("StarRate guest password failed: token={$token} ip={$this->request->getRemoteAddress()}");
         return new DataResponse(['error' => 'Falsches Passwort'], Http::STATUS_UNAUTHORIZED);
     }
 
