@@ -192,10 +192,6 @@ const panY      = ref(0)
 const isPanning = ref(false)
 const panStart  = ref({ x: 0, y: 0, panX: 0, panY: 0 })
 
-// Doppelklick-Tracking
-let lastClickTime = 0
-let dblClickPending = false
-
 // Touch-Pinch
 const touches = ref([])
 let   lastPinchDist = 0

@@ -26,6 +26,9 @@ jobs:
 
       - run: npm ci
 
+      - name: ESLint
+        run: npm run lint
+
       - name: Vitest + Coverage
         run: npx vitest run --coverage
 

@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src --ext .vue,.js",
+    "lint": "eslint src/ && echo ESLint passed - no errors",
     "e2e": "dotenv -e .env.local -- cypress run --headless",
     "e2e:open": "dotenv -e .env.local -- cypress open"
   },
@@ -22,11 +22,15 @@
     "vue-router": "^4.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@nextcloud/vite-config": "^2.2.0",
     "@vitest/coverage-v8": "^1.6.1",
     "@vue/test-utils": "^2.4.0",
     "cypress": "^15.13.0",
     "dotenv-cli": "^11.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-vue": "^9.33.0",
+    "globals": "^17.4.0",
     "jsdom": "^24.0.0",
     "vitest": "^1.4.0"
   }
