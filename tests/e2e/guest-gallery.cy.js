@@ -1,0 +1,310 @@
+/**
+ * StarRate E2E – Guest Gallery: Shares, Passwort, Ablauf, Pick
+ */
+
+import { NC_URL, NC_USER, NC_PASS, login, createShare, deleteShare } from './helpers'
+
+describe('Guest Gallery', () => {
+
+  // ── Basis: Share öffnen und bewerten ─────────────────────────────────────
+
+  describe('Basis', () => {
+    let token
+
+    before(() => {
+      login()
+      createShare({ permissions: 'rate', guest_name: 'E2E-Gast' }).then(share => {
+        token = share.token
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    it('öffnet Gast-Galerie ohne Login', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+    })
+
+    it('Gast kann bewerten (canRate=true)', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+
+      cy.get('.sr-grid').trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').trigger('keydown', { key: '4', bubbles: true })
+      cy.get('.sr-toast--success', { timeout: 5000 }).should('be.visible')
+    })
+
+    it('Gast-Name wird im Breadcrumb angezeigt', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-breadcrumb__guest-label').should('contain', 'E2E-Gast')
+    })
+  })
+
+  // ── View-Only: Gast kann nicht bewerten ────────────────────────────────
+
+  describe('View-Only', () => {
+    let token
+
+    before(() => {
+      login()
+      createShare({ permissions: 'view', guest_name: 'Nur-Ansehen' }).then(share => {
+        token = share.token
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    it('zeigt Bilder an', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)')
+        .should('have.length.greaterThan', 0)
+    })
+
+    it('Rating-Taste hat keinen Effekt (kein Toast)', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+
+      cy.get('.sr-grid').trigger('keydown', { key: 'ArrowRight', bubbles: true })
+      cy.get('.sr-grid').trigger('keydown', { key: '5', bubbles: true })
+
+      // Kein Success-Toast
+      cy.wait(1500)
+      cy.get('.sr-toast--success').should('not.exist')
+    })
+
+    it('API gibt 403 bei Rate-Versuch', () => {
+      cy.request({
+        method: 'POST',
+        url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+        body: { file_id: 99999, rating: 5, guest_name: 'Hacker' },
+        headers: { 'Content-Type': 'application/json' },
+        failOnStatusCode: false,
+      }).then(resp => {
+        expect(resp.status).to.eq(403)
+      })
+    })
+  })
+
+  // ── Passwort-geschützter Share ──────────────────────────────────────────
+
+  describe('Passwort', () => {
+    let token
+
+    before(() => {
+      login()
+      createShare({
+        permissions: 'rate',
+        guest_name: 'PW-Gast',
+        password: 'geheim123',
+      }).then(share => {
+        token = share.token
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    it('zeigt Passwort-Dialog statt Galerie', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+
+      // Passwort-Dialog sichtbar
+      cy.get('.sr-guest-pw__dialog', { timeout: 10000 }).should('be.visible')
+      cy.get('.sr-grid').should('not.exist')
+    })
+
+    it('falsches Passwort → Fehlermeldung', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-guest-pw__dialog', { timeout: 10000 }).should('be.visible')
+
+      cy.get('.sr-guest-pw__input').type('falsch')
+      cy.get('.sr-guest-pw__btn').click()
+      cy.get('.sr-guest-pw__error', { timeout: 5000 }).should('be.visible')
+    })
+
+    it('richtiges Passwort → Galerie öffnet', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-guest-pw__dialog', { timeout: 10000 }).should('be.visible')
+
+      cy.get('.sr-guest-pw__input').type('geheim123')
+      cy.get('.sr-guest-pw__btn').click()
+
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)')
+        .should('have.length.greaterThan', 0)
+    })
+  })
+
+  // ── Ungültiger / abgelaufener Share ────────────────────────────────────
+
+  describe('Ungültige Shares', () => {
+
+    it('ungültiges Token → Ablauf-Seite', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/INVALID_TOKEN_123`, {
+        failOnStatusCode: false,
+      })
+      // share_expired Template wird gerendert
+      cy.get('body').should('not.contain', '.sr-grid')
+    })
+
+    it('abgelaufener Share → Ablauf-Seite', () => {
+      login()
+      // Zuerst normal erstellen, dann per Update ablaufen lassen
+      createShare({
+        permissions: 'rate',
+        guest_name: 'Abgelaufen',
+      }).then(share => {
+        // Ablaufdatum in die Vergangenheit setzen
+        cy.request({
+          method: 'PUT',
+          url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
+          body: { expires_at: Math.floor(Date.now() / 1000) - 3600 },
+          headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
+          auth: { user: NC_USER, pass: NC_PASS },
+        })
+
+        cy.clearCookies()
+        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${share.token}`, {
+          failOnStatusCode: false,
+        })
+        cy.get('.sr-grid').should('not.exist')
+
+        // Aufräumen
+        deleteShare(share.token)
+      })
+    })
+
+    it('deaktivierter Share → Ablauf-Seite', () => {
+      login()
+      createShare({ permissions: 'rate', guest_name: 'Deaktiviert' }).then(share => {
+        // Deaktivieren
+        cy.request({
+          method: 'PUT',
+          url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
+          body: { active: false },
+          headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
+          auth: { user: NC_USER, pass: NC_PASS },
+        })
+
+        cy.clearCookies()
+        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${share.token}`, {
+          failOnStatusCode: false,
+        })
+        cy.get('.sr-grid').should('not.exist')
+
+        deleteShare(share.token)
+      })
+    })
+  })
+
+  // ── Share mit allow_pick ───────────────────────────────────────────────
+
+  describe('Pick im Guest-Modus', () => {
+    let token
+
+    before(() => {
+      login()
+      createShare({
+        permissions: 'rate',
+        guest_name: 'Pick-Gast',
+        allow_pick: true,
+      }).then(share => {
+        token = share.token
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    it('Pick-UI ist sichtbar wenn allow_pick=true', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+
+      // Pick-Filter-Buttons sollten sichtbar sein
+      cy.get('.sr-filterbar__pill--pick').should('exist')
+    })
+
+    it('Gast kann Pick per API setzen', () => {
+      // Bild-ID holen
+      cy.request({
+        url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/images`,
+        headers: { 'Content-Type': 'application/json' },
+      }).then(resp => {
+        const fileId = resp.body.images[0].id
+        cy.request({
+          method: 'POST',
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+          body: { file_id: fileId, pick: 'pick', guest_name: 'Pick-Gast' },
+          headers: { 'Content-Type': 'application/json' },
+        }).then(rateResp => {
+          expect(rateResp.status).to.eq(200)
+        })
+      })
+    })
+  })
+
+  // ── Share ohne allow_pick: Pick wird serverseitig ignoriert ─────────────
+
+  describe('Pick blockiert ohne allow_pick', () => {
+    let token
+
+    before(() => {
+      login()
+      createShare({
+        permissions: 'rate',
+        guest_name: 'No-Pick-Gast',
+        allow_pick: false,
+      }).then(share => {
+        token = share.token
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    it('Pick-UI ist nicht sichtbar wenn allow_pick=false', () => {
+      cy.clearCookies()
+      cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+      cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
+      cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 15000 })
+        .should('have.length.greaterThan', 0)
+
+      // Keine Pick-Filter-Buttons
+      cy.get('.sr-filterbar__pill--pick').should('not.exist')
+    })
+
+    it('API ignoriert Pick-Parameter stillschweigend', () => {
+      cy.request({
+        url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/images`,
+      }).then(resp => {
+        const fileId = resp.body.images[0].id
+        // Pick mitschicken → wird ignoriert, kein Fehler
+        cy.request({
+          method: 'POST',
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+          body: { file_id: fileId, rating: 3, pick: 'pick', guest_name: 'Sneaky' },
+          headers: { 'Content-Type': 'application/json' },
+        }).then(rateResp => {
+          expect(rateResp.status).to.eq(200)
+          // Rating wurde gesetzt, aber Pick ignoriert
+          expect(rateResp.body.rating).to.eq(3)
+          expect(rateResp.body.pick).to.be.null
+        })
+      })
+    })
+  })
+})

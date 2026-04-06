@@ -1,6 +1,6 @@
 module.exports = {
   e2e: {
-    baseUrl: process.env.CYPRESS_NC_URL || process.env.NC_URL || 'https://cloud.mischler.info',
+    baseUrl: process.env.CYPRESS_NC_URL || process.env.NC_URL || 'http://localhost:8080',
 
     specPattern:        'tests/e2e/**/*.cy.js',
     supportFile:        false,
@@ -18,9 +18,9 @@ module.exports = {
     chromeWebSecurity: false,
 
     env: {
-      NC_URL:    process.env.CYPRESS_NC_URL    || process.env.NC_URL    || 'https://cloud.mischler.info',
-      NC_USER:   process.env.CYPRESS_NC_USER   || process.env.NC_USER   || 'test',
-      NC_PASS:   process.env.CYPRESS_NC_PASS   || process.env.NC_PASS   || 'test',
+      NC_URL:    process.env.CYPRESS_NC_URL    || process.env.NC_URL    || 'http://localhost:8080',
+      NC_USER:   process.env.CYPRESS_NC_USER   || process.env.NC_USER   || 'admin',
+      NC_PASS:   process.env.CYPRESS_NC_PASS   || process.env.NC_PASS   || 'admin',
       NC_USER_B: process.env.CYPRESS_NC_USER_B || process.env.NC_USER_B || 'test2',
       NC_PASS_B: process.env.CYPRESS_NC_USER_B || process.env.NC_PASS_B || 'test2',
       // Opt-in: Multi-User-Tests nur ausführen wenn explizit gesetzt
