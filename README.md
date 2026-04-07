@@ -116,7 +116,6 @@ A native Android app is in development:
 
 - **Nextcloud SSO** account picker
 - **Guest deep-links** — open `starrate://guest?token=...` links directly in the app
-- **Free version** with AdMob + **Paid version** (~€3.49) ad-free
 
 ⭐ **Star this repo** to get notified when the Android beta launches.
 
