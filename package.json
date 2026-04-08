@@ -1,6 +1,6 @@
 {
   "name": "starrate",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "description": "Professionelles Foto-Bewertungs- und Lightroom-Sync-Tool für Nextcloud",
   "scripts": {
