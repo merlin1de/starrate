@@ -11,8 +11,9 @@
 # Test results & coverage
 /tests/results/
 
-# Secrets
-/docker/
+# docker/-Geheimnisse: nur *.env ignorieren, *.yml tracken
+/docker/*.env
+/docker/*.env.local
 .env
 .env.local
 .env.*.local

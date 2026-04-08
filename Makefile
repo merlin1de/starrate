@@ -97,9 +97,16 @@ test-e2e:
 # E2E-Tests auf donkeykong via Docker
 DONKEYKONG      ?= donkeykong
 DONKEYKONG_PATH ?= /opt/starrate
+SIXPACK         ?= merlin@sixpack
+NC_DOCKER       ?= /share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker
+NC_CONTAINER    ?= nextcloud
+NC_IP_DONKEYKONG ?= 192.168.2.30
 
 .PHONY: test-e2e-remote
 test-e2e-remote:
+	@echo "── Brute-Force-Reset vor E2E ────────────────────────────"
+	ssh $(SIXPACK) "$(NC_DOCKER) exec -u www-data $(NC_CONTAINER) php occ security:bruteforce:reset $(NC_IP_DONKEYKONG) 2>&1 && echo 'BF-Reset OK'" \
+	  || echo "Warnung: BF-Reset fehlgeschlagen (nicht fatal)"
 	@echo "── Cypress E2E auf donkeykong ────────────────────────────"
 	@echo "   Repo: $(DONKEYKONG):$(DONKEYKONG_PATH)"
 	ssh $(DONKEYKONG) "cd $(DONKEYKONG_PATH) && docker compose -f docker/cypress.yml up --abort-on-container-exit"

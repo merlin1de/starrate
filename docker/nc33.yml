@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# StarRate – Nextcloud 33 Testinstanz
+# Läuft auf: donkeykong  (docker compose -f docker/nc33.yml up -d)
+#
+# Voraussetzungen auf donkeykong:
+#   - docker + docker compose installiert
+#   - Dieses Repository geklont (z.B. unter /opt/starrate)
+#
+# Erster Start:
+#   docker compose -f docker/nc33.yml up -d
+#   # Warten bis NC initialisiert (~30 Sekunden)
+#   docker compose -f docker/nc33.yml exec --user www-data nc33 php occ app:enable starrate
+#
+# Danach erreichbar unter: http://localhost:8080
+# Login: admin / admin
+#
+# App aktualisieren (nach Code-Änderungen):
+#   docker compose -f docker/nc33.yml exec --user www-data nc33 php occ upgrade
+#   # oder bei JS/CSS-Änderungen reicht ein Browser-Reload (Livemount)
+#
+# Instanz stoppen und Daten löschen (Reset):
+#   docker compose -f docker/nc33.yml down -v
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  nc33:
+    image: nextcloud:33
+    container_name: starrate-nc33
+    ports:
+      - "8080:80"
+
+    environment:
+      # Auto-Install beim ersten Start (kein Web-Wizard nötig)
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: admin
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost
+      # SQLite – kein DB-Container nötig für Tests
+      SQLITE_DATABASE: nextcloud
+
+    volumes:
+      # NC-Daten persistent (Config, DB, Uploads)
+      - nc33_data:/var/www/html
+
+    restart: unless-stopped
+
+volumes:
+  nc33_data:
