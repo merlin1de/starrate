@@ -326,7 +326,7 @@ class ShareServiceTest extends TestCase
         $this->config->method('setUserValue');
 
         $result = $this->service->saveGuestRating($share, 1, 3, null, null, '');
-        $this->assertSame('Gast', $result['guest_name']);
+        $this->assertSame('Guest', $result['guest_name']);
     }
 
     public function testGetGuestLogReturnsEmpty(): void

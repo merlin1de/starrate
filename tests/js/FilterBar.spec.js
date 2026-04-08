@@ -53,15 +53,15 @@ describe('FilterBar', () => {
 
   // ── Sterne-Filter ─────────────────────────────────────────────────────────
 
-  it('setzt exactRating=5 beim Klick auf ★★★★★ (default op=)', async () => {
+  it('setzt minRating=5 beim Klick auf ★★★★★ (default op=≥)', async () => {
     const w = factory()
     // Stern-Pills: ★★★★★ ★★★★ ★★★ ★★ ★ ○ → index 0 = ★★★★★
     const stars = w.findAll('.sr-filterbar__pill--star')
     await stars[0].trigger('click')
     const emitted = w.emitted('update:filter')
     expect(emitted).toBeTruthy()
-    expect(emitted[0][0].exactRating).toBe(5)
-    expect(emitted[0][0].minRating).toBe(0)
+    expect(emitted[0][0].minRating).toBe(5)
+    expect(emitted[0][0].exactRating).toBeNull()
   })
 
   it('setzt minRating=5 beim Klick op=≥, dann ★★★★★', async () => {
@@ -74,13 +74,13 @@ describe('FilterBar', () => {
     expect(emitted[0][0].exactRating).toBeNull()
   })
 
-  it('setzt exactRating=3 beim Klick auf ★★★ (default op=)', async () => {
+  it('setzt minRating=3 beim Klick auf ★★★ (default op=≥)', async () => {
     const w = factory()
     const stars = w.findAll('.sr-filterbar__pill--star')
     await stars[2].trigger('click') // ★★★ = index 2
     const emitted = w.emitted('update:filter')
-    expect(emitted[0][0].exactRating).toBe(3)
-    expect(emitted[0][0].minRating).toBe(0)
+    expect(emitted[0][0].minRating).toBe(3)
+    expect(emitted[0][0].exactRating).toBeNull()
   })
 
   it('deaktiviert Sterne-Filter bei nochmaligem Klick', async () => {
