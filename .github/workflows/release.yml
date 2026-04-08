@@ -187,19 +187,25 @@ jobs:
       - name: Upload to Nextcloud App Store
         env:
           NC_APP_STORE_TOKEN: ${{ secrets.NC_APP_STORE_TOKEN }}
+          NC_APP_STORE_SIGNING_KEY: ${{ secrets.NC_APP_STORE_SIGNING_KEY }}
         run: |
-          if [ -z "$NC_APP_STORE_TOKEN" ]; then
-            echo "NC_APP_STORE_TOKEN not set — skipping App Store upload."
-            echo "To enable: add NC_APP_STORE_TOKEN as a GitHub repository secret."
-            exit 0
+          if [ -z "$NC_APP_STORE_TOKEN" ] || [ -z "$NC_APP_STORE_SIGNING_KEY" ]; then
+            echo "NC_APP_STORE_TOKEN or NC_APP_STORE_SIGNING_KEY not set — cannot upload."
+            exit 1
           fi
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/starrate.tar.gz"
+          echo "Downloading release archive for signing..."
+          curl -sL "$DOWNLOAD_URL" -o /tmp/starrate.tar.gz
+          echo "Signing archive..."
+          echo "$NC_APP_STORE_SIGNING_KEY" | base64 -d > /tmp/starrate.key
+          SIGNATURE=$(openssl dgst -sha512 -sign /tmp/starrate.key /tmp/starrate.tar.gz | openssl base64 -A)
+          rm -f /tmp/starrate.key
           echo "Uploading: $DOWNLOAD_URL"
           HTTP_STATUS=$(curl -s -o /tmp/appstore_response.json -w "%{http_code}" \
             -X POST https://apps.nextcloud.com/api/v1/apps/releases/ \
             -H "Authorization: Token $NC_APP_STORE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"download\": \"$DOWNLOAD_URL\"}")
+            -d "{\"download\": \"$DOWNLOAD_URL\", \"signature\": \"$SIGNATURE\"}")
           echo "HTTP Status: $HTTP_STATUS"
           cat /tmp/appstore_response.json
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
