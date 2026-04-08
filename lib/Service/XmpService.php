@@ -74,44 +74,20 @@ XMP;
                 /** @var File $existing */
                 $existing = $folder->get($sidecarName);
                 $existing->putContent($xmpContent);
-                $this->logger->debug("StarRate: Sidecar aktualisiert: {$sidecarName}");
+                $this->logger->debug("StarRate: sidecar updated: {$sidecarName}");
             } else {
                 $folder->newFile($sidecarName, $xmpContent);
-                $this->logger->debug("StarRate: Sidecar erstellt: {$sidecarName}");
+                $this->logger->debug("StarRate: sidecar created: {$sidecarName}");
             }
         } catch (\Exception $e) {
             throw new \RuntimeException(
-                "Fehler beim Schreiben der Sidecar {$sidecarName}: " . $e->getMessage(),
+                "Failed to write sidecar {$sidecarName}: " . $e->getMessage(),
                 0,
                 $e
             );
         }
 
         return $xmpContent;
-    }
-
-    /**
-     * Schreibt eine Sidecar anhand eines absoluten lokalen Dateipfades.
-     * Wird vom SyncService für lokale Lightroom-Ordner verwendet.
-     *
-     * @param  string      $localRawPath  Absoluter Pfad zur RAW-Datei (z. B. /foto/IMG_1234.cr3)
-     * @param  int         $rating
-     * @param  string|null $label
-     * @return string                     Pfad der geschriebenen .xmp-Datei
-     */
-    public function writeSidecarLocal(string $localRawPath, int $rating, ?string $label): string
-    {
-        $dir         = dirname($localRawPath);
-        $baseName    = pathinfo($localRawPath, PATHINFO_FILENAME);
-        $sidecarPath = $dir . DIRECTORY_SEPARATOR . $baseName . '.xmp';
-        $xmpContent  = $this->buildXmpContent($rating, $label);
-
-        if (file_put_contents($sidecarPath, $xmpContent) === false) {
-            throw new \RuntimeException("Konnte Sidecar nicht schreiben: {$sidecarPath}");
-        }
-
-        $this->logger->debug("StarRate: Lokale Sidecar geschrieben: {$sidecarPath}");
-        return $sidecarPath;
     }
 
     // ─── Sidecar lesen ────────────────────────────────────────────────────────
@@ -138,34 +114,9 @@ XMP;
         } catch (NotFoundException) {
             return null;
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Fehler beim Lesen der Sidecar {$sidecarName}: " . $e->getMessage());
+            $this->logger->warning("StarRate: failed to read sidecar {$sidecarName}: " . $e->getMessage());
             return null;
         }
-    }
-
-    /**
-     * Liest eine .xmp-Sidecar von einem lokalen Pfad.
-     *
-     * @return array{rating: int, label: string|null, mtime: int}|null
-     */
-    public function readSidecarLocal(string $localRawPath): ?array
-    {
-        $dir         = dirname($localRawPath);
-        $baseName    = pathinfo($localRawPath, PATHINFO_FILENAME);
-        $sidecarPath = $dir . DIRECTORY_SEPARATOR . $baseName . '.xmp';
-
-        if (!file_exists($sidecarPath)) {
-            return null;
-        }
-
-        $content = file_get_contents($sidecarPath);
-        if ($content === false) {
-            return null;
-        }
-
-        $parsed = $this->parseXmpContent($content);
-        $parsed['mtime'] = (int) filemtime($sidecarPath);
-        return $parsed;
     }
 
     // ─── Dateiname-Matching ───────────────────────────────────────────────────
@@ -217,37 +168,6 @@ XMP;
     {
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         return in_array($ext, self::JPEG_EXTENSIONS, true);
-    }
-
-    /**
-     * Sucht in einem lokalen Verzeichnis alle Dateien mit dem gleichen Basis-Namen.
-     *
-     * @param  string   $localDir   Lokaler Ordnerpfad
-     * @param  string   $baseName   Basis-Name ohne Erweiterung (z. B. "IMG_1234")
-     * @return string[]             Absolute Pfade gefundener Dateien
-     */
-    public function findMatchingLocalFiles(string $localDir, string $baseName): array
-    {
-        if (!is_dir($localDir)) {
-            return [];
-        }
-
-        $matches = [];
-        $files   = scandir($localDir);
-        if ($files === false) {
-            return [];
-        }
-
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-            if (strcasecmp(pathinfo($file, PATHINFO_FILENAME), $baseName) === 0) {
-                $matches[] = $localDir . DIRECTORY_SEPARATOR . $file;
-            }
-        }
-
-        return $matches;
     }
 
     // ─── XMP aufbauen / parsen ────────────────────────────────────────────────
@@ -313,7 +233,7 @@ XMP;
                 return true;
             }
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Sidecar löschen fehlgeschlagen: " . $e->getMessage());
+            $this->logger->warning("StarRate: failed to delete sidecar: " . $e->getMessage());
         }
         return false;
     }

@@ -51,7 +51,7 @@ class ExifService
 
         $content = $file->getContent();
         if (!$this->isJpeg($content)) {
-            throw new \RuntimeException("Datei ist kein gültiges JPEG: " . $file->getName());
+            throw new \RuntimeException("Not a valid JPEG file: " . $file->getName());
         }
 
         $existing = $this->readXmpFromContent($content);
@@ -62,10 +62,10 @@ class ExifService
         $file->putContent($updated);
 
         $this->logger->info(sprintf(
-            'StarRate: XMP in %s geschrieben — Rating: %s, Label: %s',
+            'StarRate: XMP written to %s — rating: %s, label: %s',
             $file->getName(),
-            $merged['rating'] ?? 'unverändert',
-            $merged['label']  ?? 'unverändert'
+            $merged['rating'] ?? 'unchanged',
+            $merged['label']  ?? 'unchanged'
         ));
     }
 
@@ -83,7 +83,7 @@ class ExifService
             }
             return $this->readXmpFromContent($content);
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Fehler beim Lesen von {$file->getName()}: " . $e->getMessage());
+            $this->logger->warning("StarRate: failed to read metadata from {$file->getName()}: " . $e->getMessage());
             return ['rating' => 0, 'label' => null];
         }
     }
@@ -110,7 +110,7 @@ class ExifService
         $this->validateInputs($rating, $label);
 
         if (!$this->isJpeg($content)) {
-            throw new \RuntimeException('Inhalt ist kein gültiges JPEG.');
+            throw new \RuntimeException('Content is not a valid JPEG.');
         }
 
         $existing = $this->readXmpFromContent($content);
@@ -230,7 +230,7 @@ class ExifService
         $segmentLen   = strlen($xmpPayload) + 2; // +2 für Längenfeld selbst
 
         if ($segmentLen > 0xFFFF) {
-            throw new \RuntimeException('XMP-Paket ist zu groß für ein einzelnes JPEG-Segment (max 65533 Bytes).');
+            throw new \RuntimeException('XMP packet too large for a single JPEG segment (max 65533 bytes).');
         }
 
         $newSegment = self::XMP_MARKER
@@ -297,12 +297,12 @@ class ExifService
     private function validateInputs(?int $rating, ?string $label): void
     {
         if ($rating !== null && ($rating < 0 || $rating > 5)) {
-            throw new \InvalidArgumentException("Rating muss zwischen 0 und 5 liegen, erhalten: {$rating}");
+            throw new \InvalidArgumentException("Rating must be between 0 and 5, got: {$rating}");
         }
 
         if ($label !== null && $label !== '' && !isset(self::LABEL_MAP[$label])) {
             throw new \InvalidArgumentException(
-                "Ungültiges Label: {$label}. Erlaubt: " . implode(', ', array_keys(self::LABEL_MAP))
+                "Invalid label: {$label}. Allowed: " . implode(', ', array_keys(self::LABEL_MAP))
             );
         }
     }

@@ -48,7 +48,7 @@ class RatingController extends Controller
 
         $file = $this->getFileById($userId, $fileId);
         if ($file === null) {
-            return new DataResponse(['error' => 'Datei nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
         }
 
         try {
@@ -56,7 +56,7 @@ class RatingController extends Controller
             return new DataResponse($meta);
         } catch (\Exception $e) {
             $this->logger->error("StarRate RatingController::get – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -88,7 +88,7 @@ class RatingController extends Controller
 
         $file = $this->getFileById($userId, $fileId);
         if ($file === null) {
-            return new DataResponse(['error' => 'Datei nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
         }
 
         try {
@@ -126,7 +126,7 @@ class RatingController extends Controller
             return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
         } catch (\Exception $e) {
             $this->logger->error("StarRate RatingController::set – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -154,11 +154,11 @@ class RatingController extends Controller
         $body = $this->getJsonBody();
 
         if (empty($body['fileIds']) || !is_array($body['fileIds'])) {
-            return new DataResponse(['error' => 'fileIds fehlt oder ist kein Array'], Http::STATUS_BAD_REQUEST);
+            return new DataResponse(['error' => 'fileIds missing or not an array'], Http::STATUS_BAD_REQUEST);
         }
 
         if (count($body['fileIds']) > 500) {
-            return new DataResponse(['error' => 'Maximal 500 Dateien pro Batch'], Http::STATUS_BAD_REQUEST);
+            return new DataResponse(['error' => 'Maximum 500 files per batch'], Http::STATUS_BAD_REQUEST);
         }
 
         $errors = $this->validateRatingBody($body);
@@ -188,7 +188,7 @@ class RatingController extends Controller
                 $file = $this->getFileById($userId, $fileId);
                 if ($file === null) {
                     $errCount++;
-                    $details[] = ['id' => $fileId, 'error' => 'Nicht gefunden'];
+                    $details[] = ['id' => $fileId, 'error' => 'Not found'];
                     continue;
                 }
 
@@ -211,7 +211,7 @@ class RatingController extends Controller
             } catch (\Exception $e) {
                 $errCount++;
                 $details[] = ['id' => $fileId, 'error' => $e->getMessage()];
-                $this->logger->warning("StarRate Batch-Rating Fehler für {$fileId}: " . $e->getMessage());
+                $this->logger->warning("StarRate batch rating error for {$fileId}: " . $e->getMessage());
             }
         }
 
@@ -236,7 +236,7 @@ class RatingController extends Controller
 
         $file = $this->getFileById($userId, $fileId);
         if ($file === null) {
-            return new DataResponse(['error' => 'Datei nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
         }
 
         try {
@@ -250,7 +250,7 @@ class RatingController extends Controller
             return new DataResponse(['ok' => true]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate RatingController::delete – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -263,21 +263,21 @@ class RatingController extends Controller
         if (array_key_exists('rating', $body)) {
             $r = $body['rating'];
             if (!is_int($r) && !ctype_digit((string) $r)) {
-                $errors[] = 'rating muss eine Ganzzahl sein';
+                $errors[] = 'rating must be an integer';
             } elseif ((int) $r < 0 || (int) $r > 5) {
-                $errors[] = 'rating muss zwischen 0 und 5 liegen';
+                $errors[] = 'rating must be between 0 and 5';
             }
         }
 
         if (array_key_exists('color', $body) && $body['color'] !== '' && $body['color'] !== null) {
             if (!in_array($body['color'], TagService::VALID_COLORS, true)) {
-                $errors[] = 'color muss einer von ' . implode(', ', TagService::VALID_COLORS) . ' sein';
+                $errors[] = 'color must be one of ' . implode(', ', TagService::VALID_COLORS);
             }
         }
 
         if (array_key_exists('pick', $body)) {
             if (!in_array($body['pick'], TagService::VALID_PICKS, true)) {
-                $errors[] = 'pick muss "pick", "reject" oder "none" sein';
+                $errors[] = 'pick must be "pick", "reject" or "none"';
             }
         }
 

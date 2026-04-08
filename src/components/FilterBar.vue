@@ -189,7 +189,7 @@ const colorOptions = COLOR_OPTIONS
 
 // ─── Rating-Filter ────────────────────────────────────────────────────────────
 
-const selectedOp = ref('=')
+const selectedOp = ref('≥')
 
 // selectedOp mit eingehendem Filter synchronisieren (z.B. aus localStorage)
 watch(() => props.filter, (f) => {
