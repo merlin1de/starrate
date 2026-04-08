@@ -49,6 +49,7 @@ help:
 	@echo "  Maintenance"
 	@echo "    make lint             Run PHP_CodeSniffer + ESLint"
 	@echo "    make clean            Remove build artefacts"
+	@echo "    make bump V=x.y.z     Version in appinfo/info.xml + package.json setzen"
 	@echo ""
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
@@ -238,3 +239,10 @@ clean:
 	rm -rf $(BUILD_DIR) $(DIST_DIR) js/
 	rm -rf tests/results/coverage-php tests/results/coverage-js
 	rm -f  tests/results/last-run.txt
+
+.PHONY: bump
+bump:
+	@test -n "$(V)" || (echo "Usage: make bump V=x.y.z" && exit 1)
+	@sed -i 's|<version>.*</version>|<version>$(V)</version>|' appinfo/info.xml
+	@sed -i 's|"version": ".*"|"version": "$(V)"|' package.json
+	@echo "Version bumped to $(V) in appinfo/info.xml + package.json"
