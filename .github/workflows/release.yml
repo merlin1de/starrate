@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build JS bundle
+        run: npm run build
+
+      - name: Install Composer dependencies (no-dev)
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Create release archive
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='.gitignore' \
+            --exclude='.npmrc' \
+            --exclude='.env*' \
+            --exclude='node_modules' \
+            --exclude='vendor/bin' \
+            --exclude='tests' \
+            --exclude='src' \
+            --exclude='docker' \
+            --exclude='docs' \
+            --exclude='screenshots' \
+            --exclude='dist' \
+            --exclude='build' \
+            --exclude='*.cy.js' \
+            --exclude='*.spec.js' \
+            --exclude='*.stackdump' \
+            --exclude='*.ico' \
+            --exclude='CLAUDE.md' \
+            --exclude='README.md' \
+            --exclude='Makefile' \
+            --exclude='cypress.config.cjs' \
+            --exclude='vite.config.js' \
+            --exclude='vitest.config.js' \
+            --exclude='phpunit.xml' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            -czf dist/starrate.tar.gz \
+            --transform 's|^\.|starrate|' \
+            .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/starrate.tar.gz
+          generate_release_notes: true
