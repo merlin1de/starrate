@@ -77,7 +77,7 @@ class ShareController extends Controller
             return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::create – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -96,7 +96,7 @@ class ShareController extends Controller
             return new DataResponse(['shares' => $shares]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::list – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -113,12 +113,12 @@ class ShareController extends Controller
         try {
             $share = $this->shareService->getShare($token);
             if ($share === null || $share['owner_id'] !== $userId) {
-                return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+                return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
             }
             return new DataResponse(['share' => $share]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::get – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -136,7 +136,7 @@ class ShareController extends Controller
         $share = $this->shareService->getShare($token);
 
         if ($share === null || $share['owner_id'] !== $userId) {
-            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
         }
 
         try {
@@ -146,7 +146,7 @@ class ShareController extends Controller
             return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::update – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -162,7 +162,7 @@ class ShareController extends Controller
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
-            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
         }
 
         try {
@@ -170,7 +170,7 @@ class ShareController extends Controller
             return new DataResponse(['ok' => true]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::delete – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -188,7 +188,7 @@ class ShareController extends Controller
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
-            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
         }
 
         return new DataResponse(['log' => $this->shareService->getGuestLog($token)]);
@@ -209,7 +209,7 @@ class ShareController extends Controller
 
         $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
-            return new DataResponse(['error' => 'Nicht gefunden'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
         }
 
         $before = $this->request->getParam('before');
@@ -266,11 +266,11 @@ class ShareController extends Controller
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
-            return new DataResponse(['error' => 'Link ungültig oder abgelaufen'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Invalid or expired link'], Http::STATUS_FORBIDDEN);
         }
 
         if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
 
         $subPath = (string) ($this->request->getParam('path', ''));
@@ -284,7 +284,7 @@ class ShareController extends Controller
             ]);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::guestImages – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -298,11 +298,11 @@ class ShareController extends Controller
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
-            return new DataResponse(['error' => 'Link ungültig'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
         }
 
         if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
 
         $width  = min(max((int) ($this->request->getParam('width',  400)), 32), 3840);
@@ -311,7 +311,7 @@ class ShareController extends Controller
         try {
             return $this->shareService->getThumbnailForShare($share, $fileId, $width, $height);
         } catch (\Exception $e) {
-            return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
         }
     }
 
@@ -325,17 +325,17 @@ class ShareController extends Controller
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
-            return new DataResponse(['error' => 'Link ungültig'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
         }
 
         if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
 
         try {
             return $this->shareService->getThumbnailForShare($share, $fileId, 1920, 1200);
         } catch (\Exception $e) {
-            return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
         }
     }
 
@@ -356,21 +356,21 @@ class ShareController extends Controller
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
-            return new DataResponse(['error' => 'Link ungültig oder abgelaufen'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Invalid or expired link'], Http::STATUS_FORBIDDEN);
         }
 
         if ($share['permissions'] !== ShareService::PERM_RATE) {
-            return new DataResponse(['error' => 'Keine Bewertungsberechtigung'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Not authorized to rate'], Http::STATUS_FORBIDDEN);
         }
 
         if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Passwort erforderlich'], Http::STATUS_UNAUTHORIZED);
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
 
         $body = $this->getJsonBody();
 
         if (empty($body['file_id'])) {
-            return new DataResponse(['error' => 'file_id fehlt'], Http::STATUS_BAD_REQUEST);
+            return new DataResponse(['error' => 'file_id missing'], Http::STATUS_BAD_REQUEST);
         }
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
@@ -379,11 +379,11 @@ class ShareController extends Controller
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
         if ($rating !== null && ($rating < 0 || $rating > 5)) {
-            return new DataResponse(['error' => 'rating muss zwischen 0 und 5 liegen'], Http::STATUS_UNPROCESSABLE_ENTITY);
+            return new DataResponse(['error' => 'rating must be between 0 and 5'], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
         if ($pick !== null && !in_array($pick, TagService::VALID_PICKS, true)) {
-            return new DataResponse(['error' => 'Ungültiger Pick-Status'], Http::STATUS_UNPROCESSABLE_ENTITY);
+            return new DataResponse(['error' => 'Invalid pick status'], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
         try {
@@ -399,7 +399,7 @@ class ShareController extends Controller
             return new DataResponse($result, Http::STATUS_OK);
         } catch (\Exception $e) {
             $this->logger->error("StarRate ShareController::guestRate – {$e->getMessage()}");
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -416,7 +416,7 @@ class ShareController extends Controller
         $share = $this->shareService->getShare($token);
 
         if ($share === null || !$this->shareService->isShareValid($share)) {
-            return new DataResponse(['error' => 'Link ungültig'], Http::STATUS_FORBIDDEN);
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
         }
 
         $body     = $this->getJsonBody();
@@ -431,7 +431,7 @@ class ShareController extends Controller
         }
 
         $this->logger->warning("StarRate guest password failed: token={$token} ip={$this->request->getRemoteAddress()}");
-        return new DataResponse(['error' => 'Falsches Passwort'], Http::STATUS_UNAUTHORIZED);
+        return new DataResponse(['error' => 'Wrong password'], Http::STATUS_UNAUTHORIZED);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
