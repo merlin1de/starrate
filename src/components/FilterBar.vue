@@ -227,7 +227,8 @@ function clickStars(n) {
     updateFilter({ ...props.filter, minRating: 0, exactRating: null, maxRating: null })
     return
   }
-  applyRating(n, selectedOp.value)
+  // n=0 (unrated) is meaningless with ≥ — always use exact match
+  applyRating(n, n === 0 ? '=' : selectedOp.value)
 }
 
 function applyRating(n, op) {
