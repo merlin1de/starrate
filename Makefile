@@ -142,6 +142,8 @@ build:
 
 .PHONY: package
 package: build
+	@echo "── Composer autoloader (no-dev) ─────────────────────────"
+	$(COMPOSER) install --no-dev --optimize-autoloader --no-interaction
 	@echo "── Packaging $(APP_ID).tar.gz ───────────────────────────"
 	@mkdir -p $(DIST_DIR)
 	@tar \
@@ -151,7 +153,7 @@ package: build
 	  --exclude='.npmrc' \
 	  --exclude='.env*' \
 	  --exclude='node_modules' \
-	  --exclude='vendor' \
+	  --exclude='vendor/bin' \
 	  --exclude='tests' \
 	  --exclude='src' \
 	  --exclude='docker' \
@@ -177,6 +179,8 @@ package: build
 	  -czf $(DIST_DIR)/$(APP_ID).tar.gz \
 	  --transform 's|^nextcloud|$(APP_ID)|' \
 	  -C $(dir $(APP_DIR)) nextcloud/
+	@echo "── Wiederherstellung dev-Dependencies ───────────────────"
+	$(COMPOSER) install --no-interaction
 	@echo "Package ready: $(DIST_DIR)/$(APP_ID).tar.gz"
 
 # ── Deployment ────────────────────────────────────────────────────────────────
