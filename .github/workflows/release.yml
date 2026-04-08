@@ -75,14 +75,18 @@ jobs:
             -czf dist/starrate.tar.gz \
             .
 
-      - name: Verify archive contains autoloader
+      - name: Verify archive contains required files
         run: |
-          echo "=== Required files ==="
-          tar -tzf dist/starrate.tar.gz | grep 'vendor/autoload.php'
-          tar -tzf dist/starrate.tar.gz | grep 'vendor/composer/autoload_psr4.php'
-          tar -tzf dist/starrate.tar.gz | grep 'appinfo/info.xml'
-          echo "=== vendor/ structure ==="
-          tar -tzf dist/starrate.tar.gz | grep '^starrate/vendor/' | head -15
+          echo "Checking required files..."
+          tar -tzf dist/starrate.tar.gz | grep -q 'starrate/vendor/autoload.php' \
+            && echo "  ✓ vendor/autoload.php" \
+            || (echo "  ✗ vendor/autoload.php MISSING" && exit 1)
+          tar -tzf dist/starrate.tar.gz | grep -q 'starrate/vendor/composer/autoload_psr4.php' \
+            && echo "  ✓ vendor/composer/autoload_psr4.php" \
+            || (echo "  ✗ autoload_psr4.php MISSING" && exit 1)
+          tar -tzf dist/starrate.tar.gz | grep -q 'starrate/appinfo/info.xml' \
+            && echo "  ✓ appinfo/info.xml" \
+            || (echo "  ✗ appinfo/info.xml MISSING" && exit 1)
           echo "All required files present ✓"
 
       - name: Upload archive as artifact
@@ -98,24 +102,25 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
 
-    services:
-      nextcloud:
-        image: nextcloud:33
-        ports:
-          - 8080:80
-        env:
-          NEXTCLOUD_ADMIN_USER: admin
-          NEXTCLOUD_ADMIN_PASSWORD: admin
-          NEXTCLOUD_TRUSTED_DOMAINS: localhost
-          SQLITE_DATABASE: nextcloud
-        options: >-
-          --health-cmd "curl -sf http://localhost/status.php || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
-          --health-start-period 60s
-
     steps:
+      - name: Start Nextcloud 33
+        run: |
+          docker run -d --name nc33 \
+            -p 8080:80 \
+            -e NEXTCLOUD_ADMIN_USER=admin \
+            -e NEXTCLOUD_ADMIN_PASSWORD=admin \
+            -e NEXTCLOUD_TRUSTED_DOMAINS=localhost \
+            -e SQLITE_DATABASE=nextcloud \
+            nextcloud:33
+          echo "Waiting for Nextcloud to initialize (up to 90s)..."
+          for i in $(seq 1 18); do
+            sleep 5
+            STATUS=$(curl -sf http://localhost:8080/status.php 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('installed',''))" 2>/dev/null || echo "")
+            echo "  Attempt $i: installed=$STATUS"
+            [ "$STATUS" = "True" ] && echo "Nextcloud ready ✓" && break
+            [ "$i" = "18" ] && echo "Timeout waiting for NC" && exit 1
+          done
+
       - name: Download archive artifact
         uses: actions/download-artifact@v4
         with:
@@ -123,33 +128,33 @@ jobs:
 
       - name: Install app into Nextcloud
         run: |
-          # Extract into a temp location
           tar -xzf starrate.tar.gz -C /tmp/
-          # Copy into running NC container
-          docker cp /tmp/starrate $(docker ps -q --filter ancestor=nextcloud:33):/var/www/html/custom_apps/
+          docker cp /tmp/starrate nc33:/var/www/html/custom_apps/
 
-      - name: Enable app and verify
+      - name: Enable app and verify version
         run: |
-          CONTAINER=$(docker ps -q --filter ancestor=nextcloud:33)
-          # Enable the app
-          docker exec -u www-data "$CONTAINER" php occ app:enable starrate 2>&1
-          # Check version matches tag
-          INSTALLED=$(docker exec -u www-data "$CONTAINER" php occ app:list --output json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('enabled',{}).get('starrate',{}).get('version','NOT FOUND'))")
+          RESULT=$(docker exec -u www-data nc33 php occ app:enable starrate 2>&1)
+          echo "$RESULT"
+          echo "$RESULT" | grep -q "enabled" || (echo "App enable failed!" && exit 1)
+          INSTALLED=$(docker exec -u www-data nc33 php occ app:list --output json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('enabled',{}).get('starrate',{}).get('version','NOT_FOUND'))")
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          echo "Installed: $INSTALLED | Tag: $TAG_VERSION"
-          [ "$INSTALLED" = "$TAG_VERSION" ] && echo "Version check passed ✓" || (echo "Version mismatch!" && exit 1)
+          echo "Installed version: $INSTALLED | Expected: $TAG_VERSION"
+          [ "$INSTALLED" = "$TAG_VERSION" ] \
+            && echo "Version check passed ✓" \
+            || (echo "Version mismatch: got $INSTALLED, expected $TAG_VERSION" && exit 1)
 
-      - name: Smoke test — API responds
+      - name: Smoke test — API responds without fatal error
         run: |
-          CONTAINER=$(docker ps -q --filter ancestor=nextcloud:33)
-          # Basic API call to verify no fatal errors
           HTTP=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
             -u admin:admin \
             "http://localhost:8080/index.php/apps/starrate/api/settings" \
             -H "OCS-APIREQUEST: true")
-          echo "HTTP $HTTP"
+          echo "HTTP $HTTP — response:"
           cat /tmp/resp.json
-          [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ] && echo "API smoke test passed ✓" || (echo "API returned $HTTP" && exit 1)
+          [ "$HTTP" = "200" ] \
+            && echo "API smoke test passed ✓" \
+            || (echo "API returned unexpected status $HTTP" && exit 1)
 
   # ── GitHub Release ───────────────────────────────────────────────────────────
   release:
@@ -176,17 +181,22 @@ jobs:
     name: Nextcloud App Store
     needs: release
     runs-on: ubuntu-latest
-    # Nur ausführen wenn Token vorhanden
-    if: ${{ secrets.NC_APP_STORE_TOKEN != '' }}
 
     steps:
       - name: Upload to Nextcloud App Store
+        env:
+          NC_APP_STORE_TOKEN: ${{ secrets.NC_APP_STORE_TOKEN }}
         run: |
+          if [ -z "$NC_APP_STORE_TOKEN" ]; then
+            echo "NC_APP_STORE_TOKEN not set — skipping App Store upload."
+            echo "To enable: add NC_APP_STORE_TOKEN as a GitHub repository secret."
+            exit 0
+          fi
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/starrate.tar.gz"
           echo "Uploading: $DOWNLOAD_URL"
           HTTP_STATUS=$(curl -s -o /tmp/appstore_response.json -w "%{http_code}" \
             -X POST https://apps.nextcloud.com/api/v1/apps/releases/ \
-            -H "Authorization: Token ${{ secrets.NC_APP_STORE_TOKEN }}" \
+            -H "Authorization: Token $NC_APP_STORE_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"download\": \"$DOWNLOAD_URL\"}")
           echo "HTTP Status: $HTTP_STATUS"
