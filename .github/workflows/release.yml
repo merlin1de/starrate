@@ -6,8 +6,10 @@ on:
       - 'v*.*.*'
 
 jobs:
-  release:
-    name: Build & Release
+
+  # ── Build & Package ──────────────────────────────────────────────────────────
+  build:
+    name: Build package
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -37,8 +39,6 @@ jobs:
       - name: Create release archive
         run: |
           mkdir -p dist
-          # GitHub-Actions-Checkout: Repo-Root IS die nextcloud/ App.
-          # --transform wandelt ./foo → starrate/foo um.
           tar \
             --exclude='./.git' \
             --exclude='./.github' \
@@ -75,22 +75,111 @@ jobs:
             -czf dist/starrate.tar.gz \
             .
 
-      - name: Verify archive structure
+      - name: Verify archive contains autoloader
         run: |
-          echo "=== Top-level directories ==="
-          tar -tzf dist/starrate.tar.gz | grep -v '/' | head -5
-          echo "=== All paths (first 40) ==="
-          tar -tzf dist/starrate.tar.gz | head -40
-          echo "=== vendor/ contents ==="
-          tar -tzf dist/starrate.tar.gz | grep '^starrate/vendor/' | head -20
+          echo "=== Required files ==="
+          tar -tzf dist/starrate.tar.gz | grep 'vendor/autoload.php'
+          tar -tzf dist/starrate.tar.gz | grep 'vendor/composer/autoload_psr4.php'
+          tar -tzf dist/starrate.tar.gz | grep 'appinfo/info.xml'
+          echo "=== vendor/ structure ==="
+          tar -tzf dist/starrate.tar.gz | grep '^starrate/vendor/' | head -15
+          echo "All required files present ✓"
+
+      - name: Upload archive as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starrate-package
+          path: dist/starrate.tar.gz
+          retention-days: 1
+
+  # ── Install test (NC 33) ─────────────────────────────────────────────────────
+  install-test:
+    name: Install test (NC 33)
+    needs: build
+    runs-on: ubuntu-latest
+
+    services:
+      nextcloud:
+        image: nextcloud:33
+        ports:
+          - 8080:80
+        env:
+          NEXTCLOUD_ADMIN_USER: admin
+          NEXTCLOUD_ADMIN_PASSWORD: admin
+          NEXTCLOUD_TRUSTED_DOMAINS: localhost
+          SQLITE_DATABASE: nextcloud
+        options: >-
+          --health-cmd "curl -sf http://localhost/status.php || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 60s
+
+    steps:
+      - name: Download archive artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: starrate-package
+
+      - name: Install app into Nextcloud
+        run: |
+          # Extract into a temp location
+          tar -xzf starrate.tar.gz -C /tmp/
+          # Copy into running NC container
+          docker cp /tmp/starrate $(docker ps -q --filter ancestor=nextcloud:33):/var/www/html/custom_apps/
+
+      - name: Enable app and verify
+        run: |
+          CONTAINER=$(docker ps -q --filter ancestor=nextcloud:33)
+          # Enable the app
+          docker exec -u www-data "$CONTAINER" php occ app:enable starrate 2>&1
+          # Check version matches tag
+          INSTALLED=$(docker exec -u www-data "$CONTAINER" php occ app:list --output json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('enabled',{}).get('starrate',{}).get('version','NOT FOUND'))")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Installed: $INSTALLED | Tag: $TAG_VERSION"
+          [ "$INSTALLED" = "$TAG_VERSION" ] && echo "Version check passed ✓" || (echo "Version mismatch!" && exit 1)
+
+      - name: Smoke test — API responds
+        run: |
+          CONTAINER=$(docker ps -q --filter ancestor=nextcloud:33)
+          # Basic API call to verify no fatal errors
+          HTTP=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            -u admin:admin \
+            "http://localhost:8080/index.php/apps/starrate/api/settings" \
+            -H "OCS-APIREQUEST: true")
+          echo "HTTP $HTTP"
+          cat /tmp/resp.json
+          [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ] && echo "API smoke test passed ✓" || (echo "API returned $HTTP" && exit 1)
+
+  # ── GitHub Release ───────────────────────────────────────────────────────────
+  release:
+    name: GitHub Release
+    needs: install-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download archive artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: starrate-package
 
       - name: Create GitHub Release
-        id: gh_release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/starrate.tar.gz
+          files: starrate.tar.gz
           generate_release_notes: true
 
+  # ── Nextcloud App Store ──────────────────────────────────────────────────────
+  appstore:
+    name: Nextcloud App Store
+    needs: release
+    runs-on: ubuntu-latest
+    # Nur ausführen wenn Token vorhanden
+    if: ${{ secrets.NC_APP_STORE_TOKEN != '' }}
+
+    steps:
       - name: Upload to Nextcloud App Store
         run: |
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/starrate.tar.gz"
@@ -103,7 +192,7 @@ jobs:
           echo "HTTP Status: $HTTP_STATUS"
           cat /tmp/appstore_response.json
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "App Store upload successful."
+            echo "App Store upload successful ✓"
           else
             echo "App Store upload failed with status $HTTP_STATUS"
             exit 1
