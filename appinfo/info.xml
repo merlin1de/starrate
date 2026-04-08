@@ -4,20 +4,44 @@
 
     <id>starrate</id>
     <name>StarRate</name>
-    <summary>Professional photo rating and culling tool for photographers</summary>
-    <description><![CDATA[
+    <summary>Lightroom-style photo rating for Nextcloud — stars, color labels, XMP metadata, guest links</summary>
+
+    <description lang="en"><![CDATA[
 StarRate is a professional photo rating and culling tool for photographers, seamlessly integrated into Nextcloud.
 
+Rate photos with 1–5 stars and color labels, flag picks and rejects with keyboard shortcuts, and share a guest gallery link with your client or model. They pick their favorites in the browser — no Nextcloud account required.
+
+**Ratings are written as XMP metadata directly into the JPEG file.** Open it in Lightroom Classic, digiKam, F-Stop or Darktable — the stars are already there. No re-export, no sidecar files.
+
 **Features:**
-- Full-screen gallery with grid and loupe view (like Adobe Lightroom)
-- Star ratings (0–5) and color labels (Red/Yellow/Green/Blue/Purple)
-- Ratings written directly into JPEG/XMP metadata
-- Batch rating with multi-selection (Shift+click, Ctrl+click)
-- Guest share links for models and clients (no Nextcloud login required)
-- Keyboard shortcuts like Lightroom (0–5 stars, 6–9 colors, P/X for pick/reject)
-- Smooth zoom up to 400%, pan and pinch-to-zoom on mobile
-- Filter by stars and colors, combinable
-- Dark, professional UI theme optimized for photo work
+- Star ratings (0–5) + color labels (Red/Yellow/Green/Blue/Purple) + Pick/Reject flags
+- XMP metadata written into JPEG — compatible with Lightroom Classic, digiKam, F-Stop, Darktable
+- Guest share links for clients and models (no Nextcloud login required), with optional password and expiry
+- Keyboard shortcuts like Lightroom: 0–5 stars, 6–9 colors, P/X pick/reject
+- Batch rating with Shift+click / Ctrl+click / Ctrl+A
+- Combinable filters: stars, color, Pick/Reject, unrated
+- Full-screen loupe view with zoom up to 400%, pan, pinch-to-zoom
+- Dark professional UI theme optimized for photo work
+- English and German
+    ]]></description>
+
+    <description lang="de"><![CDATA[
+StarRate ist ein professionelles Foto-Bewertungs- und Auswahlwerkzeug für Fotografen, nahtlos in Nextcloud integriert.
+
+Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastaturkürzel markieren, und einen Gast-Link an Kunden oder Models schicken. Die wählen ihre Favoriten im Browser — ohne Nextcloud-Account.
+
+**Bewertungen werden als XMP-Metadaten direkt in die JPEG-Datei geschrieben.** In Lightroom Classic, digiKam, F-Stop oder Darktable öffnen — die Sterne sind schon da. Kein Re-Export, keine Sidecar-Dateien.
+
+**Features:**
+- Sternbewertungen (0–5) + Farb-Labels (Rot/Gelb/Grün/Blau/Lila) + Pick/Reject-Flags
+- XMP-Metadaten ins JPEG geschrieben — kompatibel mit Lightroom Classic, digiKam, F-Stop, Darktable
+- Gast-Links für Kunden und Models (kein Nextcloud-Login nötig), mit optionalem Passwort und Ablaufdatum
+- Tastaturkürzel wie Lightroom: 0–5 Sterne, 6–9 Farben, P/X Pick/Reject
+- Batch-Bewertung mit Shift+Klick / Strg+Klick / Strg+A
+- Kombinierbare Filter: Sterne, Farbe, Pick/Reject, unbewertet
+- Loupe-Ansicht mit Zoom bis 400 %, Pan, Pinch-to-Zoom
+- Dunkles, professionelles UI-Theme optimiert für Fotoarbeit
+- Englisch und Deutsch
     ]]></description>
 
     <version>1.0.2</version>
