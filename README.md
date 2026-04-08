@@ -34,7 +34,6 @@ StarRate writes ratings directly into the **JPEG APP1 segment** (XMP standard). 
 | digiKam | ✅ |
 | F-Stop (Android) | ✅ |
 | Darktable | ✅ |
-| Apple Photos | ❌ (no XMP star rating support) |
 
 Rate in Nextcloud → open in Lightroom → stars are already there.
 
