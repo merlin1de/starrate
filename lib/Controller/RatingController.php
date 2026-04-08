@@ -108,14 +108,19 @@ class RatingController extends Controller
             // 1. NC-Tags setzen
             $this->tagService->setMetadata($fileIdStr, $data);
 
-            // 2. JPEG-XMP schreiben (nur wenn JPEG)
+            // 2. JPEG-XMP schreiben (nur wenn JPEG) — non-fatal: Tags sind die primäre Quelle
             $mime = $file->getMimeType();
             if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
-                $this->exifService->writeMetadata(
-                    $file,
-                    isset($data['rating']) ? $data['rating'] : null,
-                    array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
-                );
+                try {
+                    $this->exifService->writeMetadata(
+                        $file,
+                        isset($data['rating']) ? $data['rating'] : null,
+                        array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
+                    );
+                } catch (\Exception $e) {
+                    // XMP write failed (e.g. concurrent write / file lock) — tags already set, not fatal
+                    $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                }
             }
 
             // Aktuellen Stand zurückgeben
@@ -195,14 +200,18 @@ class RatingController extends Controller
                 // NC-Tags
                 $this->tagService->setMetadata((string) $fileId, $data);
 
-                // JPEG-XMP
+                // JPEG-XMP — non-fatal
                 $mime = $file->getMimeType();
                 if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
-                    $this->exifService->writeMetadata(
-                        $file,
-                        isset($data['rating']) ? $data['rating'] : null,
-                        array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
-                    );
+                    try {
+                        $this->exifService->writeMetadata(
+                            $file,
+                            isset($data['rating']) ? $data['rating'] : null,
+                            array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
+                        );
+                    } catch (\Exception $e) {
+                        $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                    }
                 }
 
                 $updated++;
