@@ -7,6 +7,7 @@ namespace OCA\StarRate\Service;
 use OCP\IDBConnection;
 use OCP\SystemTag\ISystemTagManager;
 use OCP\SystemTag\ISystemTagObjectMapper;
+use OCP\SystemTag\TagAlreadyExistsException;
 use OCP\SystemTag\TagNotFoundException;
 use Psr\Log\LoggerInterface;
 
@@ -49,7 +50,7 @@ class TagService
     public function setRating(string $fileId, int $rating): void
     {
         if (!in_array($rating, self::VALID_RATINGS, true)) {
-            throw new \InvalidArgumentException("Ungültige Bewertung: {$rating}. Erlaubt: 0–5.");
+            throw new \InvalidArgumentException("Invalid rating: {$rating}. Allowed: 0–5.");
         }
 
         $this->removeTagsByPrefix($fileId, self::TAG_PREFIX_RATING);
@@ -60,7 +61,7 @@ class TagService
             $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
         }
 
-        $this->logger->debug("StarRate: Rating {$rating} für Datei {$fileId} gesetzt.");
+        $this->logger->debug("StarRate: set rating {$rating} for file {$fileId}.");
     }
 
     /**
@@ -87,7 +88,7 @@ class TagService
     {
         if ($color !== null && !in_array($color, self::VALID_COLORS, true)) {
             throw new \InvalidArgumentException(
-                "Ungültige Farbe: {$color}. Erlaubt: " . implode(', ', self::VALID_COLORS)
+                "Invalid color: {$color}. Allowed: " . implode(', ', self::VALID_COLORS)
             );
         }
 
@@ -98,7 +99,7 @@ class TagService
             $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
         }
 
-        $this->logger->debug("StarRate: Farbe " . ($color ?? 'keine') . " für Datei {$fileId} gesetzt.");
+        $this->logger->debug("StarRate: set color " . ($color ?? 'none') . " for file {$fileId}.");
     }
 
     /**
@@ -122,7 +123,7 @@ class TagService
     public function setPick(string $fileId, string $pick): void
     {
         if (!in_array($pick, self::VALID_PICKS, true)) {
-            throw new \InvalidArgumentException("Ungültiger Pick-Status: {$pick}.");
+            throw new \InvalidArgumentException("Invalid pick status: {$pick}.");
         }
 
         $this->removeTagsByPrefix($fileId, self::TAG_PREFIX_PICK);
@@ -159,16 +160,16 @@ class TagService
         // Validierung vorab
         if (array_key_exists('rating', $data) && $data['rating'] !== null
             && !in_array((int) $data['rating'], self::VALID_RATINGS, true)) {
-            throw new \InvalidArgumentException("Ungültige Bewertung: {$data['rating']}. Erlaubt: 0–5.");
+            throw new \InvalidArgumentException("Invalid rating: {$data['rating']}. Allowed: 0–5.");
         }
         if (array_key_exists('color', $data) && $data['color'] !== null
             && !in_array($data['color'], self::VALID_COLORS, true)) {
             throw new \InvalidArgumentException(
-                "Ungültige Farbe: {$data['color']}. Erlaubt: " . implode(', ', self::VALID_COLORS)
+                "Invalid color: {$data['color']}. Allowed: " . implode(', ', self::VALID_COLORS)
             );
         }
         if (isset($data['pick']) && !in_array($data['pick'], self::VALID_PICKS, true)) {
-            throw new \InvalidArgumentException("Ungültiger Pick-Status: {$data['pick']}.");
+            throw new \InvalidArgumentException("Invalid pick status: {$data['pick']}.");
         }
 
         // 1. Alle aktuellen StarRate-Tags der Datei auf einmal laden (2 Queries statt 3 × 2)
@@ -190,7 +191,7 @@ class TagService
                 }
             }
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Fehler beim Lesen aktueller Tags: " . $e->getMessage());
+            $this->logger->warning("StarRate: failed to read current tags: " . $e->getMessage());
         }
 
         // 2. Alte Tags auf einmal entfernen (1 Query statt 3)
@@ -198,7 +199,7 @@ class TagService
             try {
                 $this->tagMapper->unassignTags($fileId, self::OBJECT_TYPE, $toRemove);
             } catch (\Exception $e) {
-                $this->logger->warning("StarRate: Fehler beim Entfernen von Tags: " . $e->getMessage());
+                $this->logger->warning("StarRate: failed to unassign tags: " . $e->getMessage());
             }
         }
 
@@ -366,7 +367,18 @@ class TagService
             // Tag nicht gefunden → neu anlegen
         }
 
-        return $this->tagCache[$name] = $this->tagManager->createTag($name, false, false);
+        try {
+            return $this->tagCache[$name] = $this->tagManager->createTag($name, false, false);
+        } catch (TagAlreadyExistsException) {
+            // Race condition: another request created the tag concurrently — fetch it
+            $tags = $this->tagManager->getAllTags(null, $name);
+            foreach ($tags as $tag) {
+                if ($tag->getName() === $name) {
+                    return $this->tagCache[$name] = $tag;
+                }
+            }
+            throw new \RuntimeException("Tag '{$name}' reported as existing but could not be fetched");
+        }
     }
 
     /**
@@ -413,9 +425,9 @@ class TagService
                 $this->tagMapper->unassignTags($fileId, self::OBJECT_TYPE, $toRemove);
             }
         } catch (TagNotFoundException $e) {
-            $this->logger->debug("StarRate: Tag nicht gefunden beim Entfernen: " . $e->getMessage());
+            $this->logger->debug("StarRate: tag not found during removal: " . $e->getMessage());
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Fehler beim Entfernen von Tags: " . $e->getMessage());
+            $this->logger->warning("StarRate: failed to unassign tags: " . $e->getMessage());
         }
     }
 }
