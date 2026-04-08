@@ -104,7 +104,7 @@ class GalleryController extends Controller
             $folder     = $path === '/' ? $userFolder : $userFolder->get(ltrim($path, '/'));
 
             if (!($folder instanceof Folder)) {
-                return new DataResponse(['error' => 'Pfad ist kein Ordner'], Http::STATUS_BAD_REQUEST);
+                return new DataResponse(['error' => 'Path is not a folder'], Http::STATUS_BAD_REQUEST);
             }
 
             $images  = $this->listImages($folder, $sort, $order);
@@ -142,10 +142,10 @@ class GalleryController extends Controller
             ]);
 
         } catch (NotFoundException) {
-            return new DataResponse(['error' => "Ordner nicht gefunden: {$path}"], Http::STATUS_NOT_FOUND);
+            return new DataResponse(['error' => "Folder not found: {$path}"], Http::STATUS_NOT_FOUND);
         } catch (\Exception $e) {
             $this->logger->error('StarRate GalleryController::images – ' . $e->getMessage());
-            return new DataResponse(['error' => 'Interner Fehler'], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -174,7 +174,7 @@ class GalleryController extends Controller
         try {
             $file = $this->getFileById($userId, $fileId);
             if ($file === null) {
-                return new DataResponse(['error' => 'Datei nicht gefunden'], Http::STATUS_NOT_FOUND);
+                return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
             }
 
             $preview = $this->previewManager->getPreview($file, $width, $height, true);
@@ -186,8 +186,8 @@ class GalleryController extends Controller
             return $response;
 
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Thumbnail-Fehler für {$fileId}: " . $e->getMessage());
-            return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
+            $this->logger->warning("StarRate: thumbnail error for {$fileId}: " . $e->getMessage());
+            return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
         }
     }
 
@@ -215,7 +215,7 @@ class GalleryController extends Controller
         try {
             $file = $this->getFileById($userId, $fileId);
             if ($file === null) {
-                return new DataResponse(['error' => 'Datei nicht gefunden'], Http::STATUS_NOT_FOUND);
+                return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
             }
 
             $preview = $this->previewManager->getPreview($file, $width, $height, false);
@@ -227,8 +227,8 @@ class GalleryController extends Controller
             return $response;
 
         } catch (\Exception $e) {
-            $this->logger->warning("StarRate: Preview-Fehler für {$fileId}: " . $e->getMessage());
-            return new DataResponse(['error' => 'Vorschau nicht verfügbar'], Http::STATUS_NOT_FOUND);
+            $this->logger->warning("StarRate: preview error for {$fileId}: " . $e->getMessage());
+            return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
         }
     }
 

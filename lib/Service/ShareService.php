@@ -89,7 +89,7 @@ class ShareService
         $safe['has_password'] = $password !== null;
         unset($safe['password_hash']);
 
-        $this->logger->info("StarRate: Share {$token} erstellt von {$ownerId} für {$ncPath}.");
+        $this->logger->info("StarRate: share {$token} created by {$ownerId} for {$ncPath}.");
         return $safe;
     }
 
@@ -193,7 +193,7 @@ class ShareService
         // Log mit löschen
         $this->config->deleteUserValue($ownerId, self::APP_ID, self::CONFIG_LOG . '_' . $token);
 
-        $this->logger->info("StarRate: Share {$token} gelöscht.");
+        $this->logger->info("StarRate: share {$token} deleted.");
     }
 
     // ─── Share-Validierung ────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ class ShareService
         // Sicherheit: Datei muss im freigegebenen Ordner liegen
         $sharePath = rtrim($share['nc_path'], '/');
         if (!str_starts_with($file->getPath(), $userFolder->getPath() . '/' . ltrim($sharePath, '/'))) {
-            throw new \RuntimeException("Datei liegt nicht im freigegebenen Ordner.");
+            throw new \RuntimeException("File is not in the shared folder.");
         }
 
         $width  = min(max($width,  32), 3840);
@@ -386,7 +386,7 @@ class ShareService
             'rating'     => $rating,
             'color'      => $color,
             'pick'       => $pick,
-            'guest_name' => $guestName ?: 'Gast',
+            'guest_name' => $guestName ?: 'Guest',
             'timestamp'  => time(),
         ];
 
@@ -403,7 +403,7 @@ class ShareService
         if ($rating !== null)  $parts[] = "Rating {$rating}";
         if ($color  !== null)  $parts[] = "Farbe {$color}";
         if ($pick   !== null)  $parts[] = "Pick {$pick}";
-        $action = $parts ? implode(', ', $parts) : 'keine Änderung';
+        $action = $parts ? implode(', ', $parts) : 'no change';
 
         $this->logger->info(
             "StarRate: Gast '{$entry['guest_name']}' hat Datei {$fileId} gesetzt: {$action} (Share {$token})."
