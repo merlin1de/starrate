@@ -35,43 +35,43 @@ jobs:
       - name: Create release archive
         run: |
           mkdir -p dist
-          # Archiv von Parent-Dir: nextcloud/ → starrate/ im Tarball
-          cd ..
+          # GitHub-Actions-Checkout: Repo-Root IS die nextcloud/ App.
+          # --transform wandelt ./foo → starrate/foo um.
           tar \
-            --exclude='nextcloud/.git' \
-            --exclude='nextcloud/.github' \
-            --exclude='nextcloud/.claude' \
-            --exclude='nextcloud/.gitignore' \
-            --exclude='nextcloud/.npmrc' \
-            --exclude='nextcloud/.env*' \
-            --exclude='nextcloud/node_modules' \
-            --exclude='nextcloud/vendor/bin' \
-            --exclude='nextcloud/tests' \
-            --exclude='nextcloud/src' \
-            --exclude='nextcloud/docker' \
-            --exclude='nextcloud/docs' \
-            --exclude='nextcloud/screenshots' \
-            --exclude='nextcloud/dist' \
-            --exclude='nextcloud/build' \
-            --exclude='nextcloud/*.cy.js' \
-            --exclude='nextcloud/*.spec.js' \
-            --exclude='nextcloud/*.stackdump' \
-            --exclude='nextcloud/*.ico' \
-            --exclude='nextcloud/CLAUDE.md' \
-            --exclude='nextcloud/README.md' \
-            --exclude='nextcloud/Makefile' \
-            --exclude='nextcloud/cypress.config.cjs' \
-            --exclude='nextcloud/vite.config.js' \
-            --exclude='nextcloud/vitest.config.js' \
-            --exclude='nextcloud/phpunit.xml' \
-            --exclude='nextcloud/composer.json' \
-            --exclude='nextcloud/composer.lock' \
-            --exclude='nextcloud/package.json' \
-            --exclude='nextcloud/package-lock.json' \
-            --transform 's|^nextcloud|starrate|' \
-            -czf nextcloud/dist/starrate.tar.gz \
-            nextcloud/
-          cd nextcloud
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./.claude' \
+            --exclude='./.gitignore' \
+            --exclude='./.npmrc' \
+            --exclude='./.env*' \
+            --exclude='./node_modules' \
+            --exclude='./vendor/bin' \
+            --exclude='./tests' \
+            --exclude='./src' \
+            --exclude='./docker' \
+            --exclude='./docs' \
+            --exclude='./screenshots' \
+            --exclude='./dist' \
+            --exclude='./build' \
+            --exclude='./*.cy.js' \
+            --exclude='./*.spec.js' \
+            --exclude='./*.stackdump' \
+            --exclude='./*.ico' \
+            --exclude='./CLAUDE.md' \
+            --exclude='./README.md' \
+            --exclude='./Makefile' \
+            --exclude='./cypress.config.cjs' \
+            --exclude='./vite.config.js' \
+            --exclude='./vitest.config.js' \
+            --exclude='./phpunit.xml' \
+            --exclude='./composer.json' \
+            --exclude='./composer.lock' \
+            --exclude='./package.json' \
+            --exclude='./package-lock.json' \
+            --transform 's|^\./|starrate/|' \
+            --transform 's|^\.$|starrate|' \
+            -czf dist/starrate.tar.gz \
+            .
 
       - name: Verify archive structure
         run: |
