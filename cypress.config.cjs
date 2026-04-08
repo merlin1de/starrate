@@ -2,7 +2,17 @@ module.exports = {
   e2e: {
     baseUrl: process.env.CYPRESS_NC_URL || process.env.NC_URL || 'http://localhost:8080',
 
-    specPattern:        'tests/e2e/**/*.cy.js',
+    // api-security laeuft zuletzt: sendet absichtlich falsche Credentials,
+    // was NC Brute-Force-Schutz triggert und nachfolgende Login-Tests blockiert.
+    specPattern: [
+      'tests/e2e/rating-workflow.cy.js',
+      'tests/e2e/batch-selection.cy.js',
+      'tests/e2e/guest-gallery.cy.js',
+      'tests/e2e/loupe-navigation.cy.js',
+      'tests/e2e/navigation.cy.js',
+      'tests/e2e/pick-reject.cy.js',
+      'tests/e2e/api-security.cy.js',
+    ],
     supportFile:        false,
     screenshotsFolder:  'tests/results/cypress/screenshots',
     videosFolder:       'tests/results/cypress/videos',
