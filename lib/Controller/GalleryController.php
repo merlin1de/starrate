@@ -128,7 +128,7 @@ class GalleryController extends Controller
             // Unterordner sammeln
             $folders = [];
             foreach ($folder->getDirectoryListing() as $node) {
-                if ($node instanceof Folder) {
+                if ($node instanceof Folder && $node->getName()[0] !== '.') {
                     $folders[] = ['name' => $node->getName(), 'path' => $path === '/' ? '/' . $node->getName() : $path . '/' . $node->getName()];
                 }
             }

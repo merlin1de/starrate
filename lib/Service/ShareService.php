@@ -250,6 +250,7 @@ class ShareService
 
         foreach ($folder->getDirectoryListing() as $node) {
             if ($node instanceof Folder) {
+                if ($node->getName()[0] === '.') continue;
                 $relPath   = $subPath . '/' . $node->getName();
                 $folders[] = [
                     'name' => $node->getName(),
