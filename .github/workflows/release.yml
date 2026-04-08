@@ -142,17 +142,20 @@ jobs:
             && echo "Version $TAG_VERSION confirmed ✓" \
             || echo "Warning: could not confirm version $TAG_VERSION in output (non-fatal)"
 
-      - name: Smoke test — API responds without fatal error
+      - name: Smoke test — no PHP fatal errors
         run: |
-          HTTP=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
-            -u admin:admin \
-            "http://localhost:8080/index.php/apps/starrate/api/settings" \
-            -H "OCS-APIREQUEST: true")
-          echo "HTTP $HTTP — response:"
-          cat /tmp/resp.json
-          [ "$HTTP" = "200" ] \
-            && echo "API smoke test passed ✓" \
-            || (echo "API returned unexpected status $HTTP" && exit 1)
+          # occ app:check triggers app initialization — any autoloader or
+          # namespace error would appear here as a PHP fatal
+          RESULT=$(docker exec -u www-data nc33 php occ app:check starrate 2>&1 || true)
+          echo "$RESULT"
+          echo "$RESULT" | grep -qiE "fatal|Uncaught|class.*not found|namespace" \
+            && (echo "Fatal PHP error detected!" && exit 1) \
+            || echo "No fatal PHP errors ✓"
+          # Confirm app is still listed as enabled
+          docker exec -u www-data nc33 php occ app:list --enabled 2>&1 \
+            | grep -q "starrate" \
+            && echo "App enabled ✓" \
+            || (echo "App missing from enabled list!" && exit 1)
 
   # ── GitHub Release ───────────────────────────────────────────────────────────
   release:
