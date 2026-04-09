@@ -72,7 +72,7 @@ describe('GridView', () => {
 
   // ── Auswahl: Normaler Klick ───────────────────────────────────────────────
 
-  it('normaler Klick setzt focusedIndex', async () => {
+  it('normaler Klick setzt focusedIndex ohne Auswahl', async () => {
     const w = factory()
     await w.findAll('.sr-grid__item')[2].trigger('click')
     // kein Shift/Ctrl → nur Focus, kein select
@@ -116,6 +116,16 @@ describe('GridView', () => {
     await w.findAll('.sr-grid__item')[4].trigger('click', { ctrlKey: true })
     const lastSet = w.emitted('selection-change').at(-1)[0]
     expect(lastSet.size).toBe(3)
+  })
+
+  it('Klick + Cmd+Klick selektiert beide Bilder (Bug #13)', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click')          // Anker fokussieren
+    await w.findAll('.sr-grid__item')[2].trigger('click', { ctrlKey: true }) // Cmd+Klick
+    const lastSet = w.emitted('selection-change').at(-1)[0]
+    expect(lastSet.size).toBe(2)
+    expect(lastSet.has(1)).toBe(true) // Anker-Bild (Index 0, ID 1)
+    expect(lastSet.has(3)).toBe(true) // Cmd-geklicktes Bild (Index 2, ID 3)
   })
 
   // ── Auswahl: Shift+Klick ──────────────────────────────────────────────────
