@@ -327,63 +327,34 @@ class TagServiceTest extends TestCase
 
     public function testSetMetadataAllFields(): void
     {
-        $ratingTag = $this->makeTag('starrate:rating:4', '40');
-        $colorTag  = $this->makeTag('starrate:color:Blue', '61');
-        $pickTag   = $this->makeTag('starrate:pick:pick', '80');
+        // Kein existing mapping, alle 3 Tags existieren bereits in systemtag.
+        // fetch-Sequenz: false (existing-SELECT) | id:40 | id:61 | id:80 (je 1 × getOrCreateTagDirect)
+        $fetchValues = [false, ['id' => '40'], ['id' => '61'], ['id' => '80']];
+        [$qb] = $this->mockSetMetadataQb($fetchValues, 3); // 3 assignTagDirect INSERTs
 
-        // No existing tags → SELECT returns nothing
-        $qb = $this->mockQueryBuilderForSetMetadata([]);
-
-        $this->tagManager->method('getAllTags')
-            ->willReturnCallback(function ($vis, $name) use ($ratingTag, $colorTag, $pickTag) {
-                return match ($name) {
-                    'starrate:rating:4'   => ['40' => $ratingTag],
-                    'starrate:color:Blue' => ['61' => $colorTag],
-                    'starrate:pick:pick'  => ['80' => $pickTag],
-                    default               => [],
-                };
-            });
-
-        // 3 direct SQL INSERTs: one per field (no DELETE since no existing tags)
-        $qb->expects($this->exactly(3))->method('executeStatement');
-
-        $this->service->setMetadata('10', [
-            'rating' => 4,
-            'color'  => 'Blue',
-            'pick'   => 'pick',
-        ]);
+        $this->service->setMetadata('10', ['rating' => 4, 'color' => 'Blue', 'pick' => 'pick']);
     }
 
     public function testSetMetadataRemovesOldTags(): void
     {
-        // Existing tags: rating:2 (id=20) and color:Red (id=60)
-        $existingRows = [
+        // Existing: rating:2 (id=20) + color:Red (id=60) → beide löschen
+        // Neu: rating=5 (id=50), color=null → kein INSERT für color
+        $fetchValues = [
             ['systemtagid' => '20', 'name' => 'starrate:rating:2'],
             ['systemtagid' => '60', 'name' => 'starrate:color:Red'],
+            false,           // existing-SELECT Ende
+            ['id' => '50'],  // getOrCreateTagDirect rating:5
         ];
-        $newRating = $this->makeTag('starrate:rating:5', '50');
+        [$qb] = $this->mockSetMetadataQb($fetchValues, 2); // 1 DELETE + 1 INSERT
 
-        $qb = $this->mockQueryBuilderForSetMetadata($existingRows);
-        $this->tagManager->method('getAllTags')->willReturn(['50' => $newRating]);
-
-        // 1 DELETE (old tags) + 1 INSERT (rating:5); color=null → no INSERT
-        $qb->expects($this->exactly(2))->method('executeStatement');
-
-        $this->service->setMetadata('10', [
-            'rating' => 5,
-            'color'  => null,
-        ]);
+        $this->service->setMetadata('10', ['rating' => 5, 'color' => null]);
     }
 
     public function testSetMetadataRatingOnly(): void
     {
-        $tag = $this->makeTag('starrate:rating:3', '30');
-        $qb  = $this->mockQueryBuilderForSetMetadata([]);
-
-        $this->tagManager->method('getAllTags')->willReturn(['30' => $tag]);
-
-        // 1 INSERT for rating:3 (no existing → no DELETE)
-        $qb->expects($this->once())->method('executeStatement');
+        // Kein existing mapping, rating:3 (id=30) existiert bereits
+        $fetchValues = [false, ['id' => '30']];
+        [$qb] = $this->mockSetMetadataQb($fetchValues, 1); // 1 INSERT
 
         $this->service->setMetadata('10', ['rating' => 3]);
     }
@@ -718,32 +689,26 @@ class TagServiceTest extends TestCase
 
     public function testSetMetadataHandlesExceptionOnTagRead(): void
     {
-        // SELECT-Query wirft → setMetadata soll trotzdem den neuen Tag setzen
-        $tag = $this->makeTag('starrate:rating:3', '30');
-        $this->tagManager->method('getAllTags')->willReturn(['30' => $tag]);
+        // Erstes executeQuery (existing-mapping SELECT) wirft → try/catch fängt es.
+        // getOrCreateTagDirect (2. executeQuery) soll trotzdem laufen und den Tag finden.
+        $queryCount = 0;
+        $fetchCount = 0;
+        $tagResult  = $this->createMock(\OCP\DB\IResult::class);
+        $tagResult->method('fetch')->willReturnCallback(function () use (&$fetchCount) {
+            return $fetchCount++ === 0 ? ['id' => '30'] : false;
+        });
+        $tagResult->method('closeCursor');
 
-        $expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
-        $expr->method('eq')->willReturn('1=1');
-        $expr->method('in')->willReturn('1=1');
-        $expr->method('like')->willReturn('1=1');
-
-        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
-        $qb->method('select')->willReturnSelf();
-        $qb->method('from')->willReturnSelf();
-        $qb->method('innerJoin')->willReturnSelf();
-        $qb->method('where')->willReturnSelf();
-        $qb->method('andWhere')->willReturnSelf();
-        $qb->method('delete')->willReturnSelf();
-        $qb->method('insert')->willReturnSelf();
-        $qb->method('values')->willReturnSelf();
-        $qb->method('createNamedParameter')->willReturn('?');
-        $qb->method('expr')->willReturn($expr);
-        // SELECT wirft (simuliert DB-Fehler beim Lesen bestehender Tags)
-        $qb->method('executeQuery')->willThrowException(new \RuntimeException('DB down'));
-        // Trotzdem 1 INSERT für den neuen Tag
-        $qb->expects($this->once())->method('executeStatement');
-
-        $this->db->method('getQueryBuilder')->willReturn($qb);
+        [$qb] = $this->mockSetMetadataQb([], 1); // executeStatement: 1 INSERT
+        // executeQuery: erstes Mal wirft, danach normales Result
+        $qb->method('executeQuery')->willReturnCallback(
+            function () use (&$queryCount, $tagResult) {
+                if ($queryCount++ === 0) {
+                    throw new \RuntimeException('DB down');
+                }
+                return $tagResult;
+            }
+        );
 
         $this->service->setMetadata('10', ['rating' => 3]);
     }
@@ -778,17 +743,20 @@ class TagServiceTest extends TestCase
     }
 
     /**
-     * Mockt den QueryBuilder für setMetadata (nutzt fetch() für SELECT + executeStatement() für DELETE/INSERT).
-     * Gibt den QB-Mock zurück, damit Tests executeStatement()-Aufrufe zählen können.
+     * Erstellt einen QB-Mock für setMetadata-Tests.
+     * fetch()-Sequenz wird durch $fetchValues gesteuert (Array aus rows oder false).
+     * executeStatement wird auf $expectedStatements-Aufrufe eingeschränkt.
+     *
+     * @return array{0: \OCP\DB\QueryBuilder\IQueryBuilder&MockObject, 1: \OCP\DB\IResult&MockObject}
      */
-    private function mockQueryBuilderForSetMetadata(array $existingRows): \OCP\DB\QueryBuilder\IQueryBuilder&MockObject
+    private function mockSetMetadataQb(array $fetchValues, int $expectedStatements): array
     {
         $fetchIndex = 0;
 
         $result = $this->createMock(\OCP\DB\IResult::class);
         $result->method('fetch')->willReturnCallback(
-            function () use ($existingRows, &$fetchIndex) {
-                return $existingRows[$fetchIndex++] ?? false;
+            function () use ($fetchValues, &$fetchIndex) {
+                return $fetchValues[$fetchIndex++] ?? false;
             }
         );
         $result->method('closeCursor');
@@ -810,10 +778,10 @@ class TagServiceTest extends TestCase
         $qb->method('createNamedParameter')->willReturn('?');
         $qb->method('expr')->willReturn($expr);
         $qb->method('executeQuery')->willReturn($result);
-        $qb->method('executeStatement')->willReturn(1);
+        $qb->expects($this->exactly($expectedStatements))->method('executeStatement')->willReturn(1);
 
         $this->db->method('getQueryBuilder')->willReturn($qb);
 
-        return $qb;
+        return [$qb, $result];
     }
 }
