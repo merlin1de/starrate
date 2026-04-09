@@ -93,6 +93,7 @@
         :enable-pick-ui="settings.enable_pick_ui"
         :thumbnail-url-fn="thumbnailUrlFn"
         @rate="onRate"
+        @batch-rate="onBatchRate"
         @open-loupe="openLoupe"
         @selection-change="onSelectionChange"
         @clear-filter="resetFilter"
@@ -116,6 +117,8 @@
     <SelectionBar
       v-if="selectedIds.size > 0"
       :count="selectedIds.size"
+      :active-rating="batchActiveRating"
+      :active-color="batchActiveColor"
       @rate="onBatchRate"
       @clear="gridRef?.clearSelection()"
     />
@@ -203,7 +206,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 /* global __APP_VERSION__ */
 const appVersion = __APP_VERSION__
@@ -260,7 +263,9 @@ const settings = ref({
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
-const selectedIds  = ref(new Set())
+const selectedIds       = ref(new Set())
+const batchActiveRating = ref(null)        // zuletzt per Batch gesetztes Rating
+const batchActiveColor  = ref(undefined)   // undefined=nie gesetzt, null=entfernt, String=Farbe
 const gridRef      = ref(null)
 const shareListRef = ref(null)
 const toasts       = ref([])
@@ -450,13 +455,18 @@ async function onRate(image, rating, color, pick) {
 
 // ─── Stapel-Bewertung ─────────────────────────────────────────────────────────
 
-async function onBatchRate(rating, color) {
+async function onBatchRate(rating, color, pick) {
   const ids = Array.from(selectedIds.value)
   if (ids.length === 0) return
 
   const payload = { fileIds: ids }
-  if (rating !== null && rating !== undefined) payload.rating = rating
-  if (color  !== null && color  !== undefined) payload.color  = color
+  if (rating !== undefined) payload.rating = rating
+  if (color  !== undefined) payload.color  = color
+  if (pick   !== undefined) payload.pick   = pick
+
+  // Bar-Anzeige synchron aktualisieren (auch bei Keyboard-Auslösung)
+  if (rating !== undefined) batchActiveRating.value = rating
+  if (color  !== undefined) batchActiveColor.value  = color
 
   // Optimistisch
   ids.forEach(id => {
@@ -464,12 +474,18 @@ async function onBatchRate(rating, color) {
     if (local) {
       if (payload.rating !== undefined) local.rating = payload.rating
       if (payload.color  !== undefined) local.color  = payload.color
+      if (payload.pick   !== undefined) local.pick   = payload.pick
     }
   })
 
+  // Grid-Focus zurückgeben (SelectionBar-Klick nimmt Focus vom Grid weg)
+  await nextTick()
+  gridRef.value?.$el?.focus?.()
+
   try {
     if (props.batchRateFn) {
-      await props.batchRateFn(ids, { rating: payload.rating, color: payload.color })
+      const { fileIds: _, ...ratingData } = payload
+      await props.batchRateFn(ids, ratingData)
     } else {
       const url = generateUrl('/apps/starrate/api/rating/batch')
       const { data } = await axios.post(url, payload)
@@ -484,6 +500,9 @@ async function onBatchRate(rating, color) {
       : ''
     showToast(`${bildText} bewertet${stars}`, 'success')
   } catch {
+    // Rollback: lokalen State wiederherstellen und Bar-Anzeige zurücksetzen
+    batchActiveRating.value = null
+    batchActiveColor.value  = undefined
     await loadImages()
     showToast(t('starrate', 'Stapel-Bewertung fehlgeschlagen'), 'error')
   }
@@ -553,6 +572,10 @@ watch(mode, (newVal, oldVal) => {
 
 function onSelectionChange(ids) {
   selectedIds.value = ids
+  if (ids.size === 0) {
+    batchActiveRating.value = null
+    batchActiveColor.value  = undefined
+  }
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────

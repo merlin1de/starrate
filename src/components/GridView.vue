@@ -150,6 +150,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'rate',             // (image, rating|undefined, color|undefined, pick|undefined)
+  'batch-rate',       // (rating|undefined, color|undefined, pick|undefined) — bei aktiver Mehrfachauswahl
   'open-loupe',       // (image, index)
   'selection-change', // (selectedIds: Set)
   'clear-filter',     // ()
@@ -378,10 +379,14 @@ function onGlobalKeydown(e) {
     // Sternebewertung (0–5)
     case '0': case '1': case '2':
     case '3': case '4': case '5':
-      if (idx >= 0 && !e.shiftKey) {
+      if (!e.shiftKey) {
         e.preventDefault()
-        const img = props.images[idx]
-        if (img) emit('rate', img, parseInt(e.key), undefined)
+        if (selectedIds.value.size > 0) {
+          emit('batch-rate', parseInt(e.key), undefined, undefined)
+        } else if (idx >= 0) {
+          const img = props.images[idx]
+          if (img) emit('rate', img, parseInt(e.key), undefined)
+        }
       }
       break
 
@@ -389,34 +394,52 @@ function onGlobalKeydown(e) {
     case '6': case '7': case '8': case '9': {
       e.preventDefault()
       const colorMap = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue' }
-      if (idx >= 0) {
+      const c = colorMap[e.key]
+      if (selectedIds.value.size > 0) {
+        const sel = props.images.filter(img => selectedIds.value.has(img.id))
+        const allHave = sel.length > 0 && sel.every(img => img.color === c)
+        emit('batch-rate', undefined, allHave ? null : c, undefined)
+      } else if (idx >= 0) {
         const img = props.images[idx]
-        const c = colorMap[e.key]
         if (img) emit('rate', img, undefined, img.color === c ? null : c)
       }
       break
     }
     case 'v': case 'V':
-      if (idx >= 0 && !e.ctrlKey && !e.metaKey) {
+      if (!e.ctrlKey && !e.metaKey) {
         e.preventDefault()
-        const img = props.images[idx]
-        if (img) emit('rate', img, undefined, img.color === 'Purple' ? null : 'Purple')
+        if (selectedIds.value.size > 0) {
+          const sel = props.images.filter(img => selectedIds.value.has(img.id))
+          const allHave = sel.length > 0 && sel.every(img => img.color === 'Purple')
+          emit('batch-rate', undefined, allHave ? null : 'Purple', undefined)
+        } else if (idx >= 0) {
+          const img = props.images[idx]
+          if (img) emit('rate', img, undefined, img.color === 'Purple' ? null : 'Purple')
+        }
       }
       break
 
     // P = Pick, X = Reject
     case 'p': case 'P':
-      if (props.enablePickUi && idx >= 0) {
+      if (props.enablePickUi) {
         e.preventDefault()
-        const img = props.images[idx]
-        if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
+        if (selectedIds.value.size > 0) {
+          emit('batch-rate', undefined, undefined, 'pick')
+        } else if (idx >= 0) {
+          const img = props.images[idx]
+          if (img) emit('rate', img, undefined, undefined, img.pick === 'pick' ? 'none' : 'pick')
+        }
       }
       break
     case 'x': case 'X':
-      if (props.enablePickUi && idx >= 0) {
+      if (props.enablePickUi) {
         e.preventDefault()
-        const img = props.images[idx]
-        if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
+        if (selectedIds.value.size > 0) {
+          emit('batch-rate', undefined, undefined, 'reject')
+        } else if (idx >= 0) {
+          const img = props.images[idx]
+          if (img) emit('rate', img, undefined, undefined, img.pick === 'reject' ? 'none' : 'reject')
+        }
       }
       break
 
