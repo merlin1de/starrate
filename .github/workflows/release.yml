@@ -7,6 +7,11 @@ on:
         description: 'Version (z.B. 1.2.0) – muss mit appinfo/info.xml übereinstimmen'
         required: true
         type: string
+      nightly:
+        description: 'Nightly-Release? (nur für experimentelle Versionen, nicht für normale Nutzer sichtbar)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
 
@@ -217,12 +222,13 @@ jobs:
           echo "$NC_APP_STORE_SIGNING_KEY" | base64 -d > /tmp/starrate.key
           SIGNATURE=$(openssl dgst -sha512 -sign /tmp/starrate.key /tmp/starrate.tar.gz | openssl base64 -A)
           rm -f /tmp/starrate.key
-          echo "Uploading: $DOWNLOAD_URL"
+          NIGHTLY="${{ inputs.nightly }}"
+          echo "Uploading: $DOWNLOAD_URL (nightly=$NIGHTLY)"
           HTTP_STATUS=$(curl -s -o /tmp/appstore_response.json -w "%{http_code}" \
             -X POST https://apps.nextcloud.com/api/v1/apps/releases/ \
             -H "Authorization: Token $NC_APP_STORE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"download\": \"$DOWNLOAD_URL\", \"signature\": \"$SIGNATURE\"}")
+            -d "{\"download\": \"$DOWNLOAD_URL\", \"signature\": \"$SIGNATURE\", \"nightly\": $NIGHTLY}")
           echo "HTTP Status: $HTTP_STATUS"
           cat /tmp/appstore_response.json
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
