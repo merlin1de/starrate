@@ -209,16 +209,36 @@ XMP;
         }
 
         // xmp:Label als Attribut oder Element
-        $validLabels = self::LABEL_MAP;
-        if (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)) {
-            $val = trim($m[1]);
-            $label = isset($validLabels[$val]) ? $val : null;
-        } elseif (preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m)) {
-            $val = trim($m[1]);
-            $label = isset($validLabels[$val]) ? $val : null;
+        // Case-insensitiver Vergleich: akzeptiert z.B. "red", "RED" (Issue #16)
+        if (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
+            || preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m)) {
+            $val   = trim($m[1]);
+            $label = $this->resolveLabel($val);
         }
 
         return ['rating' => $rating, 'label' => $label];
+    }
+
+    /**
+     * Normalisiert einen Label-String auf den kanonischen englischen Namen.
+     * Akzeptiert case-insensitive englische Varianten (red, RED, Red).
+     * Unbekannte Labels (z.B. lokalisierte LR-Labels) werden als null zurückgegeben.
+     */
+    private function resolveLabel(string $val): ?string
+    {
+        // Exakter Treffer
+        if (isset(self::LABEL_MAP[$val])) {
+            return $val;
+        }
+
+        // Case-insensitiver Fallback (z.B. "red" → "Red")
+        foreach (array_keys(self::LABEL_MAP) as $canonical) {
+            if (strcasecmp($val, $canonical) === 0) {
+                return $canonical;
+            }
+        }
+
+        return null;
     }
 
     /**
