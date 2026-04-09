@@ -1,9 +1,12 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (z.B. 1.2.0) – muss mit appinfo/info.xml übereinstimmen'
+        required: true
+        type: string
 
 jobs:
 
@@ -16,6 +19,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Validate version matches appinfo/info.xml
+        run: |
+          XML_VERSION=$(grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
+          echo "Input version : ${{ inputs.version }}"
+          echo "info.xml version: $XML_VERSION"
+          if [ "$XML_VERSION" != "${{ inputs.version }}" ]; then
+            echo "ERROR: Version mismatch! Bump the version in appinfo/info.xml and package.json first."
+            exit 1
+          fi
+          echo "Version check passed ✓"
+
+      - name: Create and push git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
 
       - uses: actions/setup-node@v6
         with:
@@ -133,25 +154,20 @@ jobs:
 
       - name: Enable app and verify version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
           RESULT=$(docker exec -u www-data nc33 php occ app:enable starrate 2>&1)
           echo "$RESULT"
-          # occ prints "starrate X.Y.Z enabled" on success
           echo "$RESULT" | grep -q "enabled" || (echo "App enable failed!" && exit 1)
-          echo "$RESULT" | grep -q "$TAG_VERSION" \
-            && echo "Version $TAG_VERSION confirmed ✓" \
-            || echo "Warning: could not confirm version $TAG_VERSION in output (non-fatal)"
+          echo "$RESULT" | grep -q "${{ inputs.version }}" \
+            && echo "Version ${{ inputs.version }} confirmed ✓" \
+            || echo "Warning: could not confirm version ${{ inputs.version }} in output (non-fatal)"
 
       - name: Smoke test — no PHP fatal errors
         run: |
-          # occ app:check triggers app initialization — any autoloader or
-          # namespace error would appear here as a PHP fatal
           RESULT=$(docker exec -u www-data nc33 php occ app:check starrate 2>&1 || true)
           echo "$RESULT"
           echo "$RESULT" | grep -qiE "fatal|Uncaught|class.*not found|namespace" \
             && (echo "Fatal PHP error detected!" && exit 1) \
             || echo "No fatal PHP errors ✓"
-          # Confirm app is still listed as enabled
           docker exec -u www-data nc33 php occ app:list --enabled 2>&1 \
             | grep -q "starrate" \
             && echo "App enabled ✓" \
@@ -174,6 +190,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ inputs.version }}
           files: starrate.tar.gz
           generate_release_notes: true
 
@@ -193,7 +210,7 @@ jobs:
             echo "NC_APP_STORE_TOKEN or NC_APP_STORE_SIGNING_KEY not set — cannot upload."
             exit 1
           fi
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/starrate.tar.gz"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/starrate.tar.gz"
           echo "Downloading release archive for signing..."
           curl -sL "$DOWNLOAD_URL" -o /tmp/starrate.tar.gz
           echo "Signing archive..."
