@@ -75,7 +75,7 @@
 import { t, n } from '@nextcloud/l10n'
 import { COLORS } from './ColorLabel.vue'
 
-const props = defineProps({
+defineProps({
   count: {
     type: Number,
     required: true,
@@ -87,6 +87,7 @@ const props = defineProps({
   },
   // Zuletzt per Batch gesetzte Farbe (undefined = nie gesetzt, null = entfernt, String = Farbe)
   activeColor: {
+    type: [String, null],
     default: undefined,
   },
 })
