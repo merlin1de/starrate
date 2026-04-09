@@ -62,7 +62,9 @@ class GalleryController extends Controller
     #[NoCSRFRequired]
     public function index(): TemplateResponse
     {
-        return new TemplateResponse($this->appName, 'index');
+        return new TemplateResponse($this->appName, 'index', [
+            'version' => \OCP\App::getAppVersion($this->appName),
+        ]);
     }
 
     /**
@@ -72,7 +74,9 @@ class GalleryController extends Controller
     #[NoCSRFRequired]
     public function folder(string $path): TemplateResponse
     {
-        return new TemplateResponse($this->appName, 'index');
+        return new TemplateResponse($this->appName, 'index', [
+            'version' => \OCP\App::getAppVersion($this->appName),
+        ]);
     }
 
     // ─── API: Bilder abrufen ─────────────────────────────────────────────────
