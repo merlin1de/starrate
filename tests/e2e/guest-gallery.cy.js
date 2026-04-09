@@ -160,52 +160,61 @@ describe('Guest Gallery', () => {
       cy.get('body').should('not.contain', '.sr-grid')
     })
 
-    it('abgelaufener Share → Ablauf-Seite', () => {
-      login()
-      // Zuerst normal erstellen, dann per Update ablaufen lassen
-      createShare({
-        permissions: 'rate',
-        guest_name: 'Abgelaufen',
-      }).then(share => {
-        // Ablaufdatum in die Vergangenheit setzen
-        cy.request({
-          method: 'PUT',
-          url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
-          body: { expires_at: Math.floor(Date.now() / 1000) - 3600 },
-          headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
-          auth: { user: NC_USER, pass: NC_PASS },
-        })
+    describe('abgelaufener Share', () => {
+      let token
 
+      before(() => {
+        login()
+        createShare({ permissions: 'rate', guest_name: 'Abgelaufen' }).then(share => {
+          token = share.token
+          // Ablaufdatum in die Vergangenheit setzen
+          cy.request({
+            method: 'PUT',
+            url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
+            body: { expires_at: Math.floor(Date.now() / 1000) - 3600 },
+            headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
+            auth: { user: NC_USER, pass: NC_PASS },
+          })
+        })
+      })
+
+      after(() => deleteShare(token))
+
+      it('abgelaufener Share → Ablauf-Seite', () => {
         cy.clearCookies()
-        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${share.token}`, {
+        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`, {
           failOnStatusCode: false,
         })
         cy.get('.sr-grid').should('not.exist')
-
-        // Aufräumen
-        deleteShare(share.token)
       })
     })
 
-    it('deaktivierter Share → Ablauf-Seite', () => {
-      login()
-      createShare({ permissions: 'rate', guest_name: 'Deaktiviert' }).then(share => {
-        // Deaktivieren
-        cy.request({
-          method: 'PUT',
-          url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
-          body: { active: false },
-          headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
-          auth: { user: NC_USER, pass: NC_PASS },
-        })
+    describe('deaktivierter Share', () => {
+      let token
 
+      before(() => {
+        login()
+        createShare({ permissions: 'rate', guest_name: 'Deaktiviert' }).then(share => {
+          token = share.token
+          // Deaktivieren
+          cy.request({
+            method: 'PUT',
+            url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
+            body: { active: false },
+            headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
+            auth: { user: NC_USER, pass: NC_PASS },
+          })
+        })
+      })
+
+      after(() => deleteShare(token))
+
+      it('deaktivierter Share → Ablauf-Seite', () => {
         cy.clearCookies()
-        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${share.token}`, {
+        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`, {
           failOnStatusCode: false,
         })
         cy.get('.sr-grid').should('not.exist')
-
-        deleteShare(share.token)
       })
     })
   })
@@ -254,6 +263,71 @@ describe('Guest Gallery', () => {
         }).then(rateResp => {
           expect(rateResp.status).to.eq(200)
         })
+      })
+    })
+  })
+
+  // ── Alle Ratings + Farben (NC 32 Regression: TagCreationForbiddenException) ─
+
+  describe('Alle Ratings und Farben via Gast-API', () => {
+    let token
+    let fileId
+
+    before(() => {
+      login()
+      createShare({ permissions: 'rate', guest_name: 'Klaviertest', allow_pick: true }).then(share => {
+        token = share.token
+        cy.request({
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${share.token}/images`,
+        }).then(resp => {
+          fileId = resp.body.images[0].id
+        })
+      })
+    })
+
+    after(() => deleteShare(token))
+
+    // Ratings 1–5 einzeln setzen — stellt sicher, dass auch Tags die noch
+    // nicht in der DB existieren (fresh tags) korrekt angelegt werden (NC 32 Fix)
+    ;[1, 2, 3, 4, 5].forEach(stars => {
+      it(`Rating ${stars} setzt sich korrekt`, () => {
+        cy.request({
+          method: 'POST',
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+          body: { file_id: fileId, rating: stars, guest_name: 'Klaviertest' },
+          headers: { 'Content-Type': 'application/json' },
+        }).then(r => {
+          expect(r.status).to.eq(200)
+          expect(r.body.rating).to.eq(stars)
+        })
+      })
+    })
+
+    // Alle Farb-Labels setzen (red, yellow, green, blue, purple)
+    ;['red', 'yellow', 'green', 'blue', 'purple'].forEach(color => {
+      it(`Farbe "${color}" setzt sich korrekt`, () => {
+        cy.request({
+          method: 'POST',
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+          body: { file_id: fileId, color, guest_name: 'Klaviertest' },
+          headers: { 'Content-Type': 'application/json' },
+        }).then(r => {
+          expect(r.status).to.eq(200)
+          expect(r.body.color).to.eq(color)
+        })
+      })
+    })
+
+    it('Bewertung zurücksetzen (Rating 0, Farbe null)', () => {
+      cy.request({
+        method: 'POST',
+        url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
+        body: { file_id: fileId, rating: 0, color: null, guest_name: 'Klaviertest' },
+        headers: { 'Content-Type': 'application/json' },
+      }).then(r => {
+        expect(r.status).to.eq(200)
+        expect(r.body.rating).to.eq(0)
+        expect(r.body.color).to.be.null
       })
     })
   })
