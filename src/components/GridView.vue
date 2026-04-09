@@ -293,6 +293,11 @@ function onItemClick(event, image, index) {
     }
   } else if (event.ctrlKey || event.metaKey) {
     // Strg/Cmd+Klick → einzelnes Bild togglen
+    // Beim ersten Cmd+Klick: fokussiertes Anker-Bild automatisch mitselektieren
+    if (selectedIds.value.size === 0 && lastClickIdx.value >= 0) {
+      const anchor = props.images[lastClickIdx.value]
+      if (anchor) selectedIds.value.add(anchor.id)
+    }
     if (selectedIds.value.has(image.id)) {
       selectedIds.value.delete(image.id)
     } else {
