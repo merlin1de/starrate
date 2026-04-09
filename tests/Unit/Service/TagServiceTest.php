@@ -691,24 +691,41 @@ class TagServiceTest extends TestCase
     {
         // Erstes executeQuery (existing-mapping SELECT) wirft → try/catch fängt es.
         // getOrCreateTagDirect (2. executeQuery) soll trotzdem laufen und den Tag finden.
+        // Komplett standalone – kein mockSetMetadataQb, damit executeQuery nicht doppelt gesetzt wird.
         $queryCount = 0;
         $fetchCount = 0;
-        $tagResult  = $this->createMock(\OCP\DB\IResult::class);
-        $tagResult->method('fetch')->willReturnCallback(function () use (&$fetchCount) {
+
+        $result = $this->createMock(\OCP\DB\IResult::class);
+        $result->method('fetch')->willReturnCallback(function () use (&$fetchCount) {
             return $fetchCount++ === 0 ? ['id' => '30'] : false;
         });
-        $tagResult->method('closeCursor');
+        $result->method('closeCursor');
 
-        [$qb] = $this->mockSetMetadataQb([], 1); // executeStatement: 1 INSERT
-        // executeQuery: erstes Mal wirft, danach normales Result
-        $qb->method('executeQuery')->willReturnCallback(
-            function () use (&$queryCount, $tagResult) {
-                if ($queryCount++ === 0) {
-                    throw new \RuntimeException('DB down');
-                }
-                return $tagResult;
+        $expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1=1');
+        $expr->method('in')->willReturn('1=1');
+        $expr->method('like')->willReturn('1=1');
+
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('innerJoin')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('delete')->willReturnSelf();
+        $qb->method('insert')->willReturnSelf();
+        $qb->method('values')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturn('?');
+        $qb->method('expr')->willReturn($expr);
+        $qb->method('executeQuery')->willReturnCallback(function () use (&$queryCount, $result) {
+            if ($queryCount++ === 0) {
+                throw new \RuntimeException('DB down'); // existing-mapping SELECT wirft
             }
-        );
+            return $result; // getOrCreateTagDirect SELECT → findet Tag
+        });
+        $qb->expects($this->once())->method('executeStatement'); // 1 assignTagDirect INSERT
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
 
         $this->service->setMetadata('10', ['rating' => 3]);
     }
