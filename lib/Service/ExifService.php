@@ -39,6 +39,7 @@ class ExifService
 
     /**
      * Schreibt Rating und/oder Label in die JPEG-Datei.
+     * Alle anderen XMP-Felder (Lightroom-Metadaten etc.) bleiben erhalten.
      *
      * @param  File         $file   Nextcloud File-Objekt
      * @param  int|null     $rating 0–5 (null = nicht ändern)
@@ -54,18 +55,14 @@ class ExifService
             throw new \RuntimeException("Not a valid JPEG file: " . $file->getName());
         }
 
-        $existing = $this->readXmpFromContent($content);
-        $merged   = $this->mergeXmpData($existing, $rating, $label);
-        $newXmp   = $this->buildXmpPacket($merged['rating'], $merged['label']);
-        $updated  = $this->embedXmpInJpeg($content, $newXmp);
-
+        $updated = $this->applyMetadataToContent($content, $rating, $label);
         $file->putContent($updated);
 
         $this->logger->info(sprintf(
             'StarRate: XMP written to %s — rating: %s, label: %s',
             $file->getName(),
-            $merged['rating'] ?? 'unchanged',
-            $merged['label']  ?? 'unchanged'
+            $rating ?? 'unchanged',
+            $label  ?? 'unchanged'
         ));
     }
 
@@ -103,7 +100,7 @@ class ExifService
 
     /**
      * Schreibt Metadaten in rohen JPEG-Inhalt und gibt den aktualisierten Inhalt zurück.
-     * Hauptsächlich für Tests.
+     * Alle anderen XMP-Felder bleiben erhalten. Hauptsächlich für Tests.
      */
     public function writeMetadataToContent(string $content, ?int $rating = null, ?string $label = null): string
     {
@@ -113,11 +110,7 @@ class ExifService
             throw new \RuntimeException('Content is not a valid JPEG.');
         }
 
-        $existing = $this->readXmpFromContent($content);
-        $merged   = $this->mergeXmpData($existing, $rating, $label);
-        $newXmp   = $this->buildXmpPacket($merged['rating'], $merged['label']);
-
-        return $this->embedXmpInJpeg($content, $newXmp);
+        return $this->applyMetadataToContent($content, $rating, $label);
     }
 
     /**
@@ -131,6 +124,67 @@ class ExifService
         } catch (\Exception) {
             return false;
         }
+    }
+
+    // ─── Kernlogik: Metadaten anwenden ───────────────────────────────────────
+
+    /**
+     * Wendet Rating und Label auf JPEG-Inhalt an.
+     * Vorhandene XMP-Felder (Lightroom-Metadaten etc.) bleiben erhalten.
+     */
+    private function applyMetadataToContent(string $content, ?int $rating, ?string $label): string
+    {
+        $xmpBlock = $this->extractXmpBlock($content);
+        $existing = $xmpBlock !== null ? $this->parseXmp($xmpBlock) : ['rating' => 0, 'label' => null];
+        $merged   = $this->mergeXmpData($existing, $rating, $label);
+
+        $newXmp = $xmpBlock !== null
+            ? $this->patchXmpString($xmpBlock, $merged['rating'], $merged['label'])
+            : $this->buildXmpPacket($merged['rating'], $merged['label']);
+
+        return $this->embedXmpInJpeg($content, $newXmp);
+    }
+
+    /**
+     * Aktualisiert xmp:Rating und xmp:Label in einem bestehenden XMP-String,
+     * ohne andere Felder zu verändern (Issue #16: keine Datenverluste mehr).
+     *
+     * Unterstützt Attribut-Form: xmp:Rating="4" und Element-Form: <xmp:Rating>4</xmp:Rating>.
+     * Schreibt immer in Attribut-Form zurück.
+     */
+    private function patchXmpString(string $existingXmp, int $rating, ?string $label): string
+    {
+        $patched = $existingXmp;
+
+        // Vorhandene Rating- und Label-Felder entfernen (Attribut- und Element-Form)
+        $patched = preg_replace('/[ \t]*xmp:Rating\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<xmp:Rating>[^<]*<\/xmp:Rating>\s*/',             '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*xmp:Label\s*=\s*(?:"[^"]*"|\'[^\']*\')/',  '', $patched) ?? $patched;
+        $patched = preg_replace('/<xmp:Label>[^<]*<\/xmp:Label>\s*/',               '', $patched) ?? $patched;
+
+        // Neue Werte als Attribute formulieren
+        $ratingAttr = "\n      xmp:Rating=\"{$rating}\"";
+        $labelAttr  = ($label !== null && $label !== '') ? "\n      xmp:Label=\"{$label}\"" : '';
+
+        // In das erste rdf:Description-Opening-Tag injizieren (vor dem schließenden >)
+        // rdf:Description ist in LR/StarRate-XMP nicht selbstschließend — [^>]* reicht
+        $count    = 0;
+        $injected = preg_replace_callback(
+            '/(<rdf:Description\b[^>]*)(>)/s',
+            static function (array $m) use ($ratingAttr, $labelAttr): string {
+                return $m[1] . $ratingAttr . $labelAttr . "\n    " . $m[2];
+            },
+            $patched,
+            1,
+            $count
+        );
+
+        // Fallback: kein rdf:Description gefunden oder Regex-Fehler → frisches XMP
+        if ($injected === null || $count === 0) {
+            return $this->xmpService->buildXmpContent($rating, $label);
+        }
+
+        return $injected;
     }
 
     // ─── XMP lesen ────────────────────────────────────────────────────────────

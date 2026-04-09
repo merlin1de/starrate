@@ -123,6 +123,14 @@ XMP;
         $this->assertNull($result['label']); // unbekannte Farbe → null
     }
 
+    public function testParseXmpContentCaseInsensitiveLabel(): void
+    {
+        $this->assertSame('Red',    $this->service->parseXmpContent("xmp:Label='red'")['label']);
+        $this->assertSame('Red',    $this->service->parseXmpContent("xmp:Label='RED'")['label']);
+        $this->assertSame('Blue',   $this->service->parseXmpContent("xmp:Label='blue'")['label']);
+        $this->assertSame('Purple', $this->service->parseXmpContent("xmp:Label='PURPLE'")['label']);
+    }
+
     // ─── Tests: Round-Trip (bauen + parsen) ───────────────────────────────────
 
     /** @dataProvider roundTripProvider */

@@ -230,6 +230,79 @@ class ExifServiceTest extends TestCase
         $this->service->writeMetadataToContent('not-a-jpeg', 1, null);
     }
 
+    // ─── Tests: Erhalt externer XMP-Felder (Issue #16) ───────────────────────
+
+    /**
+     * Baut ein JPEG mit eingebettetem Lightroom-ähnlichem XMP (SerialNumber, Lens etc.).
+     */
+    private function makeJpegWithLightroomXmp(): string
+    {
+        $xmp = "<?xpacket begin='\xef\xbb\xbf' id='W5M0MpCehiHzreSzNTczkc9d'?>\n"
+            . "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Adobe XMP Core 6.0.0'>\n"
+            . "  <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n"
+            . "    <rdf:Description rdf:about=''\n"
+            . "      xmlns:xmp='http://ns.adobe.com/xap/1.0/'\n"
+            . "      xmlns:aux='http://ns.adobe.com/exif/1.0/aux/'\n"
+            . "      xmp:Rating='3'\n"
+            . "      xmp:Label='Red'\n"
+            . "      xmp:CreateDate='2024-06-01T10:00:00'\n"
+            . "      aux:SerialNumber='213076034929'\n"
+            . "      aux:Lens='18-250mm'>\n"
+            . "    </rdf:Description>\n"
+            . "  </rdf:RDF>\n"
+            . "</x:xmpmeta>\n"
+            . "<?xpacket end='w'?>";
+
+        $magic      = "http://ns.adobe.com/xap/1.0/\x00";
+        $payload    = $magic . $xmp;
+        $segLen     = strlen($payload) + 2;
+        $app1Seg    = "\xFF\xE1" . chr(($segLen >> 8) & 0xFF) . chr($segLen & 0xFF) . $payload;
+
+        $base = $this->makeMinimalJpeg();
+        return substr($base, 0, 2) . $app1Seg . substr($base, 2);
+    }
+
+    public function testPreservesExternalXmpFieldsWhenUpdatingRating(): void
+    {
+        $jpeg    = $this->makeJpegWithLightroomXmp();
+        $written = $this->service->writeMetadataToContent($jpeg, 5, 'Blue');
+
+        // Neue Werte korrekt geschrieben
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame(5,      $result['rating']);
+        $this->assertSame('Blue', $result['label']);
+
+        // Lightroom-Felder erhalten
+        $this->assertStringContainsString('SerialNumber',   $written);
+        $this->assertStringContainsString('213076034929',   $written);
+        $this->assertStringContainsString('18-250mm',       $written);
+        $this->assertStringContainsString('CreateDate',     $written);
+        $this->assertStringContainsString('aux:Lens',       $written);
+    }
+
+    public function testPreservesExternalXmpFieldsWhenRemovingLabel(): void
+    {
+        $jpeg    = $this->makeJpegWithLightroomXmp();
+        $written = $this->service->writeMetadataToContent($jpeg, 4, '');
+
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame(4,    $result['rating']);
+        $this->assertNull($result['label']);
+
+        // Externe Felder noch vorhanden
+        $this->assertStringContainsString('aux:SerialNumber', $written);
+        $this->assertStringContainsString('213076034929',     $written);
+    }
+
+    public function testReadsExistingLightroomRatingBeforeFirstWrite(): void
+    {
+        $jpeg   = $this->makeJpegWithLightroomXmp();
+        $result = $this->service->readMetadataFromContent($jpeg);
+
+        $this->assertSame(3,     $result['rating']);
+        $this->assertSame('Red', $result['label']);
+    }
+
     // ─── Tests: Große Dateien ─────────────────────────────────────────────────
 
     public function testLargeJpegWithPaddingIsHandledCorrectly(): void
