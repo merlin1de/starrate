@@ -221,18 +221,75 @@ class TagService
         }
 
         // 3. Neue Werte per direktem SQL-Insert setzen
+        //    getOrCreateTagDirect statt getOrCreateTag: ISystemTagManager::createTag
+        //    wirft ab NC 32 TagCreationForbiddenException im unauthentifizierten Context.
         if (array_key_exists('rating', $data) && (int) $data['rating'] > 0) {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_RATING . (int) $data['rating']);
-            $this->assignTagDirect($fileId, $tag->getId());
+            $tagId = $this->getOrCreateTagDirect(self::TAG_PREFIX_RATING . (int) $data['rating']);
+            $this->assignTagDirect($fileId, $tagId);
         }
         if (array_key_exists('color', $data) && $data['color'] !== null) {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_COLOR . $data['color']);
-            $this->assignTagDirect($fileId, $tag->getId());
+            $tagId = $this->getOrCreateTagDirect(self::TAG_PREFIX_COLOR . $data['color']);
+            $this->assignTagDirect($fileId, $tagId);
         }
         if (isset($data['pick']) && $data['pick'] !== 'none') {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_PICK . $data['pick']);
-            $this->assignTagDirect($fileId, $tag->getId());
+            $tagId = $this->getOrCreateTagDirect(self::TAG_PREFIX_PICK . $data['pick']);
+            $this->assignTagDirect($fileId, $tagId);
         }
+    }
+
+    /**
+     * Gibt die Tag-ID zurück; erstellt den Tag per direktem SQL falls er nicht existiert.
+     * Kein ISystemTagManager-Aufruf → kein User-Permission-Check (funktioniert in Guest-Context).
+     * Tags werden als unsichtbar + nicht-zuweisbar angelegt (wie createTag($name, false, false)).
+     */
+    private function getOrCreateTagDirect(string $name): string
+    {
+        // Erst im Request-Cache nachschauen
+        if (isset($this->tagCache[$name])) {
+            return $this->tagCache[$name]->getId();
+        }
+
+        // Suche in der systemtag-Tabelle
+        $qb     = $this->db->getQueryBuilder();
+        $result = $qb->select('id')
+            ->from('systemtag')
+            ->where($qb->expr()->eq('name', $qb->createNamedParameter($name)))
+            ->executeQuery();
+        $row    = $result->fetch();
+        $result->closeCursor();
+
+        if ($row !== false) {
+            return (string) $row['id'];
+        }
+
+        // Tag noch nicht vorhanden → anlegen
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->insert('systemtag')
+                ->values([
+                    'name'       => $qb->createNamedParameter($name),
+                    'visibility' => $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT),
+                    'editable'   => $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT),
+                ])
+                ->executeStatement();
+        } catch (\Exception) {
+            // Duplicate Key (Race Condition) → ignorieren, unten nochmal lesen
+        }
+
+        // Nach INSERT oder Race-Condition: ID aus DB lesen
+        $qb     = $this->db->getQueryBuilder();
+        $result = $qb->select('id')
+            ->from('systemtag')
+            ->where($qb->expr()->eq('name', $qb->createNamedParameter($name)))
+            ->executeQuery();
+        $row    = $result->fetch();
+        $result->closeCursor();
+
+        if ($row === false) {
+            throw new \RuntimeException("Tag '{$name}' konnte nicht erstellt oder gefunden werden.");
+        }
+
+        return (string) $row['id'];
     }
 
     /**
