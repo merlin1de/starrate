@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Service;
 
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\SystemTag\ISystemTagManager;
 use OCP\SystemTag\ISystemTagObjectMapper;
@@ -151,7 +152,11 @@ class TagService
     // ─── Kombiniert: alle Metadaten auf einmal ────────────────────────────────
 
     /**
-     * Setzt Rating + Color + Pick in einem Aufruf (optimiert: 1 Batch-Fetch statt 3 × removeTagsByPrefix).
+     * Setzt Rating + Color + Pick in einem Aufruf.
+     * Verwendet direkte SQL-Queries für systemtag_object_mapping, damit die Methode auch
+     * ohne authentifizierten Nutzer funktioniert (z. B. bei Gast-Bewertungen via PublicPage).
+     * ISystemTagObjectMapper::assignTags prüft ab NC 32 die User-Berechtigung und wirft
+     * TagNotAllowedException() (leere Message) wenn kein User eingeloggt ist.
      *
      * @param array{rating?: int, color?: string|null, pick?: string} $data
      */
@@ -172,49 +177,77 @@ class TagService
             throw new \InvalidArgumentException("Invalid pick status: {$data['pick']}.");
         }
 
-        // 1. Alle aktuellen StarRate-Tags der Datei auf einmal laden (2 Queries statt 3 × 2)
+        // 1. Bestehende StarRate-Tags der Datei per direktem SQL ermitteln
+        //    (kein ISystemTagObjectMapper → kein User-Permission-Check)
+        $prefixes = [];
+        if (array_key_exists('rating', $data)) $prefixes[] = self::TAG_PREFIX_RATING;
+        if (array_key_exists('color', $data))  $prefixes[] = self::TAG_PREFIX_COLOR;
+        if (isset($data['pick']))              $prefixes[] = self::TAG_PREFIX_PICK;
+
         $toRemove = [];
-        try {
-            $allTagIds  = $this->tagMapper->getTagIdsForObjects([$fileId], self::OBJECT_TYPE);
-            $fileTagIds = $allTagIds[$fileId] ?? [];
-            if (!empty($fileTagIds)) {
-                $existing = $this->tagManager->getTagsByIds($fileTagIds);
-                foreach ($existing as $tag) {
-                    $name = $tag->getName();
-                    if (array_key_exists('rating', $data) && str_starts_with($name, self::TAG_PREFIX_RATING)) {
-                        $toRemove[] = $tag->getId();
-                    } elseif (array_key_exists('color', $data) && str_starts_with($name, self::TAG_PREFIX_COLOR)) {
-                        $toRemove[] = $tag->getId();
-                    } elseif (isset($data['pick']) && str_starts_with($name, self::TAG_PREFIX_PICK)) {
-                        $toRemove[] = $tag->getId();
+        if (!empty($prefixes)) {
+            $qb = $this->db->getQueryBuilder();
+            $result = $qb->select('stom.systemtagid', 'st.name')
+                ->from('systemtag_object_mapping', 'stom')
+                ->innerJoin('stom', 'systemtag', 'st', $qb->expr()->eq('st.id', 'stom.systemtagid'))
+                ->where($qb->expr()->eq('stom.objectid', $qb->createNamedParameter($fileId)))
+                ->andWhere($qb->expr()->eq('stom.objecttype', $qb->createNamedParameter(self::OBJECT_TYPE)))
+                ->andWhere($qb->expr()->like('st.name', $qb->createNamedParameter('starrate:%')))
+                ->executeQuery();
+
+            while ($row = $result->fetch()) {
+                foreach ($prefixes as $prefix) {
+                    if (str_starts_with($row['name'], $prefix)) {
+                        $toRemove[] = (int) $row['systemtagid'];
+                        break;
                     }
                 }
             }
-        } catch (\Exception $e) {
-            $this->logger->warning("StarRate: failed to read current tags: " . $e->getMessage());
+            $result->closeCursor();
         }
 
-        // 2. Alte Tags auf einmal entfernen (1 Query statt 3)
+        // 2. Alte Tag-Zuordnungen per direktem SQL entfernen
         if (!empty($toRemove)) {
-            try {
-                $this->tagMapper->unassignTags($fileId, self::OBJECT_TYPE, $toRemove);
-            } catch (\Exception $e) {
-                $this->logger->warning("StarRate: failed to unassign tags: " . $e->getMessage());
-            }
+            $qb = $this->db->getQueryBuilder();
+            $qb->delete('systemtag_object_mapping')
+                ->where($qb->expr()->eq('objectid', $qb->createNamedParameter($fileId)))
+                ->andWhere($qb->expr()->eq('objecttype', $qb->createNamedParameter(self::OBJECT_TYPE)))
+                ->andWhere($qb->expr()->in('systemtagid', $qb->createNamedParameter($toRemove, IQueryBuilder::PARAM_INT_ARRAY)))
+                ->executeStatement();
         }
 
-        // 3. Neue Werte setzen (1 Query pro geändertem Feld)
+        // 3. Neue Werte per direktem SQL-Insert setzen
         if (array_key_exists('rating', $data) && (int) $data['rating'] > 0) {
             $tag = $this->getOrCreateTag(self::TAG_PREFIX_RATING . (int) $data['rating']);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
+            $this->assignTagDirect($fileId, $tag->getId());
         }
         if (array_key_exists('color', $data) && $data['color'] !== null) {
             $tag = $this->getOrCreateTag(self::TAG_PREFIX_COLOR . $data['color']);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
+            $this->assignTagDirect($fileId, $tag->getId());
         }
         if (isset($data['pick']) && $data['pick'] !== 'none') {
             $tag = $this->getOrCreateTag(self::TAG_PREFIX_PICK . $data['pick']);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
+            $this->assignTagDirect($fileId, $tag->getId());
+        }
+    }
+
+    /**
+     * Weist einem File einen Tag direkt per SQL zu (kein User-Permission-Check).
+     * Ignoriert Duplicate-Key-Fehler (bereits zugewiesen → kein Problem).
+     */
+    private function assignTagDirect(string $fileId, int $tagId): void
+    {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->insert('systemtag_object_mapping')
+                ->values([
+                    'systemtagid' => $qb->createNamedParameter($tagId, IQueryBuilder::PARAM_INT),
+                    'objectid'    => $qb->createNamedParameter($fileId),
+                    'objecttype'  => $qb->createNamedParameter(self::OBJECT_TYPE),
+                ])
+                ->executeStatement();
+        } catch (\Exception) {
+            // Duplicate Entry (Tag bereits zugewiesen) → ignorieren
         }
     }
 

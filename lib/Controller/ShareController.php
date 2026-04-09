@@ -398,7 +398,7 @@ class ShareController extends Controller
             $this->logger->info("StarRate guest rating: guest=\"{$guestName}\" token={$token} file={$body['file_id']} rating={$rating} color={$color} pick={$pick}");
             return new DataResponse($result, Http::STATUS_OK);
         } catch (\Exception $e) {
-            $this->logger->error("StarRate ShareController::guestRate – {$e->getMessage()}");
+            $this->logger->error("StarRate ShareController::guestRate – [" . get_class($e) . "] {$e->getMessage()}");
             return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
