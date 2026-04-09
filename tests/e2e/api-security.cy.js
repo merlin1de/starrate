@@ -143,35 +143,51 @@ describe('API Security', () => {
 
   describe('XSS & Injection', () => {
 
-    it('Share mit XSS im Guest-Name → wird escaped', () => {
-      login()
-      createShare({
-        permissions: 'rate',
-        guest_name: '<script>alert("xss")</script>',
-      }).then(share => {
+    describe('XSS im Guest-Name', () => {
+      let token
+
+      before(() => {
+        login()
+        createShare({
+          permissions: 'rate',
+          guest_name: '<script>alert("xss")</script>',
+        }).then(share => { token = share.token })
+      })
+
+      after(() => deleteShare(token))
+
+      it('Share mit XSS im Guest-Name → wird escaped', () => {
         cy.clearCookies()
-        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${share.token}`)
+        cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
         cy.get('.sr-grid', { timeout: 15000 }).should('be.visible')
 
         // Script darf nicht ausgeführt werden
         // Guest-Label zeigt den Text escaped an
         cy.get('.sr-breadcrumb__guest-label').should('contain', '<script>')
         cy.get('.sr-breadcrumb__guest-label').should('not.have.html', '<script>')
-
-        deleteShare(share.token)
       })
     })
 
-    it('Rating mit XSS im guest_name → kein Fehler', () => {
-      login()
-      createShare({ permissions: 'rate', guest_name: 'Normal' }).then(share => {
+    describe('XSS im Rating guest_name', () => {
+      let token
+
+      before(() => {
+        login()
+        createShare({ permissions: 'rate', guest_name: 'Normal' }).then(share => {
+          token = share.token
+        })
+      })
+
+      after(() => deleteShare(token))
+
+      it('Rating mit XSS im guest_name → kein Fehler', () => {
         cy.request({
-          url: `${NC_URL}/index.php/apps/starrate/api/guest/${share.token}/images`,
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/images`,
         }).then(resp => {
           const fileId = resp.body.images[0].id
           cy.request({
             method: 'POST',
-            url: `${NC_URL}/index.php/apps/starrate/api/guest/${share.token}/rate`,
+            url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
             body: {
               file_id: fileId,
               rating: 3,
@@ -182,8 +198,6 @@ describe('API Security', () => {
             expect(r.status).to.eq(200)
           })
         })
-
-        deleteShare(share.token)
       })
     })
   })
@@ -251,11 +265,21 @@ describe('API Security', () => {
       })
     })
 
-    it('Share für nicht-existierenden Ordner → Images leer oder Fehler', () => {
-      login()
-      createShare({ nc_path: '/NICHT/EXISTENT/ORDNER', permissions: 'view', guest_name: 'Ghost' }).then(share => {
+    describe('Share für nicht-existierenden Ordner', () => {
+      let token
+
+      before(() => {
+        login()
+        createShare({ nc_path: '/NICHT/EXISTENT/ORDNER', permissions: 'view', guest_name: 'Ghost' }).then(share => {
+          token = share.token
+        })
+      })
+
+      after(() => deleteShare(token))
+
+      it('Images leer oder Fehler', () => {
         cy.request({
-          url: `${NC_URL}/index.php/apps/starrate/api/guest/${share.token}/images`,
+          url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/images`,
           failOnStatusCode: false,
         }).then(resp => {
           // Server-Fehler oder leeres Ergebnis
@@ -265,8 +289,6 @@ describe('API Security', () => {
             expect(resp.status).to.be.greaterThan(399)
           }
         })
-
-        deleteShare(share.token)
       })
     })
   })
