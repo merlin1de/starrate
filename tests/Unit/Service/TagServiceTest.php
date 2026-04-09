@@ -359,6 +359,25 @@ class TagServiceTest extends TestCase
         $this->service->setMetadata('10', ['rating' => 3]);
     }
 
+    public function testSetMetadataCreatesTagWhenNotInDb(): void
+    {
+        // Simuliert den NC 32 "fresh tag"-Fall: Tag existiert noch nicht in der systemtag-Tabelle.
+        // getOrCreateTagDirect muss ihn per INSERT anlegen und danach per SELECT die ID lesen.
+        //
+        // fetch-Sequenz:
+        //   false          → existing-mapping SELECT (keine vorhandenen Tags)
+        //   false          → getOrCreateTagDirect: erster SELECT findet Tag nicht
+        //   ['id' => '99'] → getOrCreateTagDirect: zweiter SELECT nach INSERT liest neue ID
+        //
+        // executeStatement:
+        //   Aufruf 1 → INSERT INTO systemtag (neuer Tag)
+        //   Aufruf 2 → INSERT INTO systemtag_object_mapping (assignTagDirect)
+        $fetchValues = [false, false, ['id' => '99']];
+        [$qb] = $this->mockSetMetadataQb($fetchValues, 2);
+
+        $this->service->setMetadata('10', ['rating' => 5]);
+    }
+
     public function testSetMetadataThrowsForInvalidRating(): void
     {
         $this->expectException(\InvalidArgumentException::class);
