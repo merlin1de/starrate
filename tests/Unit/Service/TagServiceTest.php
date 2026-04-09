@@ -718,15 +718,32 @@ class TagServiceTest extends TestCase
 
     public function testSetMetadataHandlesExceptionOnTagRead(): void
     {
-        $this->tagMapper->method('getTagIdsForObjects')
-            ->willThrowException(new \RuntimeException('DB down'));
-
+        // SELECT-Query wirft → setMetadata soll trotzdem den neuen Tag setzen
         $tag = $this->makeTag('starrate:rating:3', '30');
         $this->tagManager->method('getAllTags')->willReturn(['30' => $tag]);
-        $this->tagManager->method('createTag')->willReturn($tag);
 
-        // Should still try to assign the new tag
-        $this->tagMapper->expects($this->once())->method('assignTags');
+        $expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1=1');
+        $expr->method('in')->willReturn('1=1');
+        $expr->method('like')->willReturn('1=1');
+
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('innerJoin')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('delete')->willReturnSelf();
+        $qb->method('insert')->willReturnSelf();
+        $qb->method('values')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturn('?');
+        $qb->method('expr')->willReturn($expr);
+        // SELECT wirft (simuliert DB-Fehler beim Lesen bestehender Tags)
+        $qb->method('executeQuery')->willThrowException(new \RuntimeException('DB down'));
+        // Trotzdem 1 INSERT für den neuen Tag
+        $qb->expects($this->once())->method('executeStatement');
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
 
         $this->service->setMetadata('10', ['rating' => 3]);
     }

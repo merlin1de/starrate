@@ -186,24 +186,28 @@ class TagService
 
         $toRemove = [];
         if (!empty($prefixes)) {
-            $qb = $this->db->getQueryBuilder();
-            $result = $qb->select('stom.systemtagid', 'st.name')
-                ->from('systemtag_object_mapping', 'stom')
-                ->innerJoin('stom', 'systemtag', 'st', $qb->expr()->eq('st.id', 'stom.systemtagid'))
-                ->where($qb->expr()->eq('stom.objectid', $qb->createNamedParameter($fileId)))
-                ->andWhere($qb->expr()->eq('stom.objecttype', $qb->createNamedParameter(self::OBJECT_TYPE)))
-                ->andWhere($qb->expr()->like('st.name', $qb->createNamedParameter('starrate:%')))
-                ->executeQuery();
+            try {
+                $qb = $this->db->getQueryBuilder();
+                $result = $qb->select('stom.systemtagid', 'st.name')
+                    ->from('systemtag_object_mapping', 'stom')
+                    ->innerJoin('stom', 'systemtag', 'st', $qb->expr()->eq('st.id', 'stom.systemtagid'))
+                    ->where($qb->expr()->eq('stom.objectid', $qb->createNamedParameter($fileId)))
+                    ->andWhere($qb->expr()->eq('stom.objecttype', $qb->createNamedParameter(self::OBJECT_TYPE)))
+                    ->andWhere($qb->expr()->like('st.name', $qb->createNamedParameter('starrate:%')))
+                    ->executeQuery();
 
-            while ($row = $result->fetch()) {
-                foreach ($prefixes as $prefix) {
-                    if (str_starts_with($row['name'], $prefix)) {
-                        $toRemove[] = (int) $row['systemtagid'];
-                        break;
+                while ($row = $result->fetch()) {
+                    foreach ($prefixes as $prefix) {
+                        if (str_starts_with($row['name'], $prefix)) {
+                            $toRemove[] = (int) $row['systemtagid'];
+                            break;
+                        }
                     }
                 }
+                $result->closeCursor();
+            } catch (\Exception $e) {
+                $this->logger->warning("StarRate: failed to read current tags for {$fileId}: " . $e->getMessage());
             }
-            $result->closeCursor();
         }
 
         // 2. Alte Tag-Zuordnungen per direktem SQL entfernen
@@ -235,13 +239,13 @@ class TagService
      * Weist einem File einen Tag direkt per SQL zu (kein User-Permission-Check).
      * Ignoriert Duplicate-Key-Fehler (bereits zugewiesen → kein Problem).
      */
-    private function assignTagDirect(string $fileId, int $tagId): void
+    private function assignTagDirect(string $fileId, string $tagId): void
     {
         try {
             $qb = $this->db->getQueryBuilder();
             $qb->insert('systemtag_object_mapping')
                 ->values([
-                    'systemtagid' => $qb->createNamedParameter($tagId, IQueryBuilder::PARAM_INT),
+                    'systemtagid' => $qb->createNamedParameter((int) $tagId, IQueryBuilder::PARAM_INT),
                     'objectid'    => $qb->createNamedParameter($fileId),
                     'objecttype'  => $qb->createNamedParameter(self::OBJECT_TYPE),
                 ])
