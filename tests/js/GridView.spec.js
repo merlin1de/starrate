@@ -319,4 +319,115 @@ describe('GridView', () => {
     const lastSet = w.emitted('selection-change').at(-1)[0]
     expect(lastSet.size).toBe(5)
   })
+
+  // ── Batch-Bewertung (Mehrfachauswahl + Tastatur) ───────────────────────────
+
+  it('Taste 4 mit Auswahl → emittiert batch-rate (kein rate)', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.findAll('.sr-grid__item')[1].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: '4' })
+    expect(w.emitted('batch-rate')).toBeTruthy()
+    expect(w.emitted('batch-rate')[0]).toEqual([4, undefined, undefined])
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('Taste 0 mit Auswahl → emittiert batch-rate mit rating=0 (Sterne entfernen)', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: '0' })
+    expect(w.emitted('batch-rate')?.[0][0]).toBe(0)
+  })
+
+  it('Taste 6 mit Auswahl → emittiert batch-rate mit color=Red', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: '6' })
+    expect(w.emitted('batch-rate')).toBeTruthy()
+    expect(w.emitted('batch-rate')[0]).toEqual([undefined, 'Red', undefined])
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('Taste 7/8/9 mit Auswahl → emittiert batch-rate mit korrekter Farbe', async () => {
+    const colorMap = { '7': 'Yellow', '8': 'Green', '9': 'Blue' }
+    for (const [key, color] of Object.entries(colorMap)) {
+      const w = factory()
+      await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+      await w.trigger('keydown', { key })
+      expect(w.emitted('batch-rate')?.[0][1]).toBe(color)
+    }
+  })
+
+  it('V-Taste mit Auswahl → emittiert batch-rate mit color=Purple', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: 'v' })
+    expect(w.emitted('batch-rate')?.[0][1]).toBe('Purple')
+  })
+
+  it('P-Taste mit enablePickUi + Auswahl → emittiert batch-rate mit pick=pick', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: 'p' })
+    expect(w.emitted('batch-rate')).toBeTruthy()
+    expect(w.emitted('batch-rate')[0]).toEqual([undefined, undefined, 'pick'])
+    expect(w.emitted('rate')).toBeFalsy()
+  })
+
+  it('X-Taste mit enablePickUi + Auswahl → emittiert batch-rate mit pick=reject', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: 'x' })
+    expect(w.emitted('batch-rate')?.[0][2]).toBe('reject')
+  })
+
+  it('P-Taste mit Auswahl aber ohne enablePickUi → kein batch-rate', async () => {
+    const w = factory()
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: 'p' })
+    expect(w.emitted('batch-rate')).toBeFalsy()
+  })
+
+  it('Taste 4 ohne Auswahl aber ohne fokussiertes Bild → kein rate', async () => {
+    const w = factory()
+    // Kein Klick → focusedIndex = -1, keine Auswahl → nichts passiert
+    await w.trigger('keydown', { key: '4' })
+    expect(w.emitted('rate')).toBeFalsy()
+    expect(w.emitted('batch-rate')).toBeFalsy()
+  })
+
+  // ── Farb-Toggle im Batch ───────────────────────────────────────────────────
+
+  it('Taste 6: alle selektierten haben Red → Toggle auf null (entfernen)', async () => {
+    const images = makeImages()
+    images[0].color = 'Red'
+    images[1].color = 'Red'
+    const w = factory({ images })
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.findAll('.sr-grid__item')[1].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: '6' })
+    expect(w.emitted('batch-rate')[0]).toEqual([undefined, null, undefined])
+  })
+
+  it('Taste 6: gemischte Farben → setzt Red (kein Toggle)', async () => {
+    const images = makeImages()
+    images[0].color = 'Red'
+    images[1].color = null
+    const w = factory({ images })
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.findAll('.sr-grid__item')[1].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: '6' })
+    expect(w.emitted('batch-rate')[0]).toEqual([undefined, 'Red', undefined])
+  })
+
+  it('V-Taste: alle selektierten haben Purple → Toggle auf null', async () => {
+    const images = makeImages()
+    images[0].color = 'Purple'
+    images[1].color = 'Purple'
+    const w = factory({ images })
+    await w.findAll('.sr-grid__item')[0].trigger('click', { ctrlKey: true })
+    await w.findAll('.sr-grid__item')[1].trigger('click', { ctrlKey: true })
+    await w.trigger('keydown', { key: 'v' })
+    expect(w.emitted('batch-rate')[0]).toEqual([undefined, null, undefined])
+  })
 })

@@ -27,7 +27,7 @@
             v-for="star in [0, 1, 2, 3, 4, 5]"
             :key="`star-${star}`"
             class="sr-selbar__btn sr-selbar__btn--star"
-            :class="{ 'sr-selbar__btn--active': lastRating === star && star > 0 }"
+            :class="{ 'sr-selbar__btn--active': activeRating === star }"
             type="button"
             :title="star === 0 ? t('starrate', 'Bewertung entfernen') : n('starrate', '%n Stern', '%n Sterne', star)"
             @click="applyRating(star)"
@@ -46,7 +46,7 @@
             v-for="color in COLORS"
             :key="color.key"
             class="sr-selbar__btn sr-selbar__btn--color"
-            :class="{ 'sr-selbar__btn--active': lastColor === color.key }"
+            :class="{ 'sr-selbar__btn--active': activeColor === color.key }"
             type="button"
             :title="`${t('starrate', color.label)} (${color.shortcut})`"
             :style="{ '--dot-color': color.hex }"
@@ -54,14 +54,16 @@
           >
             <span class="sr-selbar__color-dot" />
           </button>
-          <!-- Farbe entfernen -->
+          <!-- Farbe entfernen: leerer Kreis -->
           <button
-            class="sr-selbar__btn"
-            :class="{ 'sr-selbar__btn--active': lastColor === null && colorApplied }"
+            class="sr-selbar__btn sr-selbar__btn--color-none"
+            :class="{ 'sr-selbar__btn--active': activeColor === null }"
             type="button"
             :title="t('starrate', 'Farbe entfernen')"
             @click="applyColor(null)"
-          >✕</button>
+          >
+            <span class="sr-selbar__color-dot sr-selbar__color-dot--none" />
+          </button>
         </div>
 
       </div>
@@ -70,32 +72,33 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { t, n } from '@nextcloud/l10n'
 import { COLORS } from './ColorLabel.vue'
 
-defineProps({
+const props = defineProps({
   count: {
     type: Number,
     required: true,
+  },
+  // Zuletzt per Batch gesetztes Rating (null = keins / nie gesetzt)
+  activeRating: {
+    type: [Number, null],
+    default: null,
+  },
+  // Zuletzt per Batch gesetzte Farbe (undefined = nie gesetzt, null = entfernt, String = Farbe)
+  activeColor: {
+    default: undefined,
   },
 })
 
 const emit = defineEmits(['rate', 'clear'])
 
-const lastRating    = ref(null)
-const lastColor     = ref(null)
-const colorApplied  = ref(false)
-
 function applyRating(star) {
-  lastRating.value = star
-  emit('rate', star, null)
+  emit('rate', star, undefined)
 }
 
 function applyColor(colorKey) {
-  lastColor.value   = colorKey
-  colorApplied.value = true
-  emit('rate', null, colorKey)
+  emit('rate', undefined, colorKey)
 }
 </script>
 
@@ -217,7 +220,8 @@ function applyColor(colorKey) {
 }
 
 /* Farbpunkt-Button */
-.sr-selbar__btn--color {
+.sr-selbar__btn--color,
+.sr-selbar__btn--color-none {
   width: 28px;
   min-width: 28px;
   padding: 0;
@@ -231,10 +235,26 @@ function applyColor(colorKey) {
   display: block;
 }
 
+/* Leerer Kreis für "keine Farbe" */
+.sr-selbar__color-dot--none {
+  background: transparent;
+  border: 1.5px solid #555;
+}
+
 .sr-selbar__btn--color.sr-selbar__btn--active {
   background: transparent !important;
   border-color: #fff !important;
   box-shadow: 0 0 0 2px var(--dot-color, #888) !important;
+}
+
+.sr-selbar__btn--color-none.sr-selbar__btn--active {
+  background: transparent !important;
+  border-color: #fff !important;
+  box-shadow: 0 0 0 2px #555 !important;
+}
+
+.sr-selbar__btn--color-none.sr-selbar__btn--active .sr-selbar__color-dot--none {
+  border-color: #aaa;
 }
 
 /* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */

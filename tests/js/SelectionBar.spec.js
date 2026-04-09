@@ -51,8 +51,8 @@ describe('SelectionBar', () => {
     await starBtns[4].trigger('click') // Index 4 = Rating 4
     const emitted = w.emitted('rate')
     expect(emitted).toBeTruthy()
-    expect(emitted[0][0]).toBe(4) // rating
-    expect(emitted[0][1]).toBeNull() // color
+    expect(emitted[0][0]).toBe(4)          // rating
+    expect(emitted[0][1]).toBeUndefined()  // color unverändert
   })
 
   it('emittiert rate mit Rating 0 beim Klick auf ✕-Stern', async () => {
@@ -62,11 +62,18 @@ describe('SelectionBar', () => {
     expect(w.emitted('rate')[0][0]).toBe(0)
   })
 
-  it('markiert letzten Stern aktiv nach Klick', async () => {
-    const w = factory()
+  it('markiert Stern aktiv wenn activeRating-Prop gesetzt', () => {
+    const w = factory({ activeRating: 3 })
     const starBtns = w.findAll('.sr-selbar__btn--star')
-    await starBtns[3].trigger('click') // Rating 3
     expect(starBtns[3].classes()).toContain('sr-selbar__btn--active')
+    expect(starBtns[4].classes()).not.toContain('sr-selbar__btn--active')
+  })
+
+  it('markiert ✕-Stern-Button aktiv wenn activeRating=0', () => {
+    const w = factory({ activeRating: 0 })
+    const starBtns = w.findAll('.sr-selbar__btn--star')
+    expect(starBtns[0].classes()).toContain('sr-selbar__btn--active') // Index 0 = ✕ / Rating 0
+    expect(starBtns[1].classes()).not.toContain('sr-selbar__btn--active')
   })
 
   // ── Farbe setzen ──────────────────────────────────────────────────────────
@@ -76,17 +83,28 @@ describe('SelectionBar', () => {
     const colorBtns = w.findAll('.sr-selbar__btn--color')
     await colorBtns[2].trigger('click') // Index 2 = Green
     const emitted = w.emitted('rate')
-    expect(emitted[0][0]).toBeNull()  // rating
-    expect(emitted[0][1]).toBe('Green') // color
+    expect(emitted[0][0]).toBeUndefined() // rating unverändert
+    expect(emitted[0][1]).toBe('Green')   // color
   })
 
   it('emittiert rate mit null-Farbe beim Klick auf Farbe-Entfernen', async () => {
     const w = factory()
-    const section = w.find('.sr-selbar__section:last-child')
-    const removBtn = section.findAll('.sr-selbar__btn').at(-1) // letzter = ✕
-    await removBtn.trigger('click')
+    await w.find('.sr-selbar__btn--color-none').trigger('click')
     const emitted = w.emitted('rate')
-    expect(emitted[0][1]).toBeNull()
+    expect(emitted[0][0]).toBeUndefined() // rating unverändert
+    expect(emitted[0][1]).toBeNull()      // color = null → Farbe entfernen
+  })
+
+  it('markiert Farbe-Entfernen-Button aktiv wenn activeColor=null', () => {
+    const w = factory({ activeColor: null })
+    expect(w.find('.sr-selbar__btn--color-none').classes()).toContain('sr-selbar__btn--active')
+  })
+
+  it('markiert Farb-Button aktiv wenn activeColor-Prop gesetzt', () => {
+    const w = factory({ activeColor: 'Green' })
+    const colorBtns = w.findAll('.sr-selbar__btn--color')
+    expect(colorBtns[2].classes()).toContain('sr-selbar__btn--active') // Index 2 = Green
+    expect(colorBtns[0].classes()).not.toContain('sr-selbar__btn--active')
   })
 
   // ── Auswahl aufheben ──────────────────────────────────────────────────────
@@ -111,31 +129,22 @@ describe('SelectionBar', () => {
 
   // ── Edge Cases ────────────────────────────────────────────────────────────
 
-  it('sequenzielle Klicks: Star → Color → Star aktualisiert aktive Klasse', async () => {
-    const w = factory()
-    const stars = w.findAll('.sr-selbar__btn--star')
-    const colors = w.findAll('.sr-selbar__btn--color')
+  it('activeRating-Prop-Wechsel aktualisiert aktive Klasse', async () => {
+    const w = factory({ activeRating: 3 })
+    expect(w.findAll('.sr-selbar__btn--star')[3].classes()).toContain('sr-selbar__btn--active')
 
-    await stars[3].trigger('click') // Rating 3
-    expect(stars[3].classes()).toContain('sr-selbar__btn--active')
-
-    await colors[0].trigger('click') // Red
-    expect(colors[0].classes()).toContain('sr-selbar__btn--active')
-
-    await stars[5].trigger('click') // Rating 5
-    expect(stars[5].classes()).toContain('sr-selbar__btn--active')
-    // Stern 3 nicht mehr aktiv
-    expect(stars[3].classes()).not.toContain('sr-selbar__btn--active')
+    await w.setProps({ activeRating: 5 })
+    expect(w.findAll('.sr-selbar__btn--star')[5].classes()).toContain('sr-selbar__btn--active')
+    expect(w.findAll('.sr-selbar__btn--star')[3].classes()).not.toContain('sr-selbar__btn--active')
   })
 
-  it('verschiedene Farben hintereinander — nur letzte aktiv', async () => {
-    const w = factory()
-    const colors = w.findAll('.sr-selbar__btn--color')
+  it('activeColor-Prop-Wechsel: nur letzte Farbe aktiv', async () => {
+    const w = factory({ activeColor: 'Red' })
+    expect(w.findAll('.sr-selbar__btn--color')[0].classes()).toContain('sr-selbar__btn--active')
 
-    await colors[0].trigger('click') // Red
-    await colors[2].trigger('click') // Green
-    expect(colors[0].classes()).not.toContain('sr-selbar__btn--active')
-    expect(colors[2].classes()).toContain('sr-selbar__btn--active')
+    await w.setProps({ activeColor: 'Green' })
+    expect(w.findAll('.sr-selbar__btn--color')[0].classes()).not.toContain('sr-selbar__btn--active')
+    expect(w.findAll('.sr-selbar__btn--color')[2].classes()).toContain('sr-selbar__btn--active')
   })
 
   it('alle 5 Ratings (1–5) emittieren korrekt', async () => {
@@ -146,7 +155,7 @@ describe('SelectionBar', () => {
       const emitted = w.emitted('rate')
       const last = emitted[emitted.length - 1]
       expect(last[0]).toBe(i)
-      expect(last[1]).toBeNull()
+      expect(last[1]).toBeUndefined() // color unverändert
     }
   })
 
@@ -159,7 +168,7 @@ describe('SelectionBar', () => {
       await colorBtns[i].trigger('click')
       const emitted = w.emitted('rate')
       const last = emitted[emitted.length - 1]
-      expect(last[0]).toBeNull()
+      expect(last[0]).toBeUndefined() // rating unverändert
       expect(last[1]).toBe(expectedColors[i])
     }
   })
