@@ -209,7 +209,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 /* global __APP_VERSION__ */
-const appVersion = __APP_VERSION__
+const appVersion = document.getElementById('starrate-root')?.dataset?.version || __APP_VERSION__
 import { useRoute, useRouter } from 'vue-router'
 import { t, n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
