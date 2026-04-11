@@ -12,6 +12,13 @@
         <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" :title="t('starrate', 'Freigabe-Links verwalten')">
           {{ t('starrate', 'Teilen') }}
         </button>
+        <button
+          v-if="!guestMode || allowExport"
+          class="sr-breadcrumb__share"
+          :disabled="filteredImages.length === 0"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="showExportModal = true"
+        >{{ t('starrate', 'Export') }}</button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
         <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
         <div class="sr-breadcrumb__mode">
@@ -140,6 +147,14 @@
       @created="onShareCreated"
     />
 
+    <!-- Export List Modal -->
+    <ExportModal
+      v-if="showExportModal"
+      :images="filteredImages"
+      :show-pick-col="settings.enable_pick_ui"
+      @close="showExportModal = false"
+    />
+
     <!-- Shortcut-Hilfe-Modal -->
     <Teleport to="body">
       <Transition name="sr-shortcuts">
@@ -220,6 +235,7 @@ import SelectionBar from '../components/SelectionBar.vue'
 import LoupeView from '../components/LoupeView.vue'
 import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
+import ExportModal from '../components/ExportModal.vue'
 
 // ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
 
@@ -240,6 +256,8 @@ const props = defineProps({
   previewUrlFn:   { type: Function, default: null },
   /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
   enablePickOverride: { type: [Boolean, null], default: null },
+  /** Gast-Modus: Export List erlaubt (per-Share Einstellung, default: false) */
+  allowExport: { type: Boolean, default: false },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -274,6 +292,7 @@ let   toastCounter = 0
 const showShareList  = ref(false)
 const showShareModal = ref(false)
 const showShortcuts  = ref(false)
+const showExportModal = ref(false)
 
 const activeFilter = ref({
   minRating: 0,     // 0 = alle  (>=)
@@ -599,10 +618,11 @@ function onShareCreated() {
 // Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
   if (showShareModal.value)       { showShareModal.value = false; return }
   if (showShareList.value)        { showShareList.value  = false; return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
-  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection() }
+  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
 
 async function loadSettings() {
@@ -824,6 +844,12 @@ watch(() => route.query, q => {
 .sr-breadcrumb__share:hover {
   color: #d4d4d8;
   border-color: #7a3050;
+}
+.sr-breadcrumb__share:focus,
+.sr-breadcrumb__share:focus-visible {
+  color: #a1a1aa;
+  outline: none;
+  box-shadow: none;
 }
 
 .sr-breadcrumb__guest-label {

@@ -59,6 +59,7 @@ class ShareService
         string  $permissions,
         ?string $guestName = null,
         bool    $allowPick = false,
+        bool    $allowExport = false,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -77,6 +78,7 @@ class ShareService
             'permissions'   => $permissions,
             'guest_name'    => $guestName ? trim($guestName) : null,
             'allow_pick'    => $allowPick,
+            'allow_export'  => $allowExport,
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -165,6 +167,9 @@ class ShareService
         }
         if (isset($data['allow_pick'])) {
             $all[$token]['allow_pick'] = (bool) $data['allow_pick'];
+        }
+        if (isset($data['allow_export'])) {
+            $all[$token]['allow_export'] = (bool) $data['allow_export'];
         }
 
         $this->saveShares($ownerId, $all);
