@@ -150,12 +150,14 @@ class ImportXmpCommand extends Command
                 $label = $xmp['label'] ?? null;
 
                 if ($dryRun) {
-                    $output->writeln(sprintf(
-                        '  <info>import</info> %s  rating=%d  label=%s',
-                        $file->getName(),
-                        $xmp['rating'],
-                        $label ?? '—'
-                    ));
+                    if ($output->isVerbose()) {
+                        $output->writeln(sprintf(
+                            '  <info>import</info> %s  rating=%d  label=%s',
+                            $file->getName(),
+                            $xmp['rating'],
+                            $label ?? '—'
+                        ));
+                    }
                     $imported++;
                     continue;
                 }
@@ -166,12 +168,14 @@ class ImportXmpCommand extends Command
                     'color'  => $label,          // null = kein Label (löscht vorhandenes)
                 ]);
 
-                $output->writeln(sprintf(
-                    '  <info>import</info> %s  rating=%d  label=%s',
-                    $file->getName(),
-                    $xmp['rating'],
-                    $label ?? '—'
-                ));
+                if ($output->isVerbose()) {
+                    $output->writeln(sprintf(
+                        '  <info>import</info> %s  rating=%d  label=%s',
+                        $file->getName(),
+                        $xmp['rating'],
+                        $label ?? '—'
+                    ));
+                }
                 $imported++;
 
             } catch (\Exception $e) {
