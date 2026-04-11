@@ -4,7 +4,7 @@
       <div class="sr-export-modal">
 
         <header class="sr-export-modal__header">
-          <h2 class="sr-export-modal__title">{{ t('starrate', 'Export List') }}</h2>
+          <h2 class="sr-export-modal__title">{{ t('starrate', 'Bewertungsliste exportieren') }}</h2>
           <button class="sr-export-modal__close" @click="$emit('close')">✕</button>
         </header>
 
@@ -14,15 +14,15 @@
           <div class="sr-export-modal__columns">
             <label class="sr-export-modal__col-label">
               <input type="checkbox" v-model="cols.filename" class="sr-export-modal__checkbox" />
-              {{ t('starrate', 'Filename') }}
+              {{ t('starrate', 'Dateiname') }}
             </label>
             <label class="sr-export-modal__col-label">
               <input type="checkbox" v-model="cols.rating" class="sr-export-modal__checkbox" />
-              {{ t('starrate', 'Stars') }}
+              {{ t('starrate', 'Sterne') }}
             </label>
             <label class="sr-export-modal__col-label">
               <input type="checkbox" v-model="cols.color" class="sr-export-modal__checkbox" />
-              {{ t('starrate', 'Color') }}
+              {{ t('starrate', 'Farbe') }}
             </label>
             <label v-if="showPickCol" class="sr-export-modal__col-label">
               <input type="checkbox" v-model="cols.pick" class="sr-export-modal__checkbox" />
@@ -35,23 +35,23 @@
             <pre class="sr-export-modal__preview">{{ previewText }}</pre>
           </div>
 
-          <p class="sr-export-modal__count">{{ t('starrate', '{n} images', { n: images.length }) }}</p>
+          <p class="sr-export-modal__count">{{ t('starrate', '{n} Bilder', { n: images.length }) }}</p>
 
         </div>
 
         <div class="sr-export-modal__actions">
           <button class="sr-export-modal__btn sr-export-modal__btn--secondary" @click="$emit('close')">
-            {{ t('starrate', 'Close') }}
+            {{ t('starrate', 'Schließen') }}
           </button>
           <button class="sr-export-modal__btn sr-export-modal__btn--secondary" @click="downloadCsv">
-            {{ t('starrate', 'Download CSV') }}
+            {{ t('starrate', 'CSV herunterladen') }}
           </button>
           <button
             class="sr-export-modal__btn sr-export-modal__btn--primary"
             :class="{ 'sr-export-modal__btn--done': copied }"
             @click="copyToClipboard"
           >
-            {{ copied ? '✓ ' + t('starrate', 'Copied') : t('starrate', 'Copy to Clipboard') }}
+            {{ copied ? '✓ ' + t('starrate', 'Kopiert') : t('starrate', 'In Zwischenablage kopieren') }}
           </button>
         </div>
 
@@ -119,7 +119,7 @@ const previewText = computed(() => {
   if (!csv) return t('starrate', 'Bitte mindestens eine Spalte auswählen.')
   const lines = csv.split('\n')
   const preview = lines.slice(0, 9)
-  if (lines.length > 9) preview.push(`… (${lines.length - 1} ${t('starrate', 'images total')})`)
+  if (lines.length > 9) preview.push(`… (${lines.length - 1} ${t('starrate', 'Bilder gesamt')})`)
   return preview.join('\n')
 })
 
