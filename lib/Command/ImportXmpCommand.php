@@ -17,10 +17,11 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * occ starrate:import-xmp <nc-path> [--user=<uid>] [--dry-run] [--skip-existing]
+ * occ starrate:import-xmp <nc-path> [--user=<uid>] [--dry-run] [--overwrite]
  *
  * Liest xmp:Rating und xmp:Label aus JPEG-Dateien und schreibt sie
  * in die StarRate Collaborative Tags-Datenbank.
+ * Scannt nur die angegebene Ordner-Ebene (nicht rekursiv).
  *
  * Typischer Anwendungsfall: einmaliger Import einer bestehenden
  * Lightroom/digiKam-Bibliothek in StarRate.
@@ -66,8 +67,8 @@ class ImportXmpCommand extends Command
     {
         $ncPath       = $input->getArgument('nc-path');
         $userId       = $input->getOption('user');
-        $dryRun    = (bool) $input->getOption('dry-run');
-        $overwrite = (bool) $input->getOption('overwrite');
+        $dryRun       = (bool) $input->getOption('dry-run');
+        $overwrite    = (bool) $input->getOption('overwrite');
 
         if (!$userId) {
             $output->writeln('<error>--user is required</error>');
