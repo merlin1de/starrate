@@ -66,6 +66,35 @@
           </button>
         </div>
 
+        <!-- Pick/Reject-Buttons -->
+        <template v-if="enablePickUi">
+          <div class="sr-selbar__sep" />
+          <div class="sr-selbar__section" :aria-label="t('starrate', 'Pick/Reject setzen')">
+            <span class="sr-selbar__label">{{ t('starrate', 'Pick:') }}</span>
+            <button
+              class="sr-selbar__btn sr-selbar__btn--pick"
+              :class="{ 'sr-selbar__btn--active': activePick === 'pick' }"
+              type="button"
+              :title="t('starrate', 'Pick (P)')"
+              @click="applyPick('pick')"
+            >✓</button>
+            <button
+              class="sr-selbar__btn sr-selbar__btn--reject"
+              :class="{ 'sr-selbar__btn--active': activePick === 'reject' }"
+              type="button"
+              :title="t('starrate', 'Reject (X)')"
+              @click="applyPick('reject')"
+            >⊘</button>
+            <button
+              class="sr-selbar__btn sr-selbar__btn--pick-none"
+              :class="{ 'sr-selbar__btn--active': activePick === null }"
+              type="button"
+              :title="t('starrate', 'Pick/Reject entfernen')"
+              @click="applyPick(null)"
+            >—</button>
+          </div>
+        </template>
+
       </div>
     </Transition>
   </Teleport>
@@ -90,16 +119,29 @@ defineProps({
     type: [String, null],
     default: undefined,
   },
+  // undefined=nie gesetzt, null=entfernt, 'pick'|'reject'
+  activePick: {
+    type: [String, null],
+    default: undefined,
+  },
+  enablePickUi: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['rate', 'clear'])
 
 function applyRating(star) {
-  emit('rate', star, undefined)
+  emit('rate', star, undefined, undefined)
 }
 
 function applyColor(colorKey) {
-  emit('rate', undefined, colorKey)
+  emit('rate', undefined, colorKey, undefined)
+}
+
+function applyPick(pickValue) {
+  emit('rate', undefined, undefined, pickValue)
 }
 </script>
 
@@ -256,6 +298,19 @@ function applyColor(colorKey) {
 
 .sr-selbar__btn--color-none.sr-selbar__btn--active .sr-selbar__color-dot--none {
   border-color: #aaa;
+}
+
+/* Pick/Reject */
+.sr-selbar__btn--pick.sr-selbar__btn--active {
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #fff !important;
+}
+
+.sr-selbar__btn--reject.sr-selbar__btn--active {
+  background: #e94560 !important;
+  border-color: #e94560 !important;
+  color: #fff !important;
 }
 
 /* ── Mobile: Android-Navigationsleiste ───────────────────────────────────── */
