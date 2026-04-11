@@ -78,7 +78,11 @@ class ExifService
             if (!$this->isJpeg($content)) {
                 return ['rating' => 0, 'label' => null];
             }
-            return $this->readXmpFromContent($content);
+            $xmp = $this->readXmpFromContent($content);
+            if ($xmp['rating'] === 0 && $xmp['label'] === null) {
+                return $this->readExifRatingFromContent($content);
+            }
+            return $xmp;
         } catch (\Exception $e) {
             $this->logger->warning("StarRate: failed to read metadata from {$file->getName()}: " . $e->getMessage());
             return ['rating' => 0, 'label' => null];
@@ -95,7 +99,11 @@ class ExifService
         if (!$this->isJpeg($content)) {
             return ['rating' => 0, 'label' => null];
         }
-        return $this->readXmpFromContent($content);
+        $xmp = $this->readXmpFromContent($content);
+        if ($xmp['rating'] === 0 && $xmp['label'] === null) {
+            return $this->readExifRatingFromContent($content);
+        }
+        return $xmp;
     }
 
     /**
@@ -202,6 +210,45 @@ class ExifService
         }
 
         return $this->parseXmp($xmpBlock);
+    }
+
+    /**
+     * Liest EXIF-Rating als Fallback wenn kein XMP vorhanden (z.B. digiKam-Bilder).
+     * EXIF kennt kein Farb-Label — label bleibt immer null.
+     *
+     * @return array{rating: int, label: string|null}
+     */
+    private function readExifRatingFromContent(string $content): array
+    {
+        if (!function_exists('exif_read_data')) {
+            return ['rating' => 0, 'label' => null];
+        }
+
+        // EXIF steht immer in den ersten Segmenten — 64 KB reichen aus.
+        // php://memory vermeidet Tempfile auf der Festplatte.
+        $tmp = fopen('php://memory', 'r+b');
+        if ($tmp === false) {
+            return ['rating' => 0, 'label' => null];
+        }
+
+        try {
+            fwrite($tmp, substr($content, 0, 65536));
+            rewind($tmp);
+            $exif = @exif_read_data($tmp, 'IFD0');
+        } finally {
+            fclose($tmp);
+        }
+
+        if (!is_array($exif) || !isset($exif['Rating'])) {
+            return ['rating' => 0, 'label' => null];
+        }
+
+        $rating = (int) $exif['Rating'];
+        if ($rating < 0 || $rating > 5) {
+            return ['rating' => 0, 'label' => null];
+        }
+
+        return ['rating' => $rating, 'label' => null];
     }
 
     /**

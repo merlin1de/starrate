@@ -21,13 +21,25 @@ use Psr\Log\LoggerInterface;
  */
 class XmpService
 {
-    // Lightroom-kompatible Label-Namen
+    // Lightroom-kompatible Label-Namen (kanonisch englisch)
     public const LABEL_MAP = [
         'Red'    => 'Red',
         'Yellow' => 'Yellow',
         'Green'  => 'Green',
         'Blue'   => 'Blue',
         'Purple' => 'Purple',
+    ];
+
+    // Lokalisierte Label-Namen → kanonisch englisch
+    // photoshop:LabelColor (immer Kleinbuchstaben EN) wird per strcasecmp aufgelöst,
+    // daher hier nur Varianten die NICHT bereits über LABEL_MAP greifen.
+    private const LABEL_ALIASES = [
+        // Deutsch (LR exportiert xmp:Label in der UI-Sprache)
+        'Rot'  => 'Red',
+        'Gelb' => 'Yellow',
+        'Grün' => 'Green',   // UTF-8: ü = 0xC3 0xBC
+        'Blau' => 'Blue',
+        'Lila' => 'Purple',
     ];
 
     // RAW-Formate die per Sidecar verwaltet werden
@@ -192,6 +204,10 @@ XMP;
     /**
      * Parst einen XMP-String und gibt Rating + Label zurück.
      *
+     * Label-Auflösung (Priorität hoch → niedrig):
+     *  1. photoshop:LabelColor  — LR-proprietär, immer lowercase EN (red/yellow/…)
+     *  2. xmp:Label             — Standard, sprachabhängig (Red/Rot/Rouge/…)
+     *
      * @return array{rating: int, label: string|null}
      */
     public function parseXmpContent(string $xmp): array
@@ -208,12 +224,18 @@ XMP;
             $rating = ($val >= 0 && $val <= 5) ? $val : 0;
         }
 
-        // xmp:Label als Attribut oder Element
-        // Case-insensitiver Vergleich: akzeptiert z.B. "red", "RED" (Issue #16)
-        if (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
-            || preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m)) {
-            $val   = trim($m[1]);
-            $label = $this->resolveLabel($val);
+        // photoshop:LabelColor (Prio 1) — immer lowercase EN, z.B. "red", "green"
+        if (preg_match('/photoshop:LabelColor\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
+            || preg_match('/<photoshop:LabelColor>([^<]+)<\/photoshop:LabelColor>/', $xmp, $m)) {
+            $label = $this->resolveLabel(trim($m[1]));
+        }
+
+        // xmp:Label (Prio 2, nur wenn photoshop:LabelColor nicht aufgelöst)
+        // Sprachabhängig: akzeptiert EN (Red/red/RED) und DE (Rot/Gelb/Grün/…)
+        if ($label === null
+            && (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
+                || preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m))) {
+            $label = $this->resolveLabel(trim($m[1]));
         }
 
         return ['rating' => $rating, 'label' => $label];
@@ -221,21 +243,28 @@ XMP;
 
     /**
      * Normalisiert einen Label-String auf den kanonischen englischen Namen.
-     * Akzeptiert case-insensitive englische Varianten (red, RED, Red).
-     * Unbekannte Labels (z.B. lokalisierte LR-Labels) werden als null zurückgegeben.
+     * Akzeptiert:
+     *  - Englisch, case-insensitiv: red/Red/RED → Red
+     *  - Deutsch (LR UI-Sprache): Rot/Gelb/Grün/Blau/Lila → Red/Yellow/Green/Blue/Purple
+     * Unbekannte Werte → null.
      */
     private function resolveLabel(string $val): ?string
     {
-        // Exakter Treffer
+        // Exakter Treffer (kanonisch englisch)
         if (isset(self::LABEL_MAP[$val])) {
             return $val;
         }
 
-        // Case-insensitiver Fallback (z.B. "red" → "Red")
+        // Case-insensitiver englischer Fallback (z.B. "red" → "Red", "GREEN" → "Green")
         foreach (array_keys(self::LABEL_MAP) as $canonical) {
             if (strcasecmp($val, $canonical) === 0) {
                 return $canonical;
             }
+        }
+
+        // Alias-Map (z.B. deutsch: "Rot" → "Red", "Grün" → "Green")
+        if (isset(self::LABEL_ALIASES[$val])) {
+            return self::LABEL_ALIASES[$val];
         }
 
         return null;
