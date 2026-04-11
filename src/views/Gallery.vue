@@ -286,7 +286,7 @@ const currentIndex = ref(0)
 const selectedIds       = ref(new Set())
 const batchActiveRating = ref(null)        // zuletzt per Batch gesetztes Rating
 const batchActiveColor  = ref(undefined)   // undefined=nie gesetzt, null=entfernt, String=Farbe
-const batchActivePick   = ref(undefined)   // undefined=nie gesetzt, null=entfernt, 'pick'|'reject'
+const batchActivePick   = ref(undefined)   // undefined=nie gesetzt, 'none'=entfernt, 'pick'|'reject'
 const gridRef      = ref(null)
 const shareListRef = ref(null)
 const toasts       = ref([])
@@ -625,7 +625,7 @@ function onShareCreated() {
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
   if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShareModal.value)       { showShareModal.value = false; return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
   if (showShareList.value)        { showShareList.value  = false; return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
   if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }

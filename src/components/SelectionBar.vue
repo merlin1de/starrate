@@ -87,10 +87,10 @@
             >⊘</button>
             <button
               class="sr-selbar__btn sr-selbar__btn--pick-none"
-              :class="{ 'sr-selbar__btn--active': activePick === null }"
+              :class="{ 'sr-selbar__btn--active': activePick === 'none' }"
               type="button"
               :title="t('starrate', 'Pick/Reject entfernen')"
-              @click="applyPick(null)"
+              @click="applyPick('none')"
             >—</button>
           </div>
         </template>
@@ -119,9 +119,9 @@ defineProps({
     type: [String, null],
     default: undefined,
   },
-  // undefined=nie gesetzt, null=entfernt, 'pick'|'reject'
+  // undefined=nie gesetzt, 'none'=entfernt, 'pick'|'reject'
   activePick: {
-    type: [String, null],
+    type: String,
     default: undefined,
   },
   enablePickUi: {
