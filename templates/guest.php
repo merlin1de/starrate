@@ -3,10 +3,11 @@
 \OCP\Util::addScript('starrate', 'starrate-guest');
 \OCP\Util::addStyle('starrate', 'starrate-guest');
 
-$token     = $_['token']      ?? '';
-$canRate   = $_['can_rate']   ?? false;
-$allowPick = $_['allow_pick'] ?? false;
-$guestName = $_['guest_name'] ?? '';
+$token       = $_['token']        ?? '';
+$canRate     = $_['can_rate']     ?? false;
+$allowPick   = $_['allow_pick']   ?? false;
+$allowExport = $_['allow_export'] ?? false;
+$guestName   = $_['guest_name']   ?? '';
 
 // Server-URL für den App Deep Link (starrate://guest?token=...&server=...)
 $serverUrl = \OC::$server->getURLGenerator()->getAbsoluteURL('/');
@@ -17,6 +18,7 @@ $serverUrl = rtrim($serverUrl, '/');
   data-token="<?= htmlspecialchars($token, ENT_QUOTES) ?>"
   data-can-rate="<?= $canRate ? 'true' : 'false' ?>"
   data-allow-pick="<?= $allowPick ? 'true' : 'false' ?>"
+  data-allow-export="<?= $allowExport ? 'true' : 'false' ?>"
   data-guest-name="<?= htmlspecialchars($guestName, ENT_QUOTES) ?>"
 ></div>
 
