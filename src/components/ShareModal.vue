@@ -26,6 +26,7 @@
             <strong>{{ t('starrate', 'Berechtigung:') }}</strong> {{ createdShare.permissions === 'rate' ? t('starrate', 'Ansehen + Bewerten') : t('starrate', 'Nur ansehen') }}<br/>
             <span v-if="createdShare.min_rating > 0"><strong>{{ t('starrate', 'Vorfilter:') }}</strong> ≥ {{ createdShare.min_rating }} ★<br/></span>
             <span v-if="createdShare.allow_pick"><strong>{{ t('starrate', 'Pick/Reject:') }}</strong> {{ t('starrate', 'Aktiviert') }}<br/></span>
+            <span v-if="createdShare.allow_export"><strong>{{ t('starrate', 'Liste exportieren:') }}</strong> {{ t('starrate', 'Erlaubt') }}<br/></span>
             <span v-if="createdShare.has_password"><strong>{{ t('starrate', 'Passwortgeschützt') }}</strong><br/></span>
             <span v-if="createdShare.expires_at"><strong>{{ t('starrate', 'Läuft ab:') }}</strong> {{ formatDate(createdShare.expires_at) }}</span>
           </p>
@@ -79,6 +80,13 @@
             <label class="sr-share-modal__checkbox-label">
               <input type="checkbox" v-model="form.allowPick" class="sr-share-modal__checkbox" />
               {{ t('starrate', 'Pick/Reject erlauben') }}
+            </label>
+          </div>
+
+          <div class="sr-share-modal__field">
+            <label class="sr-share-modal__checkbox-label">
+              <input type="checkbox" v-model="form.allowExport" class="sr-share-modal__checkbox" />
+              {{ t('starrate', 'Bewertungsliste exportieren erlauben') }}
             </label>
           </div>
 
@@ -156,6 +164,7 @@ const form = ref({
   guestName:   '',
   permissions: 'rate',
   allowPick:   false,
+  allowExport: false,
   minRating:   0,
   password:    '',
   expiresDate: '',
@@ -192,7 +201,7 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { guestName: '', permissions: 'rate', allowPick: false, minRating: 0, password: '', expiresDate: '' }
+  form.value = { guestName: '', permissions: 'rate', allowPick: false, allowExport: false, minRating: 0, password: '', expiresDate: '' }
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -209,10 +218,11 @@ async function create() {
   }
 
   const body = {
-    nc_path:     props.ncPath,
-    permissions: form.value.permissions,
-    allow_pick:  form.value.permissions === 'rate' && form.value.allowPick,
-    min_rating:  form.value.minRating,
+    nc_path:      props.ncPath,
+    permissions:  form.value.permissions,
+    allow_pick:   form.value.permissions === 'rate' && form.value.allowPick,
+    allow_export: form.value.allowExport,
+    min_rating:   form.value.minRating,
   }
 
   if (form.value.guestName.trim()) {
