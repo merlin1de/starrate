@@ -12,10 +12,7 @@
 
           <!-- Spalten-Auswahl -->
           <div class="sr-export-modal__columns">
-            <label class="sr-export-modal__col-label">
-              <input type="checkbox" v-model="cols.filename" class="sr-export-modal__checkbox" />
-              {{ t('starrate', 'Dateiname') }}
-            </label>
+            <span class="sr-export-modal__col-fixed">{{ t('starrate', 'Dateiname') }}</span>
             <label class="sr-export-modal__col-label">
               <input type="checkbox" v-model="cols.rating" class="sr-export-modal__checkbox" />
               {{ t('starrate', 'Sterne') }}
@@ -74,10 +71,9 @@ defineEmits(['close'])
 // ── Spalten-State ──────────────────────────────────────────────────────────────
 
 const cols = ref({
-  filename: true,
-  rating:   true,
-  color:    true,
-  pick:     false,
+  rating: true,
+  color:  true,
+  pick:   false,
 })
 
 const copied = ref(false)
@@ -85,22 +81,18 @@ const copied = ref(false)
 // ── CSV-Generierung ───────────────────────────────────────────────────────────
 
 function buildCsv() {
-  const header = []
-  if (cols.value.filename) header.push('filename')
-  if (cols.value.rating)   header.push('rating')
-  if (cols.value.color)    header.push('color')
-  if (cols.value.pick)     header.push('pick')
-
-  if (header.length === 0) return ''
+  const header = ['filename']
+  if (cols.value.rating) header.push('rating')
+  if (cols.value.color)  header.push('color')
+  if (cols.value.pick)   header.push('pick')
 
   const lines = [header.join(',')]
 
   for (const img of props.images) {
-    const row = []
-    if (cols.value.filename) row.push(csvEscape(img.name ?? ''))
-    if (cols.value.rating)   row.push(img.rating ?? 0)
-    if (cols.value.color)    row.push(img.color ?? '')
-    if (cols.value.pick)     row.push(img.pick === 'pick' ? 'pick' : img.pick === 'reject' ? 'reject' : '')
+    const row = [csvEscape(img.name ?? '')]
+    if (cols.value.rating) row.push(img.rating ?? 0)
+    if (cols.value.color)  row.push(img.color ?? '')
+    if (cols.value.pick)   row.push(img.pick === 'pick' ? 'pick' : img.pick === 'reject' ? 'reject' : '')
     lines.push(row.join(','))
   }
 
@@ -116,7 +108,6 @@ function csvEscape(val) {
 
 const previewText = computed(() => {
   const csv = buildCsv()
-  if (!csv) return t('starrate', 'Bitte mindestens eine Spalte auswählen.')
   const lines = csv.split('\n')
   const preview = lines.slice(0, 9)
   if (lines.length > 9) preview.push(`… (${lines.length - 1} ${t('starrate', 'Bilder gesamt')})`)
@@ -127,7 +118,6 @@ const previewText = computed(() => {
 
 async function copyToClipboard() {
   const csv = buildCsv()
-  if (!csv) return
   try {
     await navigator.clipboard.writeText(csv)
     copied.value = true
@@ -137,7 +127,6 @@ async function copyToClipboard() {
 
 function downloadCsv() {
   const csv = buildCsv()
-  if (!csv) return
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
@@ -210,6 +199,14 @@ function downloadCsv() {
   display: flex;
   gap: 1.25rem;
   flex-wrap: wrap;
+}
+
+.sr-export-modal__col-fixed {
+  display: flex;
+  align-items: center;
+  color: #71717a;
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 .sr-export-modal__col-label {
