@@ -78,7 +78,7 @@
 
           <div v-if="form.permissions === 'rate'" class="sr-share-modal__field">
             <label class="sr-share-modal__checkbox-label">
-              <input type="checkbox" v-model="form.allowPick" class="sr-share-modal__checkbox" />
+              <input type="checkbox" v-model="form.allowPick" class="sr-share-modal__checkbox" data-testid="allow-pick" />
               {{ t('starrate', 'Pick/Reject erlauben') }}
             </label>
           </div>
