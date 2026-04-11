@@ -37,9 +37,6 @@
         </div>
 
         <div class="sr-export-modal__actions">
-          <button class="sr-export-modal__btn sr-export-modal__btn--secondary" @click="$emit('close')">
-            {{ t('starrate', 'Schließen') }}
-          </button>
           <button class="sr-export-modal__btn sr-export-modal__btn--secondary" @click="downloadCsv">
             {{ t('starrate', 'CSV herunterladen') }}
           </button>
