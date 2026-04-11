@@ -39,9 +39,10 @@ const stubs = {
     emits: ['rate', 'clear'],
     template: '<div class="selection-bar-stub" />',
   },
-  ShareList:  { template: '<div />' },
-  ShareModal: { template: '<div />' },
-  Teleport:   true,
+  ShareList:   { template: '<div />' },
+  ShareModal:  { template: '<div />' },
+  ExportModal: { name: 'ExportModal', props: ['images', 'showPickCol'], emits: ['close'], template: '<div class="export-modal-stub" />' },
+  Teleport:    true,
 }
 
 function makeRouter() {
@@ -264,5 +265,41 @@ describe('Gallery – onBatchRate', () => {
     const grid = w.findComponent(GridViewStub)
     const img = grid.props('images').find(i => i.id === 2)
     expect(img.color).toBeNull()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('Gallery – Export Modal', () => {
+  it('Export-Button ist sichtbar wenn allowExport=true', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    expect(w.find('[title="Bewertungsliste exportieren"]').exists()).toBe(true)
+  })
+
+  it('Export-Button öffnet ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    expect(w.find('.export-modal-stub').exists()).toBe(true)
+  })
+
+  it('ESC schließt ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    expect(w.find('.export-modal-stub').exists()).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await w.vm.$nextTick()
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
+  })
+
+  it('@close-Event schließt ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    await w.findComponent({ name: 'ExportModal' }).vm.$emit('close')
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
   })
 })
