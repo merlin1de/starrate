@@ -618,6 +618,7 @@ function onShareCreated() {
 // Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
+  if (showExportModal.value)      { showExportModal.value = false; document.activeElement?.blur(); return }
   if (showShareModal.value)       { showShareModal.value = false; return }
   if (showShareList.value)        { showShareList.value  = false; return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
@@ -843,6 +844,12 @@ watch(() => route.query, q => {
 .sr-breadcrumb__share:hover {
   color: #d4d4d8;
   border-color: #7a3050;
+}
+.sr-breadcrumb__share:focus,
+.sr-breadcrumb__share:focus-visible {
+  color: #a1a1aa;
+  outline: none;
+  box-shadow: none;
 }
 
 .sr-breadcrumb__guest-label {
