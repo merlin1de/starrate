@@ -622,7 +622,7 @@ function onDocKeydown(e) {
   if (showShareModal.value)       { showShareModal.value = false; return }
   if (showShareList.value)        { showShareList.value  = false; return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
-  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection() }
+  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
 
 async function loadSettings() {
