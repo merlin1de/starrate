@@ -130,6 +130,8 @@ describe('ColorLabel', () => {
     ['7', 'Yellow'],
     ['8', 'Green'],
     ['9', 'Blue'],
+    ['V', 'Purple'],
+    ['v', 'Purple'],
   ])('setByShortcut("%s") setzt %s', (key, expected) => {
     const w = factory({ modelValue: null })
     const result = w.vm.setByShortcut(key)
@@ -148,12 +150,6 @@ describe('ColorLabel', () => {
     const result = w.vm.setByShortcut('5')
     expect(result).toBe(false)
     expect(w.emitted('update:modelValue')).toBeFalsy()
-  })
-
-  it('setByShortcut mit "V" gibt false zurück (nur 6-9 gemappt)', () => {
-    const w = factory({ modelValue: null })
-    const result = w.vm.setByShortcut('V')
-    expect(result).toBe(false)
   })
 
   // ── setColor Expose ───────────────────────────────────────────────────────

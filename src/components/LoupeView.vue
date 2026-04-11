@@ -250,12 +250,18 @@ function navigate(delta) {
   preloadAdjacent(newIdx)
 }
 
+const preloadedUrls = new Set()
+
 function preloadAdjacent(idx) {
   [-1, 1].forEach(d => {
     const img = props.images[idx + d]
     if (img) {
       const url = generateUrl(`/apps/starrate/api/preview/${img.id}?width=1920&height=1200`)
-      new Image().src = url
+      if (!preloadedUrls.has(url)) {
+        const preImg = new Image()
+        preImg.onload = /* c8 ignore next */ () => preloadedUrls.add(url)
+        preImg.src = url
+      }
     }
   })
 }
@@ -567,7 +573,7 @@ function onImgError() {
 
 watch(previewUrl, (url) => {
   actualSrc.value      = url
-  loadingPreview.value = true
+  loadingPreview.value = !preloadedUrls.has(url)
   previewError.value   = false
   previewRetries       = 0
   clearTimeout(previewRetryTimer)

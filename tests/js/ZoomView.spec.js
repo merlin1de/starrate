@@ -603,4 +603,5 @@ describe('LoupeView – Zoom & Navigation', () => {
     await w.find('.sr-loupe__back').trigger('click')
     expect(w.emitted('close')).toBeTruthy()
   })
+
 })
