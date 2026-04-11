@@ -322,7 +322,7 @@ class ShareController extends Controller
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateLimit(limit: 120, period: 60)]
+    #[AnonRateLimit(limit: 600, period: 60)]
     public function guestPreview(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
     {
         $share = $this->getValidShare($token);
