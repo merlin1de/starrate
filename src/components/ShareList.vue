@@ -56,6 +56,12 @@
                     :title="share.allow_pick ? t('starrate', 'Pick/Reject deaktivieren') : t('starrate', 'Pick/Reject aktivieren')"
                     @click="togglePick(share)"
                   >{{ share.allow_pick ? '✓' : '✗' }} Pick</span>
+                  <span
+                    class="sr-share-list__badge sr-share-list__badge--pick-click"
+                    :class="share.allow_export ? 'sr-share-list__badge--pick-on' : 'sr-share-list__badge--pick-off'"
+                    :title="share.allow_export ? t('starrate', 'Export deaktivieren') : t('starrate', 'Export aktivieren')"
+                    @click="toggleExport(share)"
+                  >{{ share.allow_export ? '✓' : '✗' }} Export</span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
                     {{ isExpired(share) ? t('starrate', 'Abgelaufen') : formatDate(share.expires_at) }}
                   </span>
@@ -293,6 +299,17 @@ async function togglePick(share) {
     const { data } = await axios.put(
       generateUrl(`/apps/starrate/api/share/${share.token}`),
       { allow_pick: !share.allow_pick }
+    )
+    const idx = shares.value.findIndex(s => s.token === share.token)
+    if (idx !== -1) shares.value[idx] = data.share
+  } catch { /* ignore */ }
+}
+
+async function toggleExport(share) {
+  try {
+    const { data } = await axios.put(
+      generateUrl(`/apps/starrate/api/share/${share.token}`),
+      { allow_export: !share.allow_export }
     )
     const idx = shares.value.findIndex(s => s.token === share.token)
     if (idx !== -1) shares.value[idx] = data.share
