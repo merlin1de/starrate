@@ -201,16 +201,15 @@ function downloadCsv() {
 .sr-export-modal__col-fixed {
   display: flex;
   align-items: center;
-  color: #71717a;
+  color: #d4d4d8;
   font-size: 0.85rem;
-  font-style: italic;
 }
 
 .sr-export-modal__col-label {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #a1a1aa;
+  color: #d4d4d8;
   font-size: 0.85rem;
   cursor: pointer;
 }
