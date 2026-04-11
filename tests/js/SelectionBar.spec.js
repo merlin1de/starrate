@@ -207,10 +207,10 @@ describe('SelectionBar', () => {
     expect(w.emitted('rate')[0][2]).toBe('reject')
   })
 
-  it('emittiert rate mit pick=null beim Klick auf Pick-Entfernen', async () => {
+  it('emittiert rate mit pick=none beim Klick auf Pick-Entfernen', async () => {
     const w = factory({ enablePickUi: true })
     await w.find('.sr-selbar__btn--pick-none').trigger('click')
-    expect(w.emitted('rate')[0][2]).toBeNull()
+    expect(w.emitted('rate')[0][2]).toBe('none')
   })
 
   it('markiert Pick-Button aktiv wenn activePick=pick', () => {
@@ -225,8 +225,8 @@ describe('SelectionBar', () => {
     expect(w.find('.sr-selbar__btn--pick').classes()).not.toContain('sr-selbar__btn--active')
   })
 
-  it('markiert Pick-Entfernen-Button aktiv wenn activePick=null', () => {
-    const w = factory({ enablePickUi: true, activePick: null })
+  it('markiert Pick-Entfernen-Button aktiv wenn activePick=none', () => {
+    const w = factory({ enablePickUi: true, activePick: 'none' })
     expect(w.find('.sr-selbar__btn--pick-none').classes()).toContain('sr-selbar__btn--active')
   })
 })
