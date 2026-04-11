@@ -177,4 +177,56 @@ describe('SelectionBar', () => {
     const w = factory({ count: 999 })
     expect(w.find('.sr-selbar__count').text()).toContain('999')
   })
+
+  // ── Pick/Reject ───────────────────────────────────────────────────────────
+
+  it('zeigt keine Pick/Reject-Buttons ohne enablePickUi', () => {
+    const w = factory()
+    expect(w.find('.sr-selbar__btn--pick').exists()).toBe(false)
+  })
+
+  it('zeigt Pick/Reject-Buttons wenn enablePickUi=true', () => {
+    const w = factory({ enablePickUi: true })
+    expect(w.find('.sr-selbar__btn--pick').exists()).toBe(true)
+    expect(w.find('.sr-selbar__btn--reject').exists()).toBe(true)
+    expect(w.find('.sr-selbar__btn--pick-none').exists()).toBe(true)
+  })
+
+  it('emittiert rate mit pick=pick beim Klick auf Pick-Button', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-selbar__btn--pick').trigger('click')
+    const emitted = w.emitted('rate')
+    expect(emitted[0][0]).toBeUndefined()  // rating unverändert
+    expect(emitted[0][1]).toBeUndefined()  // color unverändert
+    expect(emitted[0][2]).toBe('pick')
+  })
+
+  it('emittiert rate mit pick=reject beim Klick auf Reject-Button', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-selbar__btn--reject').trigger('click')
+    expect(w.emitted('rate')[0][2]).toBe('reject')
+  })
+
+  it('emittiert rate mit pick=null beim Klick auf Pick-Entfernen', async () => {
+    const w = factory({ enablePickUi: true })
+    await w.find('.sr-selbar__btn--pick-none').trigger('click')
+    expect(w.emitted('rate')[0][2]).toBeNull()
+  })
+
+  it('markiert Pick-Button aktiv wenn activePick=pick', () => {
+    const w = factory({ enablePickUi: true, activePick: 'pick' })
+    expect(w.find('.sr-selbar__btn--pick').classes()).toContain('sr-selbar__btn--active')
+    expect(w.find('.sr-selbar__btn--reject').classes()).not.toContain('sr-selbar__btn--active')
+  })
+
+  it('markiert Reject-Button aktiv wenn activePick=reject', () => {
+    const w = factory({ enablePickUi: true, activePick: 'reject' })
+    expect(w.find('.sr-selbar__btn--reject').classes()).toContain('sr-selbar__btn--active')
+    expect(w.find('.sr-selbar__btn--pick').classes()).not.toContain('sr-selbar__btn--active')
+  })
+
+  it('markiert Pick-Entfernen-Button aktiv wenn activePick=null', () => {
+    const w = factory({ enablePickUi: true, activePick: null })
+    expect(w.find('.sr-selbar__btn--pick-none').classes()).toContain('sr-selbar__btn--active')
+  })
 })
