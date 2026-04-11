@@ -83,6 +83,10 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
         </navigation>
     </navigations>
 
+    <commands>
+        <command>OCA\StarRate\Command\ImportXmpCommand</command>
+    </commands>
+
     <settings>
         <personal-section>OCA\StarRate\Settings\PersonalSection</personal-section>
         <personal>OCA\StarRate\Settings\UserSettings</personal>
