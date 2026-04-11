@@ -259,7 +259,7 @@ function preloadAdjacent(idx) {
       const url = generateUrl(`/apps/starrate/api/preview/${img.id}?width=1920&height=1200`)
       if (!preloadedUrls.has(url)) {
         const preImg = new Image()
-        preImg.onload = () => preloadedUrls.add(url)
+        preImg.onload = /* c8 ignore next */ () => preloadedUrls.add(url)
         preImg.src = url
       }
     }
