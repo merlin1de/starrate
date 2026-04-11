@@ -92,9 +92,9 @@ function onKeydown(e, color) {
   }
 }
 
-// Externes Setzen per Tastatürkürzel (6–9 für Rot–Blau)
+// Externes Setzen per Tastatürkürzel (6–9 für Rot–Blau, V für Lila)
 function setByShortcut(key) {
-  const map = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue' }
+  const map = { '6': 'Red', '7': 'Yellow', '8': 'Green', '9': 'Blue', 'v': 'Purple', 'V': 'Purple' }
   if (map[key]) {
     toggle(map[key])
     return true
