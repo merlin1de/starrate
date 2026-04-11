@@ -147,7 +147,6 @@ OC.L10N.register(
         "Sterne setzen" : "Set stars",
         "Freigabe-Links verwalten" : "Manage share links",
         "Bewertungsliste exportieren" : "Export list",
-        "Export List" : "Export List",
         "Farbe" : "Color",
         "Bitte mindestens eine Spalte auswählen." : "Please select at least one column.",
         "{n} Bilder" : "{n} images",

@@ -18,7 +18,7 @@
           :disabled="filteredImages.length === 0"
           :title="t('starrate', 'Bewertungsliste exportieren')"
           @click="showExportModal = true"
-        >{{ t('starrate', 'Export List') }}</button>
+        >{{ t('starrate', 'Export') }}</button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
         <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
         <div class="sr-breadcrumb__mode">
