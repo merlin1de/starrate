@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="sr-export-modal__overlay" @click.self="$emit('close')">
+    <div class="sr-export-modal__overlay" @click.self="$emit('close')" @keydown.escape="$emit('close')">
       <div class="sr-export-modal">
 
         <header class="sr-export-modal__header">
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { t } from '@nextcloud/l10n'
 
 const props = defineProps({
@@ -63,7 +63,11 @@ const props = defineProps({
   showPickCol: { type: Boolean, default: false },
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+function onKeydown(e) { if (e.key === 'Escape') emit('close') }
+onMounted(() => document.addEventListener('keydown', onKeydown))
+onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 // ── Spalten-State ──────────────────────────────────────────────────────────────
 
@@ -265,9 +269,13 @@ function downloadCsv() {
   background: #e94560;
   color: #fff;
 }
-.sr-export-modal__btn--done {
-  background: #4caf50;
-  color: #fff;
+.sr-export-modal__btn--done,
+.sr-export-modal__btn--done:focus,
+.sr-export-modal__btn--done:hover,
+.sr-export-modal__btn--done:active {
+  background: #4caf50 !important;
+  color: #fff !important;
+  outline: none;
 }
 .sr-export-modal__btn--secondary {
   background: #2a2a3e;
