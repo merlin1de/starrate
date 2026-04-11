@@ -56,9 +56,9 @@ class ImportXmpCommand extends Command
                 'Show what would be imported without making changes'
             )
             ->addOption(
-                'skip-existing', null,
+                'overwrite', null,
                 InputOption::VALUE_NONE,
-                'Skip files that already have a rating in StarRate'
+                'Overwrite existing StarRate ratings (default: skip already-rated files)'
             );
     }
 
@@ -66,8 +66,8 @@ class ImportXmpCommand extends Command
     {
         $ncPath       = $input->getArgument('nc-path');
         $userId       = $input->getOption('user');
-        $dryRun       = (bool) $input->getOption('dry-run');
-        $skipExisting = (bool) $input->getOption('skip-existing');
+        $dryRun    = (bool) $input->getOption('dry-run');
+        $overwrite = (bool) $input->getOption('overwrite');
 
         if (!$userId) {
             $output->writeln('<error>--user is required</error>');
@@ -130,8 +130,8 @@ class ImportXmpCommand extends Command
 
                 $fileId = (string) $file->getId();
 
-                // Bestehende StarRate-Bewertung prüfen
-                if ($skipExisting) {
+                // Bestehende StarRate-Bewertung prüfen (Standard: überspringen)
+                if (!$overwrite) {
                     $existing = $this->tagService->getMetadata($fileId);
                     if ($existing['rating'] > 0 || $existing['color'] !== null) {
                         $skipped++;
