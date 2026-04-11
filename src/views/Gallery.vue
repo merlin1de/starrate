@@ -13,6 +13,7 @@
           {{ t('starrate', 'Teilen') }}
         </button>
         <button
+          v-if="!guestMode"
           class="sr-breadcrumb__share"
           :disabled="filteredImages.length === 0"
           :title="t('starrate', 'Bewertungsliste exportieren')"
