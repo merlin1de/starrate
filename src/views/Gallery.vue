@@ -13,7 +13,7 @@
           {{ t('starrate', 'Teilen') }}
         </button>
         <button
-          v-if="!guestMode"
+          v-if="!guestMode || allowExport"
           class="sr-breadcrumb__share"
           :disabled="filteredImages.length === 0"
           :title="t('starrate', 'Bewertungsliste exportieren')"
@@ -256,6 +256,8 @@ const props = defineProps({
   previewUrlFn:   { type: Function, default: null },
   /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
   enablePickOverride: { type: [Boolean, null], default: null },
+  /** Gast-Modus: Export List erlaubt (per-Share Einstellung, default: false) */
+  allowExport: { type: Boolean, default: false },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
