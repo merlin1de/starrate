@@ -12,6 +12,12 @@
         <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" :title="t('starrate', 'Freigabe-Links verwalten')">
           {{ t('starrate', 'Teilen') }}
         </button>
+        <button
+          class="sr-breadcrumb__share"
+          :disabled="filteredImages.length === 0"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="showExportModal = true"
+        >{{ t('starrate', 'Export List') }}</button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
         <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
         <div class="sr-breadcrumb__mode">
@@ -140,6 +146,14 @@
       @created="onShareCreated"
     />
 
+    <!-- Export List Modal -->
+    <ExportModal
+      v-if="showExportModal"
+      :images="filteredImages"
+      :show-pick-col="settings.enable_pick_ui"
+      @close="showExportModal = false"
+    />
+
     <!-- Shortcut-Hilfe-Modal -->
     <Teleport to="body">
       <Transition name="sr-shortcuts">
@@ -220,6 +234,7 @@ import SelectionBar from '../components/SelectionBar.vue'
 import LoupeView from '../components/LoupeView.vue'
 import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
+import ExportModal from '../components/ExportModal.vue'
 
 // ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
 
@@ -274,6 +289,7 @@ let   toastCounter = 0
 const showShareList  = ref(false)
 const showShareModal = ref(false)
 const showShortcuts  = ref(false)
+const showExportModal = ref(false)
 
 const activeFilter = ref({
   minRating: 0,     // 0 = alle  (>=)
