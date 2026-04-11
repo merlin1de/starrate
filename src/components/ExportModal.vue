@@ -72,8 +72,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 // ── Spalten-State ──────────────────────────────────────────────────────────────
 
 const cols = ref({
-  rating: true,
-  color:  true,
+  rating: false,
+  color:  false,
   pick:   false,
 })
 
