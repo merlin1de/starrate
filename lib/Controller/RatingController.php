@@ -182,9 +182,10 @@ class RatingController extends Controller
             $data['pick'] = $body['pick'];
         }
 
-        $updated = 0;
-        $errCount = 0;
-        $details = [];
+        $updated    = 0;
+        $errCount   = 0;
+        $xmpSkipped = 0;
+        $details    = [];
 
         foreach ($body['fileIds'] as $rawId) {
             $fileId = (int) $rawId;
@@ -210,7 +211,8 @@ class RatingController extends Controller
                             array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
                         );
                     } catch (\Exception $e) {
-                        $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                        $xmpSkipped++;
+                        $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
                     }
                 }
 
@@ -225,9 +227,10 @@ class RatingController extends Controller
         }
 
         return new DataResponse([
-            'updated' => $updated,
-            'errors'  => $errCount,
-            'details' => $details,
+            'updated'     => $updated,
+            'errors'      => $errCount,
+            'xmpSkipped'  => $xmpSkipped,
+            'details'     => $details,
         ], Http::STATUS_OK);
     }
 
