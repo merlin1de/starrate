@@ -530,6 +530,11 @@ async function _sendBatch() {
   await nextTick()
   gridRef.value?.$el?.focus?.()
 
+  const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
+  const stars = payload.rating !== undefined
+    ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
+    : ''
+
   try {
     if (props.batchRateFn) {
       const { fileIds: _, ...ratingData } = payload
@@ -537,14 +542,11 @@ async function _sendBatch() {
     } else {
       const url = generateUrl('/apps/starrate/api/rating/batch')
       const { data } = await axios.post(url, payload)
+
       if (data.errors > 0) {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
       if (data.xmpSkipped > 0) {
-        const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
-        const stars = payload.rating !== undefined
-          ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
-          : ''
         const ratedLine = `${bildText} ${t('starrate', 'bewertet')}${stars}`
         const xmpLine   = t('starrate', 'XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen',
                             { written: data.xmpWritten, skipped: data.xmpSkipped })
@@ -553,10 +555,6 @@ async function _sendBatch() {
       }
     }
 
-    const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
-    const stars = payload.rating !== undefined
-      ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
-      : ''
     showToast(`${bildText} ${t('starrate', 'bewertet')}${stars}`, 'success')
   } catch {
     // Rollback: lokalen State wiederherstellen und Bar-Anzeige zurücksetzen
