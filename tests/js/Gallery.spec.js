@@ -261,17 +261,72 @@ describe('Gallery – onBatchRate', () => {
     await flushPromises()
 
     await selectImages(w, [1, 2])
-    await triggerBatchRate(w, 3, undefined, undefined)  // Stern
-    await triggerBatchRate(w, undefined, 'Red', undefined)  // Farbe direkt danach
+    await triggerBatchRate(w, 3, undefined, undefined)
+    await triggerBatchRate(w, undefined, 'Red', undefined)
     vi.advanceTimersByTime(1100)
     await flushPromises()
 
-    // Nur ein Request, kombiniert
     expect(batchRateFn).toHaveBeenCalledTimes(1)
     expect(batchRateFn).toHaveBeenCalledWith(
       expect.arrayContaining([1, 2]),
       expect.objectContaining({ rating: 3, color: 'Red' })
     )
+  })
+
+  it('batch-rate: Stern+Farbe+Pick werden zu einem Request zusammengeführt', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1, 2, 3])
+    await triggerBatchRate(w, 4, undefined, undefined)
+    await triggerBatchRate(w, undefined, 'Yellow', undefined)
+    await triggerBatchRate(w, undefined, undefined, 'pick')
+    vi.advanceTimersByTime(1100)
+    await flushPromises()
+
+    expect(batchRateFn).toHaveBeenCalledTimes(1)
+    expect(batchRateFn).toHaveBeenCalledWith(
+      expect.arrayContaining([1, 2, 3]),
+      expect.objectContaining({ rating: 4, color: 'Yellow', pick: 'pick' })
+    )
+  })
+
+  it('batch-rate: zweiter Klick mit neuer Auswahl aktualisiert fileIds', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1, 2])
+    await triggerBatchRate(w, 3, undefined, undefined)
+    // Auswahl ändert sich vor dem zweiten Klick
+    await selectImages(w, [3])
+    await triggerBatchRate(w, undefined, 'Blue', undefined)
+    vi.advanceTimersByTime(1100)
+    await flushPromises()
+
+    // fileIds muss dem letzten Stand entsprechen
+    expect(batchRateFn).toHaveBeenCalledTimes(1)
+    expect(batchRateFn).toHaveBeenCalledWith(
+      [3],
+      expect.objectContaining({ rating: 3, color: 'Blue' })
+    )
+  })
+
+  it('batch-rate: zwei separate Klicks mit >1s Abstand senden zwei Requests', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1])
+    await triggerBatchRate(w, 3, undefined, undefined)
+    vi.advanceTimersByTime(1100)
+    await flushPromises()
+
+    await triggerBatchRate(w, undefined, 'Red', undefined)
+    vi.advanceTimersByTime(1100)
+    await flushPromises()
+
+    expect(batchRateFn).toHaveBeenCalledTimes(2)
+    expect(batchRateFn).toHaveBeenNthCalledWith(1, [1], expect.objectContaining({ rating: 3 }))
+    expect(batchRateFn).toHaveBeenNthCalledWith(2, [1], expect.objectContaining({ color: 'Red' }))
   })
 
   // ── Optimistisches Update ─────────────────────────────────────────────────
