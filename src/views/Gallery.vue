@@ -502,12 +502,18 @@ function onBatchRate(rating, color, pick) {
 
   // Payload akkumulieren — mehrere Klicks innerhalb des Debounce-Fensters
   // werden zu einem einzigen Request zusammengeführt.
-  if (!_pendingBatch) {
+  const isFirst = !_pendingBatch
+  if (isFirst) {
     _pendingBatch = { fileIds: ids }
   }
   if (rating !== undefined) _pendingBatch.rating = rating
   if (color  !== undefined) _pendingBatch.color  = color
   if (pick   !== undefined) _pendingBatch.pick   = pick
+
+  // Sofort-Feedback beim ersten Klick (>10 Dateien)
+  if (isFirst && ids.length > 10) {
+    showToast(n('starrate', '%n Bild wird bewertet…\nBitte warten', '%n Bilder werden bewertet…\nBitte warten', ids.length), 'info')
+  }
 
   clearTimeout(_batchDebounceTimer)
   _batchDebounceTimer = setTimeout(() => _sendBatch(), 1000)
@@ -522,11 +528,6 @@ async function _sendBatch() {
   // Grid-Focus zurückgeben (SelectionBar-Klick nimmt Focus vom Grid weg)
   await nextTick()
   gridRef.value?.$el?.focus?.()
-
-  // Sofort-Feedback für große Batches (>10 Dateien dauert spürbar)
-  if (payload.fileIds.length > 10) {
-    showToast(n('starrate', '%n Bild wird bewertet…', '%n Bilder werden bewertet…', payload.fileIds.length), 'info')
-  }
 
   try {
     if (props.batchRateFn) {
