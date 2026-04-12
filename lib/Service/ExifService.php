@@ -410,8 +410,8 @@ class ExifService
      */
     private function findXmpBlock(string $xmp): array
     {
-        // Gleicher Regex wie im Injection-Callback, aber non-capturing (?:\/?>)
-        // statt capturing (\/?>), da wir hier nur den Tag-Inhalt (Gruppe 1) brauchen.
+        // Gleicher Regex wie im Injection-Callback, aber mit non-capturing Gruppe
+        // fuer den schliessenden Tag-Delimiter, da wir hier nur Gruppe 1 brauchen.
         preg_match_all('/(<rdf:Description\b[^>]*?)\s*(?:\/?>)/s', $xmp, $matches);
 
         foreach ($matches[1] as $i => $openingTag) {
