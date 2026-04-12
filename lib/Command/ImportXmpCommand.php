@@ -199,6 +199,7 @@ class ImportXmpCommand extends Command
             $errors
         ));
 
+
         return Command::SUCCESS;
     }
 }

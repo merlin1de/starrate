@@ -303,6 +303,50 @@ class ExifServiceTest extends TestCase
         $this->assertSame('Red', $result['label']);
     }
 
+    /**
+     * Regression: selbst-schließendes rdf:Description (z.B. digiKam-XMP) erzeugte
+     * nach dem Schreiben ein unkorrekt geschlossenes Tag ("no closing tag for
+     * rdf:Description" in exiftool). Die Ursache war, dass [^>]* das / von />
+     * in Gruppe 1 einschloss und so das Tag malformed wurde.
+     */
+    public function testSelfClosingRdfDescriptionIsHandledCorrectly(): void
+    {
+        // XMP mit selbst-schließendem rdf:Description (wie digiKam es schreibt)
+        $xmp = "<?xpacket begin='\xef\xbb\xbf' id='W5M0MpCehiHzreSzNTczkc9d'?>\n"
+            . "<x:xmpmeta xmlns:x='adobe:ns:meta/'>\n"
+            . "  <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n"
+            . "    <rdf:Description rdf:about=''\n"
+            . "      xmlns:xmp='http://ns.adobe.com/xap/1.0/'\n"
+            . "      xmp:Rating='2' />\n"
+            . "  </rdf:RDF>\n"
+            . "</x:xmpmeta>\n"
+            . "<?xpacket end='w'?>";
+
+        $magic   = "http://ns.adobe.com/xap/1.0/\x00";
+        $payload = $magic . $xmp;
+        $segLen  = strlen($payload) + 2;
+        $app1Seg = "\xFF\xE1" . chr(($segLen >> 8) & 0xFF) . chr($segLen & 0xFF) . $payload;
+
+        $base = $this->makeMinimalJpeg();
+        $jpeg = substr($base, 0, 2) . $app1Seg . substr($base, 2);
+
+        // Ausgangszustand: Rating 2, kein Label
+        $before = $this->service->readMetadataFromContent($jpeg);
+        $this->assertSame(2,    $before['rating']);
+        $this->assertNull($before['label']);
+
+        // Schreiben → muss valides XMP erzeugen (kein unkorrekt geschlossenes Tag)
+        $written = $this->service->writeMetadataToContent($jpeg, 4, 'Green');
+        $after   = $this->service->readMetadataFromContent($written);
+
+        $this->assertSame(4,       $after['rating']);
+        $this->assertSame('Green', $after['label']);
+
+        // Das resultierende XMP darf kein hängendes /> haben das als Tag-Inhalt gewertet wird
+        // und muss entweder ein geschlossenes Tag oder ein valides selbst-schließendes haben.
+        $this->assertStringNotContainsString('/<rdf:Description[^>]*\/\s*\n\s*xmp:/', $written);
+    }
+
     // ─── Tests: Große Dateien ─────────────────────────────────────────────────
 
     public function testLargeJpegWithPaddingIsHandledCorrectly(): void
