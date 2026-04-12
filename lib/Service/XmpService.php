@@ -42,6 +42,16 @@ class XmpService
         'Lila' => 'Purple',
     ];
 
+    // digiKam:ColorLabel → kanonisch englisch (numerische Werte 0–10)
+    // Werte ohne StarRate-Äquivalent (2=Orange, 7=Grey, 8=Black, 9=White, 10=Darkred) → null
+    private const DIGIKAM_COLOR_MAP = [
+        1 => 'Red',
+        3 => 'Yellow',
+        4 => 'Green',
+        5 => 'Blue',
+        6 => 'Purple',
+    ];
+
     // RAW-Formate die per Sidecar verwaltet werden
     public const RAW_EXTENSIONS = ['cr3', 'cr2', 'nef', 'arw', 'orf', 'rw2', 'dng', 'raf', 'pef', 'srw'];
 
@@ -204,9 +214,13 @@ XMP;
     /**
      * Parst einen XMP-String und gibt Rating + Label zurück.
      *
+     * Rating-Auflösung:
+     *  xmp:Rating / xap:Rating (xap: ist der alte exiftool/IDimager Alias, gleiche Namespace-URI)
+     *
      * Label-Auflösung (Priorität hoch → niedrig):
      *  1. photoshop:LabelColor  — LR-proprietär, immer lowercase EN (red/yellow/…)
      *  2. xmp:Label             — Standard, sprachabhängig (Red/Rot/Rouge/…)
+     *  3. digiKam:ColorLabel    — numerisch (1=Red, 3=Yellow, 4=Green, 5=Blue, 6=Purple)
      *
      * @return array{rating: int, label: string|null}
      */
@@ -215,11 +229,11 @@ XMP;
         $rating = 0;
         $label  = null;
 
-        // xmp:Rating als Attribut oder Element
-        if (preg_match('/xmp:Rating\s*=\s*[\'"](\d+)[\'"]/', $xmp, $m)) {
+        // xmp:Rating / xap:Rating als Attribut oder Element
+        if (preg_match('/(?:xmp|xap):Rating\s*=\s*[\'"](\d+)[\'"]/', $xmp, $m)) {
             $val = (int) $m[1];
             $rating = ($val >= 0 && $val <= 5) ? $val : 0;
-        } elseif (preg_match('/<xmp:Rating>(\d+)<\/xmp:Rating>/', $xmp, $m)) {
+        } elseif (preg_match('/<(?:xmp|xap):Rating>(\d+)<\/(?:xmp|xap):Rating>/', $xmp, $m)) {
             $val = (int) $m[1];
             $rating = ($val >= 0 && $val <= 5) ? $val : 0;
         }
@@ -236,6 +250,13 @@ XMP;
             && (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
                 || preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m))) {
             $label = $this->resolveLabel(trim($m[1]));
+        }
+
+        // digiKam:ColorLabel (Prio 3) — numerisch, nur wenn noch kein Label gefunden
+        if ($label === null
+            && (preg_match('/digiKam:ColorLabel\s*=\s*[\'"](\d+)[\'"]/', $xmp, $m)
+                || preg_match('/<digiKam:ColorLabel>(\d+)<\/digiKam:ColorLabel>/', $xmp, $m))) {
+            $label = self::DIGIKAM_COLOR_MAP[(int) $m[1]] ?? null;
         }
 
         return ['rating' => $rating, 'label' => $label];

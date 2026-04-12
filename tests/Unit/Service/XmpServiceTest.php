@@ -181,6 +181,69 @@ XMP;
         $this->assertSame('Yellow', $result['label']);
     }
 
+    // ─── Tests: xap: Namespace-Alias (alter exiftool/IDimager Alias) ────────────
+
+    public function testXapRatingAttributeIsRead(): void
+    {
+        $result = $this->service->parseXmpContent("xap:Rating='4'");
+        $this->assertSame(4, $result['rating']);
+    }
+
+    public function testXapRatingElementIsRead(): void
+    {
+        $result = $this->service->parseXmpContent('<xap:Rating>3</xap:Rating>');
+        $this->assertSame(3, $result['rating']);
+    }
+
+    public function testXapRatingOutOfRangeReturnsZero(): void
+    {
+        $result = $this->service->parseXmpContent("xap:Rating='9'");
+        $this->assertSame(0, $result['rating']);
+    }
+
+    // ─── Tests: digiKam:ColorLabel ────────────────────────────────────────────
+
+    /** @dataProvider digiKamColorProvider */
+    public function testDigiKamColorLabelIsMapped(int $value, ?string $expected): void
+    {
+        $result = $this->service->parseXmpContent("digiKam:ColorLabel='{$value}'");
+        $this->assertSame($expected, $result['label']);
+    }
+
+    public static function digiKamColorProvider(): array
+    {
+        return [
+            'none (0)'     => [0, null],
+            'red (1)'      => [1, 'Red'],
+            'orange (2)'   => [2, null],   // kein StarRate-Äquivalent
+            'yellow (3)'   => [3, 'Yellow'],
+            'green (4)'    => [4, 'Green'],
+            'blue (5)'     => [5, 'Blue'],
+            'purple (6)'   => [6, 'Purple'],
+            'grey (7)'     => [7, null],   // kein StarRate-Äquivalent
+        ];
+    }
+
+    public function testDigiKamColorLabelElementFormIsRead(): void
+    {
+        $result = $this->service->parseXmpContent('<digiKam:ColorLabel>4</digiKam:ColorLabel>');
+        $this->assertSame('Green', $result['label']);
+    }
+
+    public function testPhotoshopLabelColorTakesPriorityOverDigiKam(): void
+    {
+        $xmp    = "photoshop:LabelColor='blue' digiKam:ColorLabel='1'";
+        $result = $this->service->parseXmpContent($xmp);
+        $this->assertSame('Blue', $result['label']);
+    }
+
+    public function testXmpLabelTakesPriorityOverDigiKam(): void
+    {
+        $xmp    = "xmp:Label='Green' digiKam:ColorLabel='1'";
+        $result = $this->service->parseXmpContent($xmp);
+        $this->assertSame('Green', $result['label']);
+    }
+
     // ─── Tests: Round-Trip (bauen + parsen) ───────────────────────────────────
 
     /** @dataProvider roundTripProvider */
