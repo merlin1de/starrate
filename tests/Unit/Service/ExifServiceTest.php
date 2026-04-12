@@ -375,6 +375,91 @@ class ExifServiceTest extends TestCase
         $this->assertNull($result['label']);
     }
 
+    // ─── Tests: Wildnis-Fixtures (echte Kamera-/Tool-Dateien) ───────────────────
+
+    /**
+     * Issue 80.jpg: xap:Rating=4 in Block 6 von 20 (IDimager, alter exiftool-Alias).
+     * Lesen: xap:Rating muss als Rating erkannt werden.
+     * Schreiben: neues Rating muss in den xap:-Block, nicht in Block 1.
+     */
+    public function testFixtureXapMultiblockReadRating(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_xap_multiblock.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_xap_multiblock.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $result  = $this->service->readMetadataFromContent($content);
+        $this->assertSame(4, $result['rating'], 'xap:Rating=4 must be read correctly');
+    }
+
+    public function testFixtureXapMultiblockWriteAndReadBack(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_xap_multiblock.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_xap_multiblock.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $written = $this->service->writeMetadataToContent($content, 5, 'Red');
+        $result  = $this->service->readMetadataFromContent($written);
+        $this->assertSame(5,     $result['rating']);
+        $this->assertSame('Red', $result['label']);
+    }
+
+    /**
+     * Canon EOS 7D: xap:Rating=3, single block mit xmlns:xap=.
+     */
+    public function testFixtureXapSingleBlockReadRating(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_xap_rating.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_xap_rating.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $result  = $this->service->readMetadataFromContent($content);
+        $this->assertSame(3, $result['rating'], 'xap:Rating=3 must be read correctly');
+    }
+
+    public function testFixtureXapSingleBlockWriteAndReadBack(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_xap_rating.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_xap_rating.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $written = $this->service->writeMetadataToContent($content, 2, 'Blue');
+        $result  = $this->service->readMetadataFromContent($written);
+        $this->assertSame(2,      $result['rating']);
+        $this->assertSame('Blue', $result['label']);
+    }
+
+    /**
+     * Issue 587: xmp:Rating als Element (nicht Attribut) in Block 1 von 2.
+     */
+    public function testFixtureMultiblockElementRatingReadRating(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_multiblock_element_rating.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_multiblock_element_rating.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $result  = $this->service->readMetadataFromContent($content);
+        $this->assertSame(3, $result['rating'], 'xmp:Rating element form must be read correctly');
+    }
+
+    public function testFixtureMultiblockElementRatingWriteAndReadBack(): void
+    {
+        $path = __DIR__ . '/../../fixtures/xmp_multiblock_element_rating.jpg';
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Fixture xmp_multiblock_element_rating.jpg nicht vorhanden');
+        }
+        $content = file_get_contents($path);
+        $written = $this->service->writeMetadataToContent($content, 1, 'Yellow');
+        $result  = $this->service->readMetadataFromContent($written);
+        $this->assertSame(1,        $result['rating']);
+        $this->assertSame('Yellow', $result['label']);
+    }
+
     // ─── Tests: Fixture-Dateien ───────────────────────────────────────────────
 
     public function testFixtureNoExifReturnsDefaults(): void
