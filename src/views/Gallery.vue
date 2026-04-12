@@ -517,7 +517,7 @@ function onBatchRate(rating, color, pick) {
   }
 
   clearTimeout(_batchDebounceTimer)
-  _batchDebounceTimer = setTimeout(() => _sendBatch(), 1000)
+  _batchDebounceTimer = setTimeout(() => _sendBatch(), 2000)
 }
 
 async function _sendBatch() {
