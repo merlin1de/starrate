@@ -477,29 +477,45 @@ async function onRate(image, rating, color, pick) {
 
 // ─── Stapel-Bewertung ─────────────────────────────────────────────────────────
 
-async function onBatchRate(rating, color, pick) {
+// Debounce-State: mehrere schnelle Klicks (Stern + Farbe + Pick) werden zu einem
+// kombinierten API-Request zusammengeführt, um konkurrierende JPEG-Writes zu vermeiden.
+let _batchDebounceTimer = null
+let _pendingBatch = null
+
+function onBatchRate(rating, color, pick) {
   const ids = Array.from(selectedIds.value)
   if (ids.length === 0) return
 
-  const payload = { fileIds: ids }
-  if (rating !== undefined) payload.rating = rating
-  if (color  !== undefined) payload.color  = color
-  if (pick   !== undefined) payload.pick   = pick
-
-  // Bar-Anzeige synchron aktualisieren (auch bei Keyboard-Auslösung)
+  // Optimistischer UI-Update sofort (unabhängig vom Debounce)
   if (rating !== undefined) batchActiveRating.value = rating
   if (color  !== undefined) batchActiveColor.value  = color
   if (pick   !== undefined) batchActivePick.value   = pick
 
-  // Optimistisch
   ids.forEach(id => {
     const local = allImages.value.find(i => i.id === id)
     if (local) {
-      if (payload.rating !== undefined) local.rating = payload.rating
-      if (payload.color  !== undefined) local.color  = payload.color
-      if (payload.pick   !== undefined) local.pick   = payload.pick
+      if (rating !== undefined) local.rating = rating
+      if (color  !== undefined) local.color  = color
+      if (pick   !== undefined) local.pick   = pick
     }
   })
+
+  // Payload akkumulieren — mehrere Klicks innerhalb des Debounce-Fensters
+  // werden zu einem einzigen Request zusammengeführt.
+  if (!_pendingBatch) {
+    _pendingBatch = { fileIds: ids }
+  }
+  if (rating !== undefined) _pendingBatch.rating = rating
+  if (color  !== undefined) _pendingBatch.color  = color
+  if (pick   !== undefined) _pendingBatch.pick   = pick
+
+  clearTimeout(_batchDebounceTimer)
+  _batchDebounceTimer = setTimeout(() => _sendBatch(), 200)
+}
+
+async function _sendBatch() {
+  const payload = _pendingBatch
+  _pendingBatch = null
 
   // Grid-Focus zurückgeben (SelectionBar-Klick nimmt Focus vom Grid weg)
   await nextTick()
@@ -508,7 +524,7 @@ async function onBatchRate(rating, color, pick) {
   try {
     if (props.batchRateFn) {
       const { fileIds: _, ...ratingData } = payload
-      await props.batchRateFn(ids, ratingData)
+      await props.batchRateFn(payload.fileIds, ratingData)
     } else {
       const url = generateUrl('/apps/starrate/api/rating/batch')
       const { data } = await axios.post(url, payload)
@@ -517,7 +533,7 @@ async function onBatchRate(rating, color, pick) {
       }
     }
 
-    const bildText = n('starrate', '%n Bild', '%n Bilder', ids.length)
+    const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
     const stars = payload.rating !== undefined
       ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
       : ''
