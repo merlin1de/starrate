@@ -157,34 +157,43 @@ class ExifService
      * Aktualisiert xmp:Rating und xmp:Label in einem bestehenden XMP-String,
      * ohne andere Felder zu verändern (Issue #16: keine Datenverluste mehr).
      *
-     * Unterstützt Attribut-Form: xmp:Rating="4" und Element-Form: <xmp:Rating>4</xmp:Rating>.
-     * Schreibt immer in Attribut-Form zurück.
+     * Unterstützt xmp: und xap: Namespace-Alias, Attribut- und Element-Form.
+     * Schreibt immer in Attribut-Form zurück, konsistent mit dem Prefix der Datei.
+     * Bei Multi-Block-XMP wird der Block mit der xmlns:xmp/xap-Deklaration gezielt befüllt.
      */
     private function patchXmpString(string $existingXmp, int $rating, ?string $label): string
     {
         $patched = $existingXmp;
 
-        // Vorhandene Rating- und Label-Felder entfernen (Attribut- und Element-Form)
-        $patched = preg_replace('/[ \t]*xmp:Rating\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
-        $patched = preg_replace('/<xmp:Rating>[^<]*<\/xmp:Rating>\s*/',             '', $patched) ?? $patched;
-        $patched = preg_replace('/[ \t]*xmp:Label\s*=\s*(?:"[^"]*"|\'[^\']*\')/',  '', $patched) ?? $patched;
-        $patched = preg_replace('/<xmp:Label>[^<]*<\/xmp:Label>\s*/',               '', $patched) ?? $patched;
+        // Vorhandene Rating- und Label-Felder entfernen (xmp: und xap:, Attribut- und Element-Form)
+        $patched = preg_replace('/[ \t]*(?:xmp|xap):Rating\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<(?:xmp|xap):Rating>[^<]*<\/(?:xmp|xap):Rating>\s*/',    '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*(?:xmp|xap):Label\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<(?:xmp|xap):Label>[^<]*<\/(?:xmp|xap):Label>\s*/',      '', $patched) ?? $patched;
 
-        // Neue Werte als Attribute formulieren
-        $ratingAttr = "\n      xmp:Rating=\"{$rating}\"";
-        $labelAttr  = ($label !== null && $label !== '') ? "\n      xmp:Label=\"{$label}\"" : '';
+        // Richtigen Block finden: der mit xmlns:xmp= oder xmlns:xap= Deklaration.
+        // Bei Multi-Block-XMP (exiftool, FujiFilm etc.) sitzt xmp: oft nicht in Block 1.
+        [$targetBlock, $needsNsDecl, $prefix] = $this->findXmpBlock($patched);
 
-        // In das erste rdf:Description-Opening-Tag injizieren (vor dem schließenden > oder />).
-        // Nicht-gieriger [^>]*? + \s* trennt sauber zwischen selbst-schließend (/>) und offen (>),
-        // damit das / bei <rdf:Description ... /> nicht fälschlicherweise in Gruppe 1 landet.
+        $ratingAttr = "\n      {$prefix}:Rating=\"{$rating}\"";
+        $labelAttr  = ($label !== null && $label !== '') ? "\n      {$prefix}:Label=\"{$label}\"" : '';
+        $nsDecl     = $needsNsDecl ? "\n      xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"" : '';
+
+        // In den gefundenen Block injizieren (limit=-1 damit der Callback alle Blöcke sieht,
+        // aber nur den Zielblock modifiziert).
+        $seen     = 0;
         $count    = 0;
         $injected = preg_replace_callback(
             '/(<rdf:Description\b[^>]*?)\s*(\/?>)/s',
-            static function (array $m) use ($ratingAttr, $labelAttr): string {
-                return $m[1] . $ratingAttr . $labelAttr . "\n    " . $m[2];
+            static function (array $m) use ($ratingAttr, $labelAttr, $nsDecl, $targetBlock, &$seen): string {
+                $seen++;
+                if ($seen !== $targetBlock) {
+                    return $m[0];
+                }
+                return $m[1] . $nsDecl . $ratingAttr . $labelAttr . "\n    " . $m[2];
             },
             $patched,
-            1,
+            -1,
             $count
         );
 
@@ -388,6 +397,41 @@ class ExifService
     }
 
     // ─── Hilfsmethoden ───────────────────────────────────────────────────────
+
+    /**
+     * Findet den rdf:Description-Block mit xmp:- oder xap:-Namespace-Deklaration.
+     *
+     * Gibt [blockIndex (1-basiert), needsNsDecl, prefix] zurück:
+     *  - blockIndex:  welcher Block (1 = erster)
+     *  - needsNsDecl: true wenn kein Block xmlns:xmp deklariert → in Block 1 ergänzen
+     *  - prefix:      'xmp' oder 'xap' (konsistent mit dem was die Datei benutzt)
+     *
+     * @return array{int, bool, string}
+     */
+    private function findXmpBlock(string $xmp): array
+    {
+        $index = 0;
+        $found = null;
+
+        preg_replace_callback(
+            '/(<rdf:Description\b[^>]*?)\s*(\/?>)/s',
+            static function (array $m) use (&$index, &$found): string {
+                $index++;
+                if ($found === null) {
+                    if (str_contains($m[1], 'xmlns:xmp=')) {
+                        $found = [$index, false, 'xmp'];
+                    } elseif (str_contains($m[1], 'xmlns:xap=')) {
+                        $found = [$index, false, 'xap'];
+                    }
+                }
+                return $m[0];
+            },
+            $xmp
+        );
+
+        // Kein Block mit xmp/xap-Namespace → Block 1, xmlns:xmp ergänzen
+        return $found ?? [1, true, 'xmp'];
+    }
 
     private function isJpeg(string $content): bool
     {
