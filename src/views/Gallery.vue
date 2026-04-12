@@ -523,6 +523,11 @@ async function _sendBatch() {
   await nextTick()
   gridRef.value?.$el?.focus?.()
 
+  // Sofort-Feedback für große Batches (>10 Dateien dauert spürbar)
+  if (payload.fileIds.length > 10) {
+    showToast(n('starrate', '%n Bild wird bewertet…', '%n Bilder werden bewertet…', payload.fileIds.length), 'info')
+  }
+
   try {
     if (props.batchRateFn) {
       const { fileIds: _, ...ratingData } = payload
@@ -534,7 +539,7 @@ async function _sendBatch() {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
       if (data.xmpSkipped > 0) {
-        showToast(`XMP: ${data.xmpSkipped} übersprungen`, 'warning')
+        showToast(`XMP: ${data.xmpSkipped} nicht geschrieben\nnochmal setzen`, 'warning')
       }
     }
 
@@ -790,13 +795,14 @@ watch(() => route.query, q => {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
+  white-space: pre-line;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   pointer-events: auto;
 }
 
 .sr-toast--success { background: #2a4a2a; color: #7ecf7e; border: 1px solid #3a6a3a; }
 .sr-toast--error   { background: #4a1a1a; color: #e94560; border: 1px solid #6a2a2a; }
+.sr-toast--warning { background: #4a2e0a; color: #f0a030; border: 1px solid #6a4a1a; }
 .sr-toast--info    { background: #1a2a4a; color: #7eaecf; border: 1px solid #2a3a6a; }
 
 .toast-enter-active,
