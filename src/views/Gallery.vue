@@ -502,10 +502,11 @@ function onBatchRate(rating, color, pick) {
 
   // Payload akkumulieren — mehrere Klicks innerhalb des Debounce-Fensters
   // werden zu einem einzigen Request zusammengeführt.
+  // fileIds wird bei jedem Klick aktualisiert, damit eine geänderte Auswahl
+  // immer den letzten Stand widerspiegelt.
   const isFirst = !_pendingBatch
-  if (isFirst) {
-    _pendingBatch = { fileIds: ids }
-  }
+  if (!_pendingBatch) _pendingBatch = {}
+  _pendingBatch.fileIds = ids
   if (rating !== undefined) _pendingBatch.rating = rating
   if (color  !== undefined) _pendingBatch.color  = color
   if (pick   !== undefined) _pendingBatch.pick   = pick
@@ -540,7 +541,16 @@ async function _sendBatch() {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
       if (data.xmpSkipped > 0) {
-        showToast(`XMP: ${data.xmpSkipped} nicht geschrieben\nnochmal setzen`, 'warning')
+        const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
+        const stars = payload.rating !== undefined
+          ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
+          : ''
+        showToast(
+          `${bildText} bewertet${stars}\nXMP: ${data.xmpWritten} geschrieben, ${data.xmpSkipped} nicht geschrieben\nBitte nochmal setzen`,
+          'warning',
+          7000
+        )
+        return
       }
     }
 
@@ -632,12 +642,12 @@ function onSelectionChange(ids) {
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', duration = 3000) {
   const id = ++toastCounter
   toasts.value.push({ id, message, type })
   setTimeout(() => {
     toasts.value = toasts.value.filter(t => t.id !== id)
-  }, 3000)
+  }, duration)
 }
 
 // ─── Share ────────────────────────────────────────────────────────────────────
