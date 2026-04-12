@@ -244,11 +244,11 @@ XMP;
             $label = $this->resolveLabel(trim($m[1]));
         }
 
-        // xmp:Label (Prio 2, nur wenn photoshop:LabelColor nicht aufgelöst)
+        // xmp:Label / xap:Label (Prio 2, nur wenn photoshop:LabelColor nicht aufgelöst)
         // Sprachabhängig: akzeptiert EN (Red/red/RED) und DE (Rot/Gelb/Grün/…)
         if ($label === null
-            && (preg_match('/xmp:Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
-                || preg_match('/<xmp:Label>([^<]+)<\/xmp:Label>/', $xmp, $m))) {
+            && (preg_match('/(?:xmp|xap):Label\s*=\s*[\'"]([^\'"]+)[\'"]/', $xmp, $m)
+                || preg_match('/<(?:xmp|xap):Label>([^<]+)<\/(?:xmp|xap):Label>/', $xmp, $m))) {
             $label = $this->resolveLabel(trim($m[1]));
         }
 

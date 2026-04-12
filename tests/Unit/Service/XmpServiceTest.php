@@ -201,6 +201,19 @@ XMP;
         $this->assertSame(0, $result['rating']);
     }
 
+    public function testXapLabelAttributeIsRead(): void
+    {
+        $result = $this->service->parseXmpContent("xap:Label='Red'");
+        $this->assertSame('Red', $result['label']);
+    }
+
+    public function testXapLabelAndRatingTogetherAreRead(): void
+    {
+        $result = $this->service->parseXmpContent("xap:Rating='4' xap:Label='Yellow'");
+        $this->assertSame(4,        $result['rating']);
+        $this->assertSame('Yellow', $result['label']);
+    }
+
     // ─── Tests: digiKam:ColorLabel ────────────────────────────────────────────
 
     /** @dataProvider digiKamColorProvider */
