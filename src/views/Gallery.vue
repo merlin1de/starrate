@@ -533,6 +533,9 @@ async function _sendBatch() {
       if (data.errors > 0) {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
+      if (data.xmpSkipped > 0) {
+        showToast(n('starrate', 'XMP: %n Datei nicht aktualisiert (gesperrt)', 'XMP: %n Dateien nicht aktualisiert (gesperrt)', data.xmpSkipped), 'warning')
+      }
     }
 
     const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
