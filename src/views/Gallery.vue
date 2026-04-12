@@ -510,12 +510,14 @@ function onBatchRate(rating, color, pick) {
   if (pick   !== undefined) _pendingBatch.pick   = pick
 
   clearTimeout(_batchDebounceTimer)
-  _batchDebounceTimer = setTimeout(() => _sendBatch(), 200)
+  _batchDebounceTimer = setTimeout(() => _sendBatch(), 1000)
 }
 
 async function _sendBatch() {
   const payload = _pendingBatch
   _pendingBatch = null
+
+  if (!payload) return
 
   // Grid-Focus zurückgeben (SelectionBar-Klick nimmt Focus vom Grid weg)
   await nextTick()

@@ -114,7 +114,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 2])
     await triggerBatchRate(w, 4, undefined, undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -129,7 +129,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerBatchRate(w, 0, undefined, undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -144,7 +144,7 @@ describe('Gallery – onBatchRate', () => {
 
     // Keine Auswahl gesetzt
     await triggerBatchRate(w, 3, undefined, undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).not.toHaveBeenCalled()
@@ -158,7 +158,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 3])
     await triggerBatchRate(w, undefined, 'Green', undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -173,7 +173,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [2])
     await triggerBatchRate(w, undefined, null, undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -188,7 +188,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 2])
     await triggerSelectionBarRate(w, undefined, null)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -203,7 +203,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerSelectionBarRate(w, undefined, 'Blue')
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     const payload = batchRateFn.mock.calls[0][1]
@@ -217,7 +217,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerSelectionBarRate(w, 3, undefined)
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     const payload = batchRateFn.mock.calls[0][1]
@@ -233,7 +233,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 2])
     await triggerBatchRate(w, undefined, undefined, 'pick')
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -248,7 +248,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [3])
     await triggerBatchRate(w, undefined, undefined, 'reject')
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith([3], expect.objectContaining({ pick: 'reject' }))
@@ -263,7 +263,7 @@ describe('Gallery – onBatchRate', () => {
     await selectImages(w, [1, 2])
     await triggerBatchRate(w, 3, undefined, undefined)  // Stern
     await triggerBatchRate(w, undefined, 'Red', undefined)  // Farbe direkt danach
-    vi.advanceTimersByTime(300)
+    vi.advanceTimersByTime(1100)
     await flushPromises()
 
     // Nur ein Request, kombiniert
