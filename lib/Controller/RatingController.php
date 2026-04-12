@@ -184,6 +184,7 @@ class RatingController extends Controller
 
         $updated    = 0;
         $errCount   = 0;
+        $xmpWritten = 0;
         $xmpSkipped = 0;
         $details    = [];
 
@@ -207,9 +208,10 @@ class RatingController extends Controller
                     try {
                         $this->exifService->writeMetadata(
                             $file,
-                            isset($data['rating']) ? $data['rating'] : null,
+                            $data['rating'] ?? null,
                             array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
                         );
+                        $xmpWritten++;
                     } catch (\Exception $e) {
                         $xmpSkipped++;
                         $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
@@ -229,6 +231,7 @@ class RatingController extends Controller
         return new DataResponse([
             'updated'     => $updated,
             'errors'      => $errCount,
+            'xmpWritten'  => $xmpWritten,
             'xmpSkipped'  => $xmpSkipped,
             'details'     => $details,
         ], Http::STATUS_OK);
