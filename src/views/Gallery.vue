@@ -545,11 +545,10 @@ async function _sendBatch() {
         const stars = payload.rating !== undefined
           ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
           : ''
-        showToast(
-          `${bildText} bewertet${stars}\nXMP: ${data.xmpWritten} geschrieben, ${data.xmpSkipped} nicht geschrieben\nBitte nochmal setzen`,
-          'warning',
-          7000
-        )
+        const ratedLine = `${bildText} ${t('starrate', 'bewertet')}${stars}`
+        const xmpLine   = t('starrate', 'XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen',
+                            { written: data.xmpWritten, skipped: data.xmpSkipped })
+        showToast(`${ratedLine}\n${xmpLine}`, 'warning', 7000)
         return
       }
     }
@@ -558,7 +557,7 @@ async function _sendBatch() {
     const stars = payload.rating !== undefined
       ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
       : ''
-    showToast(`${bildText} bewertet${stars}`, 'success')
+    showToast(`${bildText} ${t('starrate', 'bewertet')}${stars}`, 'success')
   } catch {
     // Rollback: lokalen State wiederherstellen und Bar-Anzeige zurücksetzen
     batchActiveRating.value = null

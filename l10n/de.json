@@ -12,6 +12,9 @@
     "Bewertung konnte nicht gespeichert werden" : "Bewertung konnte nicht gespeichert werden",
     "{name}: {stars}" : "{name}: {stars}",
     "%n Bild bewertet %s" : ["%n Bild bewertet %s", "%n Bilder bewertet %s"],
+    "%n Bild wird bewertet…\nBitte warten" : ["%n Bild wird bewertet…\nBitte warten", "%n Bilder werden bewertet…\nBitte warten"],
+    "bewertet" : "bewertet",
+    "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen" : "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen",
     "Stapel-Bewertung fehlgeschlagen" : "Stapel-Bewertung fehlgeschlagen",
 
     "Farbmarkierung" : "Farbmarkierung",

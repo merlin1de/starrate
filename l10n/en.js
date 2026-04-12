@@ -15,6 +15,9 @@ OC.L10N.register(
         "Bewertung konnte nicht gespeichert werden" : "Rating could not be saved",
         "{name}: {stars}" : "{name}: {stars}",
         "%n Bild bewertet %s" : ["%n image rated %s", "%n images rated %s"],
+        "%n Bild wird bewertet…\nBitte warten" : ["%n image is being rated…\nPlease wait", "%n images are being rated…\nPlease wait"],
+        "bewertet" : "rated",
+        "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen" : "XMP: {written} written, {skipped} not written\nPlease set again",
         "Stapel-Bewertung fehlgeschlagen" : "Batch rating failed",
 
         // ── Color labels ──────────────────────────────────────────────────────
