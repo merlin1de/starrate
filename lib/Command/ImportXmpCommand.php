@@ -71,7 +71,7 @@ class ImportXmpCommand extends Command
         $overwrite    = (bool) $input->getOption('overwrite');
 
         if (!$userId) {
-            $output->writeln('<error>--user is required</error>');
+            $output->writeln('<error>--user is required. Use `occ user:list` to find user IDs.</error>');
             return Command::FAILURE;
         }
 
@@ -198,6 +198,10 @@ class ImportXmpCommand extends Command
             $nonJpeg,
             $errors
         ));
+
+        if ($skipped > 0 && !$overwrite) {
+            $output->writeln('<comment>Tip: Use --overwrite to update already-rated files when XMP has changed externally.</comment>');
+        }
 
         return Command::SUCCESS;
     }
