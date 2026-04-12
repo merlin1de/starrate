@@ -174,11 +174,12 @@ class ExifService
         $ratingAttr = "\n      xmp:Rating=\"{$rating}\"";
         $labelAttr  = ($label !== null && $label !== '') ? "\n      xmp:Label=\"{$label}\"" : '';
 
-        // In das erste rdf:Description-Opening-Tag injizieren (vor dem schließenden >)
-        // rdf:Description ist in LR/StarRate-XMP nicht selbstschließend — [^>]* reicht
+        // In das erste rdf:Description-Opening-Tag injizieren (vor dem schließenden > oder />).
+        // Nicht-gieriger [^>]*? + \s* trennt sauber zwischen selbst-schließend (/>) und offen (>),
+        // damit das / bei <rdf:Description ... /> nicht fälschlicherweise in Gruppe 1 landet.
         $count    = 0;
         $injected = preg_replace_callback(
-            '/(<rdf:Description\b[^>]*)(>)/s',
+            '/(<rdf:Description\b[^>]*?)\s*(\/?>)/s',
             static function (array $m) use ($ratingAttr, $labelAttr): string {
                 return $m[1] . $ratingAttr . $labelAttr . "\n    " . $m[2];
             },
