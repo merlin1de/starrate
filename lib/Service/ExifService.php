@@ -410,27 +410,19 @@ class ExifService
      */
     private function findXmpBlock(string $xmp): array
     {
-        $index = 0;
-        $found = null;
+        preg_match_all('/(<rdf:Description\b[^>]*?)\s*(?:\/?>)/s', $xmp, $matches);
 
-        preg_replace_callback(
-            '/(<rdf:Description\b[^>]*?)\s*(\/?>)/s',
-            static function (array $m) use (&$index, &$found): string {
-                $index++;
-                if ($found === null) {
-                    if (str_contains($m[1], 'xmlns:xmp=')) {
-                        $found = [$index, false, 'xmp'];
-                    } elseif (str_contains($m[1], 'xmlns:xap=')) {
-                        $found = [$index, false, 'xap'];
-                    }
-                }
-                return $m[0];
-            },
-            $xmp
-        );
+        foreach ($matches[1] as $i => $openingTag) {
+            if (str_contains($openingTag, 'xmlns:xmp=')) {
+                return [$i + 1, false, 'xmp'];
+            }
+            if (str_contains($openingTag, 'xmlns:xap=')) {
+                return [$i + 1, false, 'xap'];
+            }
+        }
 
         // Kein Block mit xmp/xap-Namespace → Block 1, xmlns:xmp ergänzen
-        return $found ?? [1, true, 'xmp'];
+        return [1, true, 'xmp'];
     }
 
     private function isJpeg(string $content): bool
