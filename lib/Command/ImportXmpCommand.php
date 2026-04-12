@@ -71,7 +71,7 @@ class ImportXmpCommand extends Command
         $overwrite    = (bool) $input->getOption('overwrite');
 
         if (!$userId) {
-            $output->writeln('<error>--user is required. Use `occ user:list` to find user IDs.</error>');
+            $output->writeln('<error>--user is required</error>');
             return Command::FAILURE;
         }
 
