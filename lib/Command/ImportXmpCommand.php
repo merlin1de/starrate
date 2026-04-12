@@ -199,9 +199,6 @@ class ImportXmpCommand extends Command
             $errors
         ));
 
-        if ($skipped > 0 && !$overwrite) {
-            $output->writeln('<comment>Tip: Use --overwrite to update already-rated files when XMP has changed externally.</comment>');
-        }
 
         return Command::SUCCESS;
     }
