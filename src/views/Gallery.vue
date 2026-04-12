@@ -534,7 +534,7 @@ async function _sendBatch() {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
       if (data.xmpSkipped > 0) {
-        showToast(n('starrate', 'XMP: %n Datei nicht aktualisiert (gesperrt)', 'XMP: %n Dateien nicht aktualisiert (gesperrt)', data.xmpSkipped), 'warning')
+        showToast(`XMP: ${data.xmpSkipped} übersprungen`, 'warning')
       }
     }
 
