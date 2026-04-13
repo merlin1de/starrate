@@ -458,7 +458,18 @@ async function onRate(image, rating, color, pick) {
       await axios.post(url, payload)
     }
 
-    // kein Toast — optimistisches Update reicht als Feedback
+    if (settings.value.write_xmp) {
+      if (payload.rating !== undefined) {
+        const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
+        showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
+      } else if (payload.color !== undefined) {
+        const label = payload.color || '○'
+        showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+      } else if (payload.pick !== undefined) {
+        const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— ' + t('starrate', 'kein Pick')
+        showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+      }
+    }
   } catch {
     // Rollback
     if (local) await loadImages()
@@ -538,11 +549,9 @@ async function _sendBatch() {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
       if (data.xmpSkipped > 0) {
-        const ratedLine = `${bildText} ${t('starrate', 'bewertet')}${stars}`
-        const xmpLine   = t('starrate', 'XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen',
-                            { written: data.xmpWritten, skipped: data.xmpSkipped })
-        showToast(`${ratedLine}\n${xmpLine}`, 'warning', 7000)
-        return
+        const xmpLine = t('starrate', 'XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen',
+                          { written: data.xmpWritten, skipped: data.xmpSkipped })
+        showToast(xmpLine, 'warning', 7000)
       }
     }
 
