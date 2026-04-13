@@ -95,22 +95,25 @@
     <!-- Untere Overlay: Dateiname + Rating + Farbe -->
     <Transition name="slide-up">
       <div class="sr-loupe__footer" v-show="showControls">
-        <div class="sr-loupe__footer-left">
-          <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
-          <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
+        <!-- Wrapper: auf Desktop Zeilenblock + Button nebeneinander; auf Mobile als eigene Zeile -->
+        <div class="sr-loupe__left-group">
+          <div class="sr-loupe__footer-left">
+            <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
+            <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
+          </div>
+          <button
+            v-if="allowComment || commentsEnabledOwner"
+            class="sr-loupe__comment-btn"
+            :class="{ 'sr-loupe__comment-btn--active': hasComment }"
+            type="button"
+            :title="t('starrate', 'Kommentar')"
+            @click="openCommentSheet"
+          >
+            <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
-        <button
-          v-if="allowComment || commentsEnabledOwner"
-          class="sr-loupe__comment-btn"
-          :class="{ 'sr-loupe__comment-btn--active': hasComment }"
-          type="button"
-          :title="t('starrate', 'Kommentar')"
-          @click="openCommentSheet"
-        >
-          <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px" aria-hidden="true">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
         <div class="sr-loupe__footer-center">
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
@@ -1047,6 +1050,15 @@ watch(() => props.initialIndex, idx => {
   z-index: 10;
 }
 
+/* Wrapper: Desktop flex-row (left-group neben Stars), Mobile als eigene Zeile */
+.sr-loupe__left-group {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+}
+
 .sr-loupe__footer-left {
   display: flex;
   flex-direction: column;
@@ -1170,18 +1182,22 @@ watch(() => props.initialIndex, idx => {
     justify-content: center;
     gap: 6px 12px;
   }
-  /* Zeile 1: Steuerelemente (füllt volle Breite damit Zeile 2 komplett bricht) */
-  .sr-loupe__footer-center { order: 1; flex-grow: 1; justify-content: center; }
+  /* Zeile 1: Steuerelemente */
+  .sr-loupe__footer-center { order: 1; }
   .sr-loupe__footer-right  { order: 1; }
-  /* Zeile 2: Dateiname/Index + Kommentar-Button */
-  .sr-loupe__footer-left {
+  /* Zeile 2: left-group (Dateiname/Index + Kommentar-Button), volle Breite, zentriert */
+  .sr-loupe__left-group {
     order: 2;
-    flex: 1;
+    flex: 0 0 100%;
+    justify-content: center;
     align-items: center;
-    min-width: 0;
+  }
+  .sr-loupe__footer-left {
+    flex: 0 1 auto;
+    align-items: center;
+    text-align: center;
   }
   .sr-loupe__comment-btn {
-    order: 2;
     align-self: center;
     padding: 4px 8px;
   }
@@ -1219,7 +1235,7 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__comment-sheet {
   background: #1a1a2e;
   border-top: 1px solid #2a2a4a;
-  padding: 8px 16px 12px;
+  padding: 6px 16px 10px;
   max-height: 60%;
   overflow-y: auto;
 }
@@ -1234,7 +1250,7 @@ watch(() => props.initialIndex, idx => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .sr-loupe__comment-meta {
   font-size: 11px;
@@ -1250,7 +1266,13 @@ watch(() => props.initialIndex, idx => {
 }
 .sr-loupe__comment-close:hover { color: #d4d4d8; }
 
-.sr-loupe__comment-body { display: flex; flex-direction: column; gap: 8px; }
+.sr-loupe__comment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* min-height verhindert Höhen-Sprung beim State-Wechsel new/edit → view */
+  min-height: 80px;
+}
 
 .sr-loupe__comment-text {
   color: #d4d4d8;
