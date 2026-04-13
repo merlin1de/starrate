@@ -693,6 +693,7 @@ const commentAuthor     = ref('')
 const commentDate       = ref(0)
 const commentSaving     = ref(false)
 const commentStatus     = ref('')   // '' | 'ok' | 'error'
+const commentLoaded     = ref(false) // verhindert Doppel-Load
 let   commentStatusTimer = null
 
 const hasComment = computed(() => commentText.value !== '')
@@ -705,10 +706,11 @@ function formatCommentDate(ts) {
 }
 
 async function loadComment(fileId) {
+  if (!fileId) return
+  if (commentLoaded.value) return   // bereits geladen, kein Doppel-Request
   commentText.value   = ''
   commentAuthor.value = ''
   commentDate.value   = 0
-  if (!fileId) return
   try {
     let result = null
     if (props.commentApi) {
@@ -719,20 +721,21 @@ async function loadComment(fileId) {
       result = data.comment ?? null
     }
     if (result && typeof result === 'object') {
-      commentText.value   = result.comment   ?? ''
+      commentText.value   = result.comment    ?? ''
       commentAuthor.value = result.author_name ?? ''
       commentDate.value   = result.updated_at  ?? 0
     } else if (typeof result === 'string') {
       commentText.value = result
     }
-  } catch { /* ignore */ }
+  } catch { /* ignore */ } finally {
+    commentLoaded.value = true  // auch nach Fehler als "geladen" markieren
+  }
 }
 
 async function openCommentSheet() {
   commentStatus.value = ''
-  // Falls Kommentar noch nicht geladen (z.B. beim allerersten Klick vor Resolve),
-  // kurz warten damit kein State-Sprung new → view entsteht.
-  if (!commentText.value && (props.allowComment || props.commentsEnabledOwner)) {
+  // Sicherstellen dass Kommentar geladen ist (kein Doppel-Request dank commentLoaded-Flag)
+  if (!commentLoaded.value) {
     await loadComment(currentImage.value?.id)
   }
   if (hasComment.value) {
@@ -806,6 +809,7 @@ async function confirmDeleteComment() {
 watch(currentImage, (img) => {
   if (props.allowComment || props.commentsEnabledOwner) {
     closeCommentSheet()
+    commentLoaded.value = false  // neues Bild → neu laden
     loadComment(img?.id)
   }
 })
@@ -1159,12 +1163,17 @@ watch(() => props.initialIndex, idx => {
   /* Steuerelemente (Zeile 1) */
   .sr-loupe__footer-center { order: 1; }
   .sr-loupe__footer-right  { order: 1; }
-  /* Index + Dateiname (Zeile 2, volle Breite, zentriert) */
+  /* Index + Dateiname + Kommentar-Button (Zeile 2) */
   .sr-loupe__footer-left {
     order: 2;
-    flex: 0 0 100%;
+    flex: 1;
     align-items: center;
     min-width: 0;
+  }
+  .sr-loupe__comment-btn {
+    order: 2;   /* gleiche Zeile wie footer-left */
+    align-self: center;
+    padding: 4px 8px;
   }
 }
 
@@ -1178,7 +1187,8 @@ watch(() => props.initialIndex, idx => {
   padding: 0 8px;
   display: flex;
   align-items: center;
-  align-self: stretch;   /* nimmt die volle Höhe von footer-left */
+  justify-content: center;
+  align-self: stretch;   /* volle Höhe von footer-left, Icon mittig */
   flex-shrink: 0;
   transition: color 0.15s;
 }
@@ -1199,7 +1209,9 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__comment-sheet {
   background: #1a1a2e;
   border-top: 1px solid #2a2a4a;
-  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  padding: 12px 16px 16px;
+  /* Platz für Android-Navigationsleiste (~56px) + eigenes Padding */
+  padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
   max-height: 60%;
   overflow-y: auto;
 }
