@@ -99,7 +99,8 @@ class ImportXmpCommand extends Command
 
         $counters = ['imported' => 0, 'skipped' => 0, 'noXmp' => 0, 'errors' => 0, 'nonJpeg' => 0];
 
-        $this->processFolder($node, $output, $dryRun, $overwrite, $recursive, $counters);
+        $basePath = $userFolder->getPath();
+        $this->processFolder($node, $basePath, $output, $dryRun, $overwrite, $recursive, $counters);
 
         $output->writeln(sprintf(
             '%s<comment>Done:</comment> %d imported, %d skipped (already rated), %d without XMP, %d non-JPEG, %d errors.',
@@ -121,6 +122,7 @@ class ImportXmpCommand extends Command
      */
     private function processFolder(
         Folder          $folder,
+        string          $basePath,
         OutputInterface $output,
         bool            $dryRun,
         bool            $overwrite,
@@ -131,11 +133,11 @@ class ImportXmpCommand extends Command
         $files     = array_filter($items, fn($n) => $n instanceof File);
         $subDirs   = $recursive ? array_filter($items, fn($n) => $n instanceof Folder) : [];
 
-        $total     = count($files);
-        $processed = 0;
-        $path      = $folder->getPath();
+        $total       = count($files);
+        $processed   = 0;
+        $displayPath = '/' . ltrim(substr($folder->getPath(), strlen($basePath)), '/');
 
-        $output->writeln(sprintf('Scanning %d files in %s...', $total, $path));
+        $output->writeln(sprintf('Scanning %d files in %s...', $total, $displayPath));
 
         foreach ($files as $file) {
             $processed++;
@@ -217,7 +219,7 @@ class ImportXmpCommand extends Command
 
         // Unterordner rekursiv verarbeiten
         foreach ($subDirs as $subDir) {
-            $this->processFolder($subDir, $output, $dryRun, $overwrite, $recursive, $counters);
+            $this->processFolder($subDir, $basePath, $output, $dryRun, $overwrite, $recursive, $counters);
         }
     }
 }
