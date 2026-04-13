@@ -114,6 +114,9 @@
         :on-refresh-rating="guestMode ? null : refreshImageRating"
         :preview-url-fn="previewUrlFn"
         :enable-pick-ui="settings.enable_pick_ui"
+        :allow-comment="settings.comments_enabled || allowComment"
+        :comment-api="commentApi"
+        :comments-enabled-owner="settings.comments_enabled"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -145,6 +148,7 @@
     <ShareModal
       v-if="!guestMode && showShareModal"
       :nc-path="currentPath"
+      :comments-globally-enabled="settings.comments_enabled"
       @close="showShareModal = false"
       @created="onShareCreated"
     />
@@ -260,6 +264,10 @@ const props = defineProps({
   enablePickOverride: { type: [Boolean, null], default: null },
   /** Gast-Modus: Export List erlaubt (per-Share Einstellung, default: false) */
   allowExport: { type: Boolean, default: false },
+  /** Gast-Modus: Kommentare erlaubt (per-Share Einstellung, default: false) */
+  allowComment: { type: Boolean, default: false },
+  /** Kommentar-API (Gast) — { save, load, remove } */
+  commentApi: { type: Object, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -281,6 +289,7 @@ const settings = ref({
   grid_columns:        'auto',
   enable_pick_ui:       false,
   write_xmp:            true,
+  comments_enabled:     false,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)

@@ -91,6 +91,17 @@
           </div>
 
           <div class="sr-share-modal__field">
+            <label class="sr-share-modal__checkbox-label" :class="{ 'sr-share-modal__checkbox-label--disabled': !commentsGloballyEnabled }">
+              <input type="checkbox" v-model="form.allowComment" class="sr-share-modal__checkbox"
+                     :disabled="!commentsGloballyEnabled" />
+              {{ t('starrate', 'Kommentare erlauben') }}
+            </label>
+            <span v-if="!commentsGloballyEnabled" class="sr-share-modal__hint">
+              {{ t('starrate', 'Kommentare in den Einstellungen aktivieren') }}
+            </span>
+          </div>
+
+          <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">{{ t('starrate', 'Vorfilter (Mindest-Bewertung)') }}</label>
             <select class="sr-share-modal__select" v-model="form.minRating">
               <option :value="0">{{ t('starrate', 'Alle Bilder') }}</option>
@@ -153,7 +164,8 @@ import { generateUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
 
 const props = defineProps({
-  ncPath: { type: String, default: '/' },
+  ncPath:                  { type: String,  default: '/' },
+  commentsGloballyEnabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'created'])
@@ -161,13 +173,14 @@ const emit = defineEmits(['close', 'created'])
 // ── Formular-State ────────────────────────────────────────────────────────────
 
 const form = ref({
-  guestName:   '',
-  permissions: 'rate',
-  allowPick:   false,
-  allowExport: false,
-  minRating:   0,
-  password:    '',
-  expiresDate: '',
+  guestName:    '',
+  permissions:  'rate',
+  allowPick:    false,
+  allowExport:  false,
+  allowComment: false,
+  minRating:    0,
+  password:     '',
+  expiresDate:  '',
 })
 
 const saving      = ref(false)
@@ -201,7 +214,7 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { guestName: '', permissions: 'rate', allowPick: false, allowExport: false, minRating: 0, password: '', expiresDate: '' }
+  form.value = { guestName: '', permissions: 'rate', allowPick: false, allowExport: false, allowComment: false, minRating: 0, password: '', expiresDate: '' }
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -220,8 +233,9 @@ async function create() {
   const body = {
     nc_path:      props.ncPath,
     permissions:  form.value.permissions,
-    allow_pick:   form.value.permissions === 'rate' && form.value.allowPick,
-    allow_export: form.value.allowExport,
+    allow_pick:    form.value.permissions === 'rate' && form.value.allowPick,
+    allow_export:  form.value.allowExport,
+    allow_comment: form.value.allowComment && props.commentsGloballyEnabled,
     min_rating:   form.value.minRating,
   }
 
