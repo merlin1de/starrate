@@ -1,5 +1,5 @@
 <template>
-  <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }">
+  <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }" @keydown="onAppKeydown">
 
     <!-- Nav-Zeile: Breadcrumb + Unterordner (auf Mobile eine scrollbare Zeile) -->
     <div class="sr-nav-row">
@@ -656,12 +656,23 @@ function onShareCreated() {
   shareListRef.value?.loadShares()
 }
 
+// Escape auf App-Root-Ebene: stoppt NC's ESC-Handler bevor das Event bubbled.
+// Nur aktiv wenn ein Modal offen ist — sonst NC Folder-Navigation normal lassen.
+function onAppKeydown(e) {
+  if (e.key !== 'Escape') return
+  const modalOpen = showExportModal.value || showShareModal.value
+    || showShareList.value || showShortcuts.value
+  if (!modalOpen) return
+  e.stopPropagation()
+  e.preventDefault()
+}
+
 // Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
-  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
-  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
+  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
   if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
