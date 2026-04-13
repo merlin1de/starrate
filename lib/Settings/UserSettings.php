@@ -68,6 +68,7 @@ class UserSettings implements ISettings
             'show_color_overlay'    => $this->getBool($userId, 'show_color_overlay', true),
             'grid_columns'          => $this->get($userId, 'grid_columns', 'auto'),
             'enable_pick_ui'        => $this->getBool($userId, 'enable_pick_ui', false),
+            'write_xmp'             => $this->getBool($userId, 'write_xmp', true),
         ];
     }
 
@@ -82,7 +83,7 @@ class UserSettings implements ISettings
         $allowed = [
             'default_sort', 'default_sort_order', 'thumbnail_size',
             'show_filename', 'show_rating_overlay',
-            'show_color_overlay', 'grid_columns', 'enable_pick_ui',
+            'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp',
         ];
 
         foreach ($data as $key => $value) {
@@ -122,7 +123,7 @@ class UserSettings implements ISettings
             'thumbnail_size' => $this->assertRange($key, (int) $value, 120, 600),
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
-            'enable_pick_ui' => null,
+            'enable_pick_ui', 'write_xmp' => null,
         };
     }
 

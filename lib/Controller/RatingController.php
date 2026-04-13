@@ -6,6 +6,7 @@ namespace OCA\StarRate\Controller;
 
 use OCA\StarRate\Service\ExifService;
 use OCA\StarRate\Service\TagService;
+use OCA\StarRate\Settings\UserSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,6 +28,7 @@ class RatingController extends Controller
         private readonly IUserSession $userSession,
         private readonly TagService   $tagService,
         private readonly ExifService  $exifService,
+        private readonly UserSettings $userSettings,
         private readonly LoggerInterface $logger,
     ) {
         parent::__construct($appName, $request);
@@ -108,18 +110,18 @@ class RatingController extends Controller
             // 1. NC-Tags setzen
             $this->tagService->setMetadata($fileIdStr, $data);
 
-            // 2. JPEG-XMP schreiben (nur wenn JPEG) — non-fatal: Tags sind die primäre Quelle
+            // 2. JPEG-XMP schreiben — nur wenn JPEG und in den Einstellungen aktiviert
             $mime = $file->getMimeType();
-            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
+                && $this->userSettings->getSettings($userId)['write_xmp']) {
                 try {
                     $this->exifService->writeMetadata(
                         $file,
-                        isset($data['rating']) ? $data['rating'] : null,
+                        $data['rating'] ?? null,
                         array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
                     );
                 } catch (\Exception $e) {
-                    // XMP write failed (e.g. concurrent write / file lock) — tags already set, not fatal
-                    $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                    $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
                 }
             }
 
@@ -202,9 +204,10 @@ class RatingController extends Controller
                 // NC-Tags
                 $this->tagService->setMetadata((string) $fileId, $data);
 
-                // JPEG-XMP — non-fatal
+                // JPEG-XMP — non-fatal, nur wenn in den Einstellungen aktiviert
                 $mime = $file->getMimeType();
-                if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+                if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
+                    && $this->userSettings->getSettings($userId)['write_xmp']) {
                     try {
                         $this->exifService->writeMetadata(
                             $file,
@@ -258,7 +261,8 @@ class RatingController extends Controller
             $this->tagService->clearAll((string) $fileId);
 
             $mime = $file->getMimeType();
-            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
+                && $this->userSettings->getSettings($userId)['write_xmp']) {
                 $this->exifService->writeMetadata($file, 0, '');
             }
 
