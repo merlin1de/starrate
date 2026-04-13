@@ -693,8 +693,9 @@ const commentAuthor     = ref('')
 const commentDate       = ref(0)
 const commentSaving     = ref(false)
 const commentStatus     = ref('')   // '' | 'ok' | 'error'
-const commentLoaded     = ref(false) // verhindert Doppel-Load
-let   commentStatusTimer = null
+const commentLoaded     = ref(false)
+let   commentStatusTimer   = null
+let   _commentLoadPromise  = null   // Promise-Lock gegen parallele Loads
 
 const hasComment = computed(() => commentText.value !== '')
 const commentSheetOpen = computed(() => commentSheetState.value !== 'closed')
@@ -705,31 +706,39 @@ function formatCommentDate(ts) {
   return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
 }
 
-async function loadComment(fileId) {
-  if (!fileId) return
-  if (commentLoaded.value) return   // bereits geladen, kein Doppel-Request
-  commentText.value   = ''
-  commentAuthor.value = ''
-  commentDate.value   = 0
-  try {
-    let result = null
-    if (props.commentApi) {
-      result = await props.commentApi.load(fileId)
-    } else if (props.commentsEnabledOwner) {
-      const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
-      const { data } = await axios.get(url)
-      result = data.comment ?? null
+function loadComment(fileId) {
+  if (!fileId) return Promise.resolve()
+  if (commentLoaded.value) return Promise.resolve()
+  // Schon am Laden? Bestehenden Promise zurückgeben statt zweiten Request zu starten
+  if (_commentLoadPromise) return _commentLoadPromise
+
+  _commentLoadPromise = (async () => {
+    commentText.value   = ''
+    commentAuthor.value = ''
+    commentDate.value   = 0
+    try {
+      let result = null
+      if (props.commentApi) {
+        result = await props.commentApi.load(fileId)
+      } else if (props.commentsEnabledOwner) {
+        const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
+        const { data } = await axios.get(url)
+        result = data.comment ?? null
+      }
+      if (result && typeof result === 'object') {
+        commentText.value   = result.comment    ?? ''
+        commentAuthor.value = result.author_name ?? ''
+        commentDate.value   = result.updated_at  ?? 0
+      } else if (typeof result === 'string') {
+        commentText.value = result
+      }
+    } catch { /* ignore */ } finally {
+      commentLoaded.value  = true
+      _commentLoadPromise  = null
     }
-    if (result && typeof result === 'object') {
-      commentText.value   = result.comment    ?? ''
-      commentAuthor.value = result.author_name ?? ''
-      commentDate.value   = result.updated_at  ?? 0
-    } else if (typeof result === 'string') {
-      commentText.value = result
-    }
-  } catch { /* ignore */ } finally {
-    commentLoaded.value = true  // auch nach Fehler als "geladen" markieren
-  }
+  })()
+
+  return _commentLoadPromise
 }
 
 async function openCommentSheet() {
@@ -809,7 +818,8 @@ async function confirmDeleteComment() {
 watch(currentImage, (img) => {
   if (props.allowComment || props.commentsEnabledOwner) {
     closeCommentSheet()
-    commentLoaded.value = false  // neues Bild → neu laden
+    commentLoaded.value  = false
+    _commentLoadPromise  = null
     loadComment(img?.id)
   }
 })
@@ -1160,10 +1170,10 @@ watch(() => props.initialIndex, idx => {
     justify-content: center;
     gap: 6px 12px;
   }
-  /* Steuerelemente (Zeile 1) */
-  .sr-loupe__footer-center { order: 1; }
+  /* Zeile 1: Steuerelemente (füllt volle Breite damit Zeile 2 komplett bricht) */
+  .sr-loupe__footer-center { order: 1; flex-grow: 1; justify-content: center; }
   .sr-loupe__footer-right  { order: 1; }
-  /* Index + Dateiname + Kommentar-Button (Zeile 2) */
+  /* Zeile 2: Dateiname/Index + Kommentar-Button */
   .sr-loupe__footer-left {
     order: 2;
     flex: 1;
@@ -1171,7 +1181,7 @@ watch(() => props.initialIndex, idx => {
     min-width: 0;
   }
   .sr-loupe__comment-btn {
-    order: 2;   /* gleiche Zeile wie footer-left */
+    order: 2;
     align-self: center;
     padding: 4px 8px;
   }
@@ -1209,18 +1219,22 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__comment-sheet {
   background: #1a1a2e;
   border-top: 1px solid #2a2a4a;
-  padding: 12px 16px 16px;
-  /* Platz für Android-Navigationsleiste (~56px) + eigenes Padding */
-  padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
+  padding: 8px 16px 12px;
   max-height: 60%;
   overflow-y: auto;
+}
+@media (pointer: coarse) {
+  .sr-loupe__comment-sheet {
+    /* Platz für Android-Navigationsleiste (~56px) */
+    padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
+  }
 }
 
 .sr-loupe__comment-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .sr-loupe__comment-meta {
   font-size: 11px;
