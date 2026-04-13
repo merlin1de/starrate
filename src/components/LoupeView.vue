@@ -97,22 +97,20 @@
       <div class="sr-loupe__footer" v-show="showControls">
         <div class="sr-loupe__footer-left">
           <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
-          <div class="sr-loupe__footer-info">
-            <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
-            <button
-              v-if="allowComment || commentsEnabledOwner"
-              class="sr-loupe__comment-btn"
-              :class="{ 'sr-loupe__comment-btn--active': hasComment }"
-              type="button"
-              :title="t('starrate', 'Kommentar')"
-              @click="openCommentSheet"
-            >
-              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-          </div>
+          <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
         </div>
+        <button
+          v-if="allowComment || commentsEnabledOwner"
+          class="sr-loupe__comment-btn"
+          :class="{ 'sr-loupe__comment-btn--active': hasComment }"
+          type="button"
+          :title="t('starrate', 'Kommentar')"
+          @click="openCommentSheet"
+        >
+          <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="sr-loupe__footer-center">
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
@@ -730,8 +728,13 @@ async function loadComment(fileId) {
   } catch { /* ignore */ }
 }
 
-function openCommentSheet() {
+async function openCommentSheet() {
   commentStatus.value = ''
+  // Falls Kommentar noch nicht geladen (z.B. beim allerersten Klick vor Resolve),
+  // kurz warten damit kein State-Sprung new → view entsteht.
+  if (!commentText.value && (props.allowComment || props.commentsEnabledOwner)) {
+    await loadComment(currentImage.value?.id)
+  }
   if (hasComment.value) {
     commentSheetState.value = 'view'
     commentDraft.value      = commentText.value
@@ -1046,12 +1049,6 @@ watch(() => props.initialIndex, idx => {
   text-overflow: ellipsis;
 }
 
-.sr-loupe__footer-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .sr-loupe__index {
   font-size: 11px;
   color: #666;
@@ -1178,11 +1175,11 @@ watch(() => props.initialIndex, idx => {
   border: none;
   color: #52525b;
   cursor: pointer;
-  padding: 2px;
-  display: inline-flex;
+  padding: 0 8px;
+  display: flex;
   align-items: center;
+  align-self: stretch;   /* nimmt die volle Höhe von footer-left */
   flex-shrink: 0;
-  line-height: 1;
   transition: color 0.15s;
 }
 .sr-loupe__comment-btn--active { color: #e94560; }

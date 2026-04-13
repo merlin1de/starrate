@@ -228,6 +228,7 @@ OC.L10N.register(
         "XMP in JPEG schreiben" : "Write XMP into JPEG",
         "Kommentare aktivieren" : "Enable comments",
         "Kommentare erlauben" : "Allow comments",
+    "Kommentare deaktivieren" : "Disable comments",
         "Kommentar" : "Comment",
         "Neuer Kommentar" : "New comment",
         "Kommentar hinzufügen..." : "Add a comment...",
