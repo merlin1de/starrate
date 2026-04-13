@@ -153,7 +153,7 @@ const commentApi = {
     const url = generateUrl(`/apps/starrate/api/guest/${props.token}/comment/${fileId}`)
     try {
       const { data } = await axios.get(url, { headers: pwHeader() })
-      return data.comment ?? null
+      return data ?? null
     } catch {
       return null
     }
