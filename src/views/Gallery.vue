@@ -502,6 +502,11 @@ function onBatchRate(rating, color, pick) {
   if (color  !== undefined) _pendingBatch.color  = color
   if (pick   !== undefined) _pendingBatch.pick   = pick
 
+  // Sofort-Feedback nur wenn XMP-Writes aktiv — dann dauert der Batch spürbar länger
+  if (isFirst && ids.length > 10 && settings.value.write_xmp) {
+    showToast(n('starrate', '%n Bild wird bewertet…\nBitte warten', '%n Bilder werden bewertet…\nBitte warten', ids.length), 'info')
+  }
+
   clearTimeout(_batchDebounceTimer)
   _batchDebounceTimer = setTimeout(() => _sendBatch(), 2000)
 }
