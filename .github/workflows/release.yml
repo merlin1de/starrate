@@ -25,6 +25,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Validate branch matches release type
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          NIGHTLY="${{ inputs.nightly }}"
+          echo "Branch : $BRANCH"
+          echo "Nightly: $NIGHTLY"
+          if [ "$NIGHTLY" = "true" ] && [ "$BRANCH" != "nightly" ]; then
+            echo "ERROR: Nightly releases must be triggered from the 'nightly' branch (got: $BRANCH)."
+            exit 1
+          fi
+          if [ "$NIGHTLY" = "false" ] && [ "$BRANCH" != "master" ]; then
+            echo "ERROR: Stable releases must be triggered from the 'master' branch (got: $BRANCH)."
+            exit 1
+          fi
+          echo "Branch check passed ✓"
+
       - name: Validate version matches appinfo/info.xml
         run: |
           XML_VERSION=$(grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
