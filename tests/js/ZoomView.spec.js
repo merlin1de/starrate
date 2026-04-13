@@ -17,6 +17,170 @@ const factory = (props = {}) => mount(LoupeView, {
   attachTo: document.body,
 })
 
+describe('LoupeView – Kommentare', () => {
+
+  it('zeigt Kommentar-Button wenn commentsEnabledOwner=true', () => {
+    const w = factory({ commentsEnabledOwner: true })
+    expect(w.find('.sr-loupe__comment-btn').exists()).toBe(true)
+  })
+
+  it('zeigt Kommentar-Button wenn allowComment=true', () => {
+    const w = factory({ allowComment: true })
+    expect(w.find('.sr-loupe__comment-btn').exists()).toBe(true)
+  })
+
+  it('versteckt Kommentar-Button wenn weder allowComment noch commentsEnabledOwner', () => {
+    const w = factory()
+    expect(w.find('.sr-loupe__comment-btn').exists()).toBe(false)
+  })
+
+  it('Kommentar-Sheet ist initial geschlossen', () => {
+    const w = factory({ commentsEnabledOwner: true })
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(false)
+  })
+
+  it('öffnet Kommentar-Sheet bei Klick auf Button', async () => {
+    const w = factory({ commentsEnabledOwner: true })
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(true)
+  })
+
+  it('schließt Kommentar-Sheet bei Klick auf ✕', async () => {
+    const w = factory({ commentsEnabledOwner: true })
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(true)
+    await w.find('.sr-loupe__comment-close').trigger('click')
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(false)
+  })
+
+  it('schließt Kommentar-Sheet bei Escape', async () => {
+    const w = factory({ commentsEnabledOwner: true })
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(true)
+    await w.find('.sr-loupe').trigger('keydown', { key: 'Escape' })
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(false)
+  })
+
+  it('zeigt Textarea im neuen Kommentar-Modus', async () => {
+    const w = factory({ commentsEnabledOwner: true })
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-textarea').exists()).toBe(true)
+  })
+
+  it('Button hat Akzentfarbe wenn Kommentar vorhanden (via commentApi)', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue({ comment: 'Toll', author_name: 'Anna', updated_at: 1713000000 }),
+      save: vi.fn(),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-btn--active').exists()).toBe(true)
+  })
+
+  it('Button hat keine Akzentfarbe ohne Kommentar', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue(null),
+      save: vi.fn(),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-btn--active').exists()).toBe(false)
+  })
+
+  it('loadComment gibt Autor und Datum aus API zurück', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue({ comment: 'Super!', author_name: 'Max', updated_at: 1713050000 }),
+      save: vi.fn(),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    // Sheet öffnen
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    // View-Modus — zeigt Autor und Text
+    expect(w.find('.sr-loupe__comment-meta').text()).toContain('Max')
+    expect(w.find('.sr-loupe__comment-text').text()).toContain('Super!')
+  })
+
+  it('speichert Kommentar über commentApi', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue(null),
+      save: vi.fn().mockResolvedValue({ comment: 'Neuer Text', author_name: 'Ich', updated_at: 1713060000 }),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    await w.find('.sr-loupe__comment-textarea').setValue('Neuer Text')
+    await w.find('.sr-loupe__comment-btn-save').trigger('click')
+    await flushPromises()
+    expect(commentApi.save).toHaveBeenCalledWith(1, 'Neuer Text')
+    // Wechselt in View-Modus
+    expect(w.find('.sr-loupe__comment-text').text()).toContain('Neuer Text')
+  })
+
+  it('Speichern-Button ist disabled bei leerem Text', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue(null),
+      save: vi.fn(),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__comment-btn-save').attributes('disabled')).toBeDefined()
+  })
+
+  it('zeigt Lösch-Bestätigung und löscht bei Klick auf Ja', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue({ comment: 'Alte Notiz', author_name: 'Anna', updated_at: 1713000000 }),
+      save: vi.fn(),
+      remove: vi.fn().mockResolvedValue(undefined),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    // View-Modus → Löschen-Button
+    await w.find('.sr-loupe__comment-action--delete').trigger('click')
+    // Bestätigungsdialog
+    expect(w.find('.sr-loupe__comment-btn-save--danger').exists()).toBe(true)
+    await w.find('.sr-loupe__comment-btn-save--danger').trigger('click')
+    await flushPromises()
+    expect(commentApi.remove).toHaveBeenCalledWith(1)
+    // Sheet geschlossen, Button nicht mehr aktiv
+    expect(w.find('.sr-loupe__comment-sheet-overlay--open').exists()).toBe(false)
+    expect(w.find('.sr-loupe__comment-btn--active').exists()).toBe(false)
+  })
+
+  it('Abbrechen in Lösch-Bestätigung kehrt zur View zurück', async () => {
+    const commentApi = {
+      load: vi.fn().mockResolvedValue({ comment: 'Notiz', author_name: 'Anna', updated_at: 1713000000 }),
+      save: vi.fn(),
+      remove: vi.fn(),
+    }
+    const w = factory({ allowComment: true, commentApi })
+    await flushPromises()
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    await w.find('.sr-loupe__comment-action--delete').trigger('click')
+    await w.find('.sr-loupe__comment-btn-cancel').trigger('click')
+    // Zurück in View-Modus — Kommentartext noch da
+    expect(w.find('.sr-loupe__comment-text').text()).toContain('Notiz')
+    expect(w.find('.sr-loupe__comment-btn-save--danger').exists()).toBe(false)
+  })
+
+})
+
 describe('LoupeView – Zoom & Navigation', () => {
 
   // ── Grundrendering ────────────────────────────────────────────────────────
