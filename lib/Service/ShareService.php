@@ -6,10 +6,12 @@ namespace OCA\StarRate\Service;
 
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
+use OCP\IDBConnection;
 use OCP\IPreview as IPreviewManager;
 use OCP\Security\ISecureRandom;
 use Psr\Log\LoggerInterface;
@@ -42,7 +44,7 @@ class ShareService
         private readonly ISecureRandom   $secureRandom,
         private readonly TagService      $tagService,
         private readonly LoggerInterface $logger,
-        private readonly \OCP\IDBConnection $db,
+        private readonly IDBConnection $db,
     ) {}
 
     // ─── Share erstellen / verwalten ─────────────────────────────────────────
@@ -62,6 +64,7 @@ class ShareService
         ?string $guestName = null,
         bool    $allowPick = false,
         bool    $allowExport = false,
+        bool    $allowComment = false,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -81,7 +84,7 @@ class ShareService
             'guest_name'    => $guestName ? trim($guestName) : null,
             'allow_pick'    => $allowPick,
             'allow_export'  => $allowExport,
-            'allow_comment' => false,
+            'allow_comment' => $allowComment,
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -379,16 +382,7 @@ class ShareService
             $this->tagService->setMetadata($fileIdStr, $metadata);
         }
 
-        // Dateinamen für den Log-Eintrag ermitteln
-        $filename = (string) $fileId;
-        $userFolder = $this->rootFolder->getUserFolder($ownerId);
-        $nodes = $userFolder->getById($fileId);
-        foreach ($nodes as $n) {
-            if ($n instanceof \OCP\Files\File) {
-                $filename = $n->getName();
-                break;
-            }
-        }
+        $filename = $this->resolveFilename($ownerId, $fileId);
 
         // Log-Eintrag schreiben
         $entry = [
@@ -488,35 +482,35 @@ class ShareService
         $comment = mb_substr(trim($comment), 0, 2000);
         $now     = time();
 
-        $qb = $this->db->getQueryBuilder();
+        // UPDATE zuerst — Race-Condition-sicher: bei gleichzeitigem INSERT greift der UNIQUE-Constraint.
+        $qb      = $this->db->getQueryBuilder();
+        $updated = $qb->update('starrate_comments')
+            ->set('comment',     $qb->createNamedParameter($comment))
+            ->set('author_type', $qb->createNamedParameter($authorType))
+            ->set('author_name', $qb->createNamedParameter($authorName))
+            ->set('updated_at',  $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT))
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)))
+            ->executeStatement();
 
-        // Prüfen ob Kommentar bereits existiert
-        $existing = $qb->select('id')
-            ->from('starrate_comments')
-            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
-            ->executeQuery()
-            ->fetchOne();
-
-        if ($existing !== false) {
-            $qb = $this->db->getQueryBuilder();
-            $qb->update('starrate_comments')
-                ->set('comment',     $qb->createNamedParameter($comment))
-                ->set('author_type', $qb->createNamedParameter($authorType))
-                ->set('author_name', $qb->createNamedParameter($authorName))
-                ->set('updated_at',  $qb->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
-                ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
-                ->executeStatement();
-        } else {
-            $qb = $this->db->getQueryBuilder();
-            $qb->insert('starrate_comments')
-                ->values([
-                    'file_id'     => $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
-                    'comment'     => $qb->createNamedParameter($comment),
-                    'author_type' => $qb->createNamedParameter($authorType),
-                    'author_name' => $qb->createNamedParameter($authorName),
-                    'updated_at'  => $qb->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
-                ])
-                ->executeStatement();
+        if ($updated === 0) {
+            try {
+                $qb = $this->db->getQueryBuilder();
+                $qb->insert('starrate_comments')
+                    ->values([
+                        'file_id'     => $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT),
+                        'comment'     => $qb->createNamedParameter($comment),
+                        'author_type' => $qb->createNamedParameter($authorType),
+                        'author_name' => $qb->createNamedParameter($authorName),
+                        'updated_at'  => $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT),
+                    ])
+                    ->executeStatement();
+            } catch (\Exception) {
+                // Race: anderer Request hat gerade denselben fileId eingefügt → aktuellen Wert zurückgeben
+                return $this->getComment($fileId) ?? [
+                    'file_id' => $fileId, 'comment' => $comment,
+                    'author_type' => $authorType, 'author_name' => $authorName, 'updated_at' => $now,
+                ];
+            }
         }
 
         return [
@@ -538,7 +532,7 @@ class ShareService
         $qb     = $this->db->getQueryBuilder();
         $result = $qb->select('file_id', 'comment', 'author_type', 'author_name', 'updated_at')
             ->from('starrate_comments')
-            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)))
             ->executeQuery()
             ->fetch();
 
@@ -582,26 +576,9 @@ class ShareService
      */
     public function appendCommentToLog(array $share, int $fileId, string $comment, string $guestName): void
     {
-        $ownerId  = $share['owner_id'];
-        $token    = $share['token'];
-        $filename = (string) $fileId;
-
-        try {
-            $userFolder = $this->rootFolder->getUserFolder($ownerId);
-            $nodes      = $userFolder->getById($fileId);
-            foreach ($nodes as $n) {
-                if ($n instanceof \OCP\Files\File) {
-                    $filename = $n->getName();
-                    break;
-                }
-            }
-        } catch (\Exception) {
-            // ignore
-        }
-
-        $this->appendToLog($ownerId, $token, [
+        $this->appendToLog($share['owner_id'], $share['token'], [
             'file_id'    => $fileId,
-            'filename'   => $filename,
+            'filename'   => $this->resolveFilename($share['owner_id'], $fileId),
             'comment'    => mb_substr($comment, 0, 200),
             'guest_name' => $guestName,
             'timestamp'  => time(),
@@ -609,17 +586,34 @@ class ShareService
     }
 
     /**
-     * Löscht den Kommentar zu einer Datei.
+     * Löscht den Kommentar zu einer Datei (auch beim File-Delete aufgerufen).
      */
     public function deleteComment(int $fileId): void
     {
         $qb = $this->db->getQueryBuilder();
         $qb->delete('starrate_comments')
-            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, IQueryBuilder::PARAM_INT)))
             ->executeStatement();
     }
 
-    // ─── Log-Hilfsmethode ─────────────────────────────────────────────────────
+    // ─── Log-Hilfsmethoden ────────────────────────────────────────────────────
+
+    /**
+     * Löst eine file_id in einen Dateinamen auf (Fallback: ID als String).
+     * Wird für Log-Einträge verwendet — darf nie werfen.
+     */
+    private function resolveFilename(string $ownerId, int $fileId): string
+    {
+        try {
+            $nodes = $this->rootFolder->getUserFolder($ownerId)->getById($fileId);
+            foreach ($nodes as $n) {
+                if ($n instanceof File) {
+                    return $n->getName();
+                }
+            }
+        } catch (\Exception) { /* ignore */ }
+        return (string) $fileId;
+    }
 
     /**
      * Hängt einen Eintrag an den Gast-Log an und trimmt ihn auf MAX_ENTRIES.
