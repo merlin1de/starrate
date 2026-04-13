@@ -35,6 +35,8 @@
     :guest-label="props.guestName"
     :enable-pick-override="props.allowPick"
     :allow-export="props.allowExport"
+    :allow-comment="props.allowComment"
+    :comment-api="commentApi"
     :load-images-fn="loadImagesFn"
     :rate-fn="rateFn"
     :batch-rate-fn="batchRateFn"
@@ -58,9 +60,10 @@ const appVersion = __APP_VERSION__
 const props = defineProps({
   token:       { type: String,  required: true },
   canRate:     { type: Boolean, default: false },
-  allowPick:   { type: Boolean, default: false },
-  allowExport: { type: Boolean, default: false },
-  guestName:   { type: String,  default: '' },
+  allowPick:    { type: Boolean, default: false },
+  allowExport:  { type: Boolean, default: false },
+  allowComment: { type: Boolean, default: false },
+  guestName:    { type: String,  default: '' },
 })
 
 // ── Passwort-State ────────────────────────────────────────────────────────────
@@ -134,6 +137,31 @@ function thumbnailUrlFn(fileId, sz) {
 function previewUrlFn(fileId) {
   const base = generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
   return appendPwToken(base)
+}
+
+const commentApi = {
+  async save(fileId, comment, guestName) {
+    const url = generateUrl(`/apps/starrate/api/guest/${props.token}/comment`)
+    const { data } = await axios.post(url, {
+      file_id:    fileId,
+      comment,
+      guest_name: guestName || props.guestName || t('starrate', 'Gast'),
+    }, { headers: pwHeader() })
+    return data
+  },
+  async load(fileId) {
+    const url = generateUrl(`/apps/starrate/api/guest/${props.token}/comment/${fileId}`)
+    try {
+      const { data } = await axios.get(url, { headers: pwHeader() })
+      return data.comment ?? null
+    } catch {
+      return null
+    }
+  },
+  async remove(fileId) {
+    const url = generateUrl(`/apps/starrate/api/guest/${props.token}/comment/${fileId}`)
+    await axios.delete(url, { headers: pwHeader() })
+  },
 }
 
 // ── Passwort verifizieren ─────────────────────────────────────────────────────

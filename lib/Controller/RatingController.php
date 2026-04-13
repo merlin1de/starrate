@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\StarRate\Controller;
 
 use OCA\StarRate\Service\ExifService;
+use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
 use OCA\StarRate\Settings\UserSettings;
 use OCP\AppFramework\Controller;
@@ -29,6 +30,7 @@ class RatingController extends Controller
         private readonly TagService   $tagService,
         private readonly ExifService  $exifService,
         private readonly UserSettings $userSettings,
+        private readonly ShareService $shareService,
         private readonly LoggerInterface $logger,
     ) {
         parent::__construct($appName, $request);
@@ -271,6 +273,65 @@ class RatingController extends Controller
             $this->logger->error("StarRate RatingController::delete – {$e->getMessage()}");
             return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // ─── Kommentare (Owner) ───────────────────────────────────────────────────
+
+    #[NoAdminRequired]
+    public function getComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $comment = $this->shareService->getComment($fileId);
+        if ($comment === null) {
+            return new DataResponse(['comment' => null]);
+        }
+        return new DataResponse($comment);
+    }
+
+    #[NoAdminRequired]
+    public function saveComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $body = $this->getJsonBody();
+        $text = trim($body['comment'] ?? '');
+        if ($text === '') {
+            return new DataResponse(['error' => 'Comment is empty'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        $result = $this->shareService->saveComment($fileId, $text, 'owner', $userId);
+        return new DataResponse($result);
+    }
+
+    #[NoAdminRequired]
+    public function deleteComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $this->shareService->deleteComment($fileId);
+        return new DataResponse(['ok' => true]);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────

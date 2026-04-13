@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\AppInfo;
 
+use OCA\StarRate\Listener\NodeDeletedListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Files\Events\Node\NodeDeletedEvent;
 use OCP\Util;
 
 class Application extends App implements IBootstrap
@@ -21,7 +23,10 @@ class Application extends App implements IBootstrap
         parent::__construct(self::APP_ID);
     }
 
-    public function register(IRegistrationContext $context): void {}
+    public function register(IRegistrationContext $context): void
+    {
+        $context->registerEventListener(NodeDeletedEvent::class, NodeDeletedListener::class);
+    }
 
     public function boot(IBootContext $context): void
     {

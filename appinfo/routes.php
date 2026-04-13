@@ -125,6 +125,40 @@ return [
             'verb' => 'POST',
         ],
 
+        // ─── Kommentare (Owner) ───────────────────────────────────────────────
+        [
+            'name' => 'rating#getComment',
+            'url'  => '/api/rating/{fileId}/comment',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'rating#saveComment',
+            'url'  => '/api/rating/{fileId}/comment',
+            'verb' => 'POST',
+        ],
+        [
+            'name' => 'rating#deleteComment',
+            'url'  => '/api/rating/{fileId}/comment',
+            'verb' => 'DELETE',
+        ],
+
+        // ─── Kommentare (Gast) ────────────────────────────────────────────────
+        [
+            'name' => 'share#guestGetComment',
+            'url'  => '/api/guest/{token}/comment/{fileId}',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'share#guestSaveComment',
+            'url'  => '/api/guest/{token}/comment',
+            'verb' => 'POST',
+        ],
+        [
+            'name' => 'share#guestDeleteComment',
+            'url'  => '/api/guest/{token}/comment/{fileId}',
+            'verb' => 'DELETE',
+        ],
+
         // ─── Settings ─────────────────────────────────────────────────────────
         [
             'name' => 'settings#getSettings',
