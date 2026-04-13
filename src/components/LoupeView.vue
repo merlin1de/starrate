@@ -95,25 +95,23 @@
     <!-- Untere Overlay: Dateiname + Rating + Farbe -->
     <Transition name="slide-up">
       <div class="sr-loupe__footer" v-show="showControls">
-        <!-- Wrapper: auf Desktop Zeilenblock + Button nebeneinander; auf Mobile als eigene Zeile -->
-        <div class="sr-loupe__left-group">
-          <div class="sr-loupe__footer-left">
-            <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
-            <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
-          </div>
-          <button
-            v-if="allowComment || commentsEnabledOwner"
-            class="sr-loupe__comment-btn"
-            :class="{ 'sr-loupe__comment-btn--active': hasComment }"
-            type="button"
-            :title="t('starrate', 'Kommentar')"
-            @click="openCommentSheet"
-          >
-            <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px" aria-hidden="true">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+        <div class="sr-loupe__footer-left">
+          <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
+          <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
         </div>
+        <button
+          v-if="allowComment || commentsEnabledOwner"
+          class="sr-loupe__comment-btn"
+          :class="{ 'sr-loupe__comment-btn--active': hasComment }"
+          type="button"
+          :title="t('starrate', 'Kommentar')"
+          @click="openCommentSheet"
+        >
+          <svg class="sr-loupe__comment-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="sr-loupe__comment-label">{{ t('starrate', 'Kommentar') }}</span>
+        </button>
         <div class="sr-loupe__footer-center">
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
@@ -150,74 +148,72 @@
       </div>
     </Transition>
 
-    <!-- Kommentar Bottom Sheet -->
-    <Transition name="sr-comment-sheet">
-      <div
-        v-if="commentSheetOpen"
-        class="sr-loupe__comment-sheet-overlay"
-        @click.self="closeCommentSheet"
-      >
-        <div class="sr-loupe__comment-sheet">
-          <div class="sr-loupe__comment-sheet-header">
-            <span class="sr-loupe__comment-meta">
-              <template v-if="commentAuthor && commentDate">
-                {{ commentAuthor }} · {{ formatCommentDate(commentDate) }}
-              </template>
-              <template v-else>
-                {{ t('starrate', 'Neuer Kommentar') }}
-              </template>
-            </span>
-            <button class="sr-loupe__comment-close" type="button" @click="closeCommentSheet">✕</button>
-          </div>
+    <!-- Kommentar Bottom Sheet (immer im DOM, CSS-only Transition) -->
+    <div
+      class="sr-loupe__comment-sheet-overlay"
+      :class="{ 'sr-loupe__comment-sheet-overlay--open': commentSheetOpen }"
+      @click.self="closeCommentSheet"
+    >
+      <div class="sr-loupe__comment-sheet">
+        <div class="sr-loupe__comment-sheet-header">
+          <span class="sr-loupe__comment-meta">
+            <template v-if="commentAuthor && commentDate">
+              {{ commentAuthor }} · {{ formatCommentDate(commentDate) }}
+            </template>
+            <template v-else>
+              {{ t('starrate', 'Neuer Kommentar') }}
+            </template>
+          </span>
+          <button class="sr-loupe__comment-close" type="button" @click="closeCommentSheet">✕</button>
+        </div>
 
-          <!-- View-Modus -->
-          <div v-if="commentSheetState === 'view'" class="sr-loupe__comment-body">
-            <p class="sr-loupe__comment-text">{{ commentText }}</p>
-            <div v-if="commentSheetState !== 'confirm-delete'" class="sr-loupe__comment-actions">
-              <button class="sr-loupe__comment-action" type="button" @click="commentSheetState = 'edit'; commentDraft = commentText">
-                <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <button class="sr-loupe__comment-action sr-loupe__comment-action--delete" type="button" @click="commentSheetState = 'confirm-delete'">
-                <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-            </div>
+        <!-- View-Modus -->
+        <div v-if="commentSheetState === 'view'" class="sr-loupe__comment-body">
+          <p class="sr-loupe__comment-text">{{ commentText }}</p>
+          <div class="sr-loupe__comment-actions">
+            <button class="sr-loupe__comment-action" type="button" @click="commentSheetState = 'edit'; commentDraft = commentText">
+              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="sr-loupe__comment-action sr-loupe__comment-action--delete" type="button" @click="commentSheetState = 'confirm-delete'">
+              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
           </div>
+        </div>
 
-          <!-- Löschen-Bestätigung -->
-          <div v-else-if="commentSheetState === 'confirm-delete'" class="sr-loupe__comment-body">
-            <p class="sr-loupe__comment-text">{{ commentText }}</p>
-            <div class="sr-loupe__comment-actions sr-loupe__comment-actions--confirm">
-              <button class="sr-loupe__comment-btn-cancel" type="button" @click="commentSheetState = 'view'">
-                {{ t('starrate', 'Abbrechen') }}
-              </button>
-              <button class="sr-loupe__comment-btn-save sr-loupe__comment-btn-save--danger" type="button"
-                      :disabled="commentSaving" @click="confirmDeleteComment">
-                {{ t('starrate', 'Ja, löschen') }}
-              </button>
-            </div>
+        <!-- Löschen-Bestätigung -->
+        <div v-else-if="commentSheetState === 'confirm-delete'" class="sr-loupe__comment-body">
+          <p class="sr-loupe__comment-text">{{ commentText }}</p>
+          <div class="sr-loupe__comment-actions sr-loupe__comment-actions--confirm">
+            <button class="sr-loupe__comment-btn-cancel" type="button" @click="commentSheetState = 'view'">
+              {{ t('starrate', 'Abbrechen') }}
+            </button>
+            <button class="sr-loupe__comment-btn-save sr-loupe__comment-btn-save--danger" type="button"
+                    :disabled="commentSaving" @click="confirmDeleteComment">
+              {{ t('starrate', 'Ja, löschen') }}
+            </button>
           </div>
+        </div>
 
-          <!-- Neu / Edit-Modus -->
-          <div v-else class="sr-loupe__comment-body">
-            <textarea
-              v-model="commentDraft"
-              class="sr-loupe__comment-textarea"
-              :placeholder="t('starrate', 'Kommentar hinzufügen...')"
-              rows="3"
-              maxlength="2000"
-            />
-            <div class="sr-loupe__comment-actions sr-loupe__comment-actions--edit">
-              <span v-if="commentStatus === 'ok'" class="sr-loupe__comment-status sr-loupe__comment-status--ok">✓</span>
-              <span v-if="commentStatus === 'error'" class="sr-loupe__comment-status sr-loupe__comment-status--error">✗</span>
-              <button class="sr-loupe__comment-btn-save" type="button"
-                      :disabled="commentSaving || !commentDraft.trim()" @click="saveComment">
-                {{ t('starrate', 'Speichern') }}
-              </button>
-            </div>
+        <!-- Neu / Edit-Modus -->
+        <div v-else class="sr-loupe__comment-body">
+          <textarea
+            v-model="commentDraft"
+            class="sr-loupe__comment-textarea"
+            :placeholder="t('starrate', 'Kommentar hinzufügen...')"
+            rows="3"
+            maxlength="2000"
+          />
+          <div class="sr-loupe__comment-actions sr-loupe__comment-actions--edit">
+            <span v-if="commentStatus === 'ok'" class="sr-loupe__comment-status sr-loupe__comment-status--ok">✓</span>
+            <span v-if="commentStatus === 'error'" class="sr-loupe__comment-status sr-loupe__comment-status--error">✗</span>
+            <button class="sr-loupe__comment-btn-save" type="button"
+                    :disabled="commentSaving || !commentDraft.trim()" @click="saveComment">
+              {{ t('starrate', 'Speichern') }}
+            </button>
           </div>
         </div>
       </div>
-    </Transition>
+    </div>
   </div>
 </template>
 
@@ -726,7 +722,7 @@ function loadComment(fileId) {
       } else if (props.commentsEnabledOwner) {
         const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
         const { data } = await axios.get(url)
-        result = data.comment ?? null
+        result = data ?? null
       }
       if (result && typeof result === 'object') {
         commentText.value   = result.comment    ?? ''
@@ -756,7 +752,8 @@ async function openCommentSheet() {
   } else {
     commentSheetState.value = 'new'
     commentDraft.value      = ''
-    nextTick(() => document.querySelector('.sr-loupe__comment-textarea')?.focus())
+    // Focus erst nach CSS-Transition (200ms) um Reflow-Jitter zu vermeiden
+    setTimeout(() => document.querySelector('.sr-loupe__comment-textarea')?.focus(), 250)
   }
 }
 
@@ -1050,15 +1047,6 @@ watch(() => props.initialIndex, idx => {
   z-index: 10;
 }
 
-/* Wrapper: Desktop flex-row (left-group neben Stars), Mobile als eigene Zeile */
-.sr-loupe__left-group {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  flex: 1;
-  min-width: 0;
-}
-
 .sr-loupe__footer-left {
   display: flex;
   flex-direction: column;
@@ -1083,8 +1071,9 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__footer-center {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .sr-loupe__footer-right {
@@ -1174,35 +1163,6 @@ watch(() => props.initialIndex, idx => {
   }
 }
 
-/* ── Mobile: zweizeiliger Footer + Android-Navigationsleiste ─────────────── */
-@media (pointer: coarse) {
-  .sr-loupe__footer {
-    padding-bottom: max(72px, env(safe-area-inset-bottom));
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px 12px;
-  }
-  /* Zeile 1: Steuerelemente */
-  .sr-loupe__footer-center { order: 1; }
-  .sr-loupe__footer-right  { order: 1; }
-  /* Zeile 2: left-group (Dateiname/Index + Kommentar-Button), volle Breite, zentriert */
-  .sr-loupe__left-group {
-    order: 2;
-    flex: 0 0 100%;
-    justify-content: center;
-    align-items: center;
-  }
-  .sr-loupe__footer-left {
-    flex: 0 1 auto;
-    align-items: center;
-    text-align: center;
-  }
-  .sr-loupe__comment-btn {
-    align-self: center;
-    padding: 4px 8px;
-  }
-}
-
 /* ── Kommentar-Button ──────────────────────────────────────────────────────── */
 
 .sr-loupe__comment-btn {
@@ -1214,12 +1174,54 @@ watch(() => props.initialIndex, idx => {
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: stretch;   /* volle Höhe von footer-left, Icon mittig */
+  gap: 6px;
+  align-self: center;
   flex-shrink: 0;
   transition: color 0.15s;
 }
+.sr-loupe__comment-icon { width: 16px; height: 16px; }
+.sr-loupe__comment-label {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
 .sr-loupe__comment-btn--active { color: #e94560; }
 .sr-loupe__comment-btn:hover   { color: #d4d4d8; }
+
+/* ── Mobile: zweizeiliger Footer + Android-Navigationsleiste ─────────────── */
+@media (pointer: coarse) {
+  .sr-loupe__footer {
+    padding-bottom: max(72px, env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 12px;
+  }
+  /* Zeile 1: Steuerelemente */
+  .sr-loupe__footer-center { order: 1; flex: 0 0 auto; justify-content: center; }
+  .sr-loupe__footer-right  { order: 1; }
+  /* Zeilenumbruch zwischen Zeile 1 und 2 */
+  .sr-loupe__footer::after {
+    content: '';
+    order: 1;
+    flex-basis: 100%;
+    height: 0;
+  }
+  /* Zeile 2: Dateiname + Kommentar-Button, zentriert */
+  .sr-loupe__footer-left {
+    order: 2;
+    flex: 0 1 auto;
+    align-items: center;
+    text-align: center;
+  }
+  .sr-loupe__comment-btn {
+    order: 2;
+    align-self: center;
+    padding: 8px 16px;
+    margin: 0 0 0 14px;
+  }
+  .sr-loupe__comment-icon { width: 26px; height: 26px; }
+  .sr-loupe__comment-label { display: none; }
+}
 
 /* ── Kommentar Bottom Sheet ────────────────────────────────────────────────── */
 
@@ -1230,6 +1232,16 @@ watch(() => props.initialIndex, idx => {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+.sr-loupe__comment-sheet-overlay--open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sr-loupe__comment-sheet {
@@ -1345,9 +1357,4 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__comment-status--ok    { color: #7ecf7e; }
 .sr-loupe__comment-status--error { color: #e94560; }
 
-/* Slide-up Transition */
-.sr-comment-sheet-enter-active,
-.sr-comment-sheet-leave-active { transition: transform 0.25s ease; }
-.sr-comment-sheet-enter-from,
-.sr-comment-sheet-leave-to { transform: translateY(100%); }
 </style>
