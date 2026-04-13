@@ -97,19 +97,21 @@
       <div class="sr-loupe__footer" v-show="showControls">
         <div class="sr-loupe__footer-left">
           <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
-          <button
-            v-if="allowComment || commentsEnabledOwner"
-            class="sr-loupe__comment-btn"
-            :class="{ 'sr-loupe__comment-btn--active': hasComment }"
-            type="button"
-            :title="t('starrate', 'Kommentar')"
-            @click="openCommentSheet"
-          >
-            <svg viewBox="0 0 24 24" fill="none" style="width:16px;height:16px" aria-hidden="true">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
+          <div class="sr-loupe__footer-info">
+            <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
+            <button
+              v-if="allowComment || commentsEnabledOwner"
+              class="sr-loupe__comment-btn"
+              :class="{ 'sr-loupe__comment-btn--active': hasComment }"
+              type="button"
+              :title="t('starrate', 'Kommentar')"
+              @click="openCommentSheet"
+            >
+              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="sr-loupe__footer-center">
           <RatingStars
@@ -797,13 +799,13 @@ async function confirmDeleteComment() {
   }
 }
 
-// Kommentar laden wenn Bild wechselt
+// Kommentar laden wenn Bild wechselt (kein immediate — verhindert Jiggling beim Mount)
 watch(currentImage, (img) => {
   if (props.allowComment || props.commentsEnabledOwner) {
     closeCommentSheet()
     loadComment(img?.id)
   }
-}, { immediate: true })
+})
 
 // ─── Mount / Unmount ──────────────────────────────────────────────────────────
 
@@ -811,6 +813,10 @@ onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   preloadAdjacent(currentIndex.value)
   resetControlsTimer()
+  // Kommentar für das erste Bild laden (ohne Watch-immediate um Jiggling zu vermeiden)
+  if (props.allowComment || props.commentsEnabledOwner) {
+    loadComment(currentImage.value?.id)
+  }
 })
 
 onUnmounted(() => {
@@ -1040,6 +1046,12 @@ watch(() => props.initialIndex, idx => {
   text-overflow: ellipsis;
 }
 
+.sr-loupe__footer-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .sr-loupe__index {
   font-size: 11px;
   color: #666;
@@ -1166,12 +1178,12 @@ watch(() => props.initialIndex, idx => {
   border: none;
   color: #52525b;
   cursor: pointer;
-  padding: 2px 4px;
-  margin: 0 4px;
+  padding: 2px;
   display: inline-flex;
   align-items: center;
-  transition: color 0.15s;
   flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
 }
 .sr-loupe__comment-btn--active { color: #e94560; }
 .sr-loupe__comment-btn:hover   { color: #d4d4d8; }
@@ -1190,7 +1202,7 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__comment-sheet {
   background: #1a1a2e;
   border-top: 1px solid #2a2a4a;
-  padding: 12px 16px 16px;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
   max-height: 60%;
   overflow-y: auto;
 }
