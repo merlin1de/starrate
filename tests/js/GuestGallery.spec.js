@@ -9,13 +9,17 @@ import GuestGallery from '../../src/views/GuestGallery.vue'
 const GalleryStub = defineComponent({
   name: 'Gallery',
   props: {
-    guestMode:      { type: Boolean, default: false },
-    guestLabel:     { type: String,  default: '' },
-    loadImagesFn:   { type: Function, default: null },
-    rateFn:         { type: Function, default: null },
-    batchRateFn:    { type: Function, default: null },
-    thumbnailUrlFn: { type: Function, default: null },
-    previewUrlFn:   { type: Function, default: null },
+    guestMode:       { type: Boolean, default: false },
+    guestLabel:      { type: String,  default: '' },
+    enablePickOverride: { type: Boolean, default: false },
+    allowExport:     { type: Boolean, default: false },
+    allowComment:    { type: Boolean, default: false },
+    commentApi:      { type: Object, default: null },
+    loadImagesFn:    { type: Function, default: null },
+    rateFn:          { type: Function, default: null },
+    batchRateFn:     { type: Function, default: null },
+    thumbnailUrlFn:  { type: Function, default: null },
+    previewUrlFn:    { type: Function, default: null },
   },
   template: '<div class="gallery-stub" />',
 })
@@ -241,5 +245,73 @@ describe('GuestGallery', () => {
     const w = factory()
     const url = galleryProps(w).previewUrlFn(55)
     expect(url).toContain('/guest/tok123/preview/55')
+  })
+
+  // ── commentApi ──────────────────────────────────────────────────────────────
+
+  it('übergibt allowComment=true und commentApi wenn allowComment-Prop gesetzt', () => {
+    const w = factory({ allowComment: true })
+    const p = galleryProps(w)
+    expect(p.allowComment).toBe(true)
+    expect(p.commentApi).toBeTruthy()
+    expect(typeof p.commentApi.save).toBe('function')
+    expect(typeof p.commentApi.load).toBe('function')
+    expect(typeof p.commentApi.remove).toBe('function')
+  })
+
+  it('übergibt allowComment=false wenn nicht gesetzt', () => {
+    const w = factory()
+    const p = galleryProps(w)
+    expect(p.allowComment).toBe(false)
+  })
+
+  it('commentApi.save sendet korrekte Daten', async () => {
+    axios.post.mockResolvedValue({ data: { comment: 'Hallo', author_name: 'Gast', updated_at: 1713000000 } })
+    const w = factory({ allowComment: true })
+    const { commentApi } = galleryProps(w)
+
+    const result = await commentApi.save(42, 'Hallo', 'Testgast')
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/comment'),
+      expect.objectContaining({ file_id: 42, comment: 'Hallo', guest_name: 'Testgast' }),
+      expect.any(Object)
+    )
+    expect(result.comment).toBe('Hallo')
+  })
+
+  it('commentApi.load ruft GET-Endpunkt auf', async () => {
+    axios.get.mockResolvedValue({ data: { comment: 'Toll', author_name: 'Anna', updated_at: 1713000000 } })
+    const w = factory({ allowComment: true })
+    const { commentApi } = galleryProps(w)
+
+    const result = await commentApi.load(42)
+    expect(axios.get).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/comment/42'),
+      expect.any(Object)
+    )
+    expect(result.comment).toBe('Toll')
+    expect(result.author_name).toBe('Anna')
+    expect(result.updated_at).toBe(1713000000)
+  })
+
+  it('commentApi.load gibt null zurück bei Fehler', async () => {
+    axios.get.mockRejectedValue(new Error('Network error'))
+    const w = factory({ allowComment: true })
+    const { commentApi } = galleryProps(w)
+
+    const result = await commentApi.load(42)
+    expect(result).toBeNull()
+  })
+
+  it('commentApi.remove ruft DELETE-Endpunkt auf', async () => {
+    axios.delete.mockResolvedValue({ data: {} })
+    const w = factory({ allowComment: true })
+    const { commentApi } = galleryProps(w)
+
+    await commentApi.remove(42)
+    expect(axios.delete).toHaveBeenCalledWith(
+      expect.stringContaining('/guest/tok123/comment/42'),
+      expect.any(Object)
+    )
   })
 })
