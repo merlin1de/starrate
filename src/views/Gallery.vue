@@ -458,16 +458,7 @@ async function onRate(image, rating, color, pick) {
       await axios.post(url, payload)
     }
 
-    if (payload.rating !== undefined) {
-      const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
-      showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
-    } else if (payload.color !== undefined) {
-      const label = payload.color || '○'
-      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
-    } else if (payload.pick !== undefined) {
-      const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— ' + t('starrate', 'kein Pick')
-      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
-    }
+    // kein Toast — optimistisches Update reicht als Feedback
   } catch {
     // Rollback
     if (local) await loadImages()
@@ -510,11 +501,6 @@ function onBatchRate(rating, color, pick) {
   if (rating !== undefined) _pendingBatch.rating = rating
   if (color  !== undefined) _pendingBatch.color  = color
   if (pick   !== undefined) _pendingBatch.pick   = pick
-
-  // Sofort-Feedback beim ersten Klick (>10 Dateien)
-  if (isFirst && ids.length > 10) {
-    showToast(n('starrate', '%n Bild wird bewertet…\nBitte warten', '%n Bilder werden bewertet…\nBitte warten', ids.length), 'info')
-  }
 
   clearTimeout(_batchDebounceTimer)
   _batchDebounceTimer = setTimeout(() => _sendBatch(), 2000)
