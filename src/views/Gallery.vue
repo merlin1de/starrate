@@ -280,6 +280,7 @@ const settings = ref({
   show_color_overlay:   true,
   grid_columns:        'auto',
   enable_pick_ui:       false,
+  write_xmp:            true,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
