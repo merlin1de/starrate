@@ -72,6 +72,7 @@ class ShareController extends Controller
                 $body['guest_name']   ?? null,
                 !empty($body['allow_pick']),
                 !empty($body['allow_export']),
+                !empty($body['allow_comment']),
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -253,6 +254,7 @@ class ShareController extends Controller
             'can_rate'        => $share['permissions'] === ShareService::PERM_RATE,
             'allow_pick'      => !empty($share['allow_pick']),
             'allow_export'    => !empty($share['allow_export']),
+            'allow_comment'   => !empty($share['allow_comment']),
             'guest_name'      => $share['guest_name'] ?? '',
             'show_app_banner' => $showBanner,
         ], 'public');
