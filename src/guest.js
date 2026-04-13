@@ -17,11 +17,12 @@ import '../css/starrate.css'
 const el = document.getElementById('starrate-guest-root')
 
 if (el) {
-  const token       = el.dataset.token       ?? ''
-  const canRate     = el.dataset.canRate     === 'true'
-  const allowPick   = el.dataset.allowPick   === 'true'
-  const allowExport = el.dataset.allowExport === 'true'
-  const guestName   = el.dataset.guestName   ?? ''
+  const token        = el.dataset.token        ?? ''
+  const canRate      = el.dataset.canRate      === 'true'
+  const allowPick    = el.dataset.allowPick    === 'true'
+  const allowExport  = el.dataset.allowExport  === 'true'
+  const allowComment = el.dataset.allowComment === 'true'
+  const guestName    = el.dataset.guestName    ?? ''
 
   // Memory-Router: dieselben Routen wie main.js, aber ohne URL-Seiteneffekte
   const router = createRouter({
@@ -32,7 +33,7 @@ if (el) {
     ],
   })
 
-  const app = createApp(GuestGallery, { token, canRate, allowPick, allowExport, guestName })
+  const app = createApp(GuestGallery, { token, canRate, allowPick, allowExport, allowComment, guestName })
   app.use(router)
   router.isReady().then(() => app.mount(el))
 }
