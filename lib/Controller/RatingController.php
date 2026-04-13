@@ -189,6 +189,7 @@ class RatingController extends Controller
         $xmpWritten = 0;
         $xmpSkipped = 0;
         $details    = [];
+        $writeXmp   = $this->userSettings->getSettings($userId)['write_xmp'];
 
         foreach ($body['fileIds'] as $rawId) {
             $fileId = (int) $rawId;
@@ -206,8 +207,7 @@ class RatingController extends Controller
 
                 // JPEG-XMP — non-fatal, nur wenn in den Einstellungen aktiviert
                 $mime = $file->getMimeType();
-                if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
-                    && $this->userSettings->getSettings($userId)['write_xmp']) {
+                if (in_array($mime, ['image/jpeg', 'image/jpg'], true) && $writeXmp) {
                     try {
                         $this->exifService->writeMetadata(
                             $file,
