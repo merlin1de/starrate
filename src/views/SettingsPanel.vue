@@ -91,6 +91,12 @@
           {{ t('starrate', 'XMP in JPEG schreiben') }}
         </label>
       </div>
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.comments_enabled" @change="autosave" />
+          {{ t('starrate', 'Kommentare aktivieren') }}
+        </label>
+      </div>
     </div>
 
     <!-- Status -->
@@ -123,6 +129,7 @@ const DEFAULTS = {
   grid_columns:        'auto',
   enable_pick_ui:       false,
   write_xmp:            true,
+  comments_enabled:     false,
 }
 
 const form   = reactive({ ...DEFAULTS, ...props.initial })

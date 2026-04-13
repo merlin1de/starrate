@@ -72,6 +72,7 @@ class ShareController extends Controller
                 $body['guest_name']   ?? null,
                 !empty($body['allow_pick']),
                 !empty($body['allow_export']),
+                !empty($body['allow_comment']),
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -253,6 +254,7 @@ class ShareController extends Controller
             'can_rate'        => $share['permissions'] === ShareService::PERM_RATE,
             'allow_pick'      => !empty($share['allow_pick']),
             'allow_export'    => !empty($share['allow_export']),
+            'allow_comment'   => !empty($share['allow_comment']),
             'guest_name'      => $share['guest_name'] ?? '',
             'show_app_banner' => $showBanner,
         ], 'public');
@@ -434,6 +436,77 @@ class ShareController extends Controller
 
         $this->logger->warning("StarRate guest password failed: token={$token} ip={$this->request->getRemoteAddress()}");
         return new DataResponse(['error' => 'Wrong password'], Http::STATUS_UNAUTHORIZED);
+    }
+
+    // ─── Kommentare (Gast) ────────────────────────────────────────────────────
+
+    #[AnonRateLimit(limit: 60, period: 60)]
+    public function guestGetComment(string $token, int $fileId): DataResponse
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!($share['allow_comment'] ?? false)) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $comment = $this->shareService->getComment($fileId);
+        if ($comment === null) {
+            return new DataResponse(['comment' => null]);
+        }
+        return new DataResponse($comment);
+    }
+
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function guestSaveComment(string $token): DataResponse
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!($share['allow_comment'] ?? false)) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $body      = $this->getJsonBody();
+        $text      = trim($body['comment'] ?? '');
+        $fileId    = (int) ($body['file_id'] ?? 0);
+        $guestName = trim($body['guest_name'] ?? 'Guest');
+
+        if ($text === '' || $fileId === 0) {
+            return new DataResponse(['error' => 'Missing comment or file_id'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        // Sicherstellen dass die Datei zum Share gehört
+        if (!$this->shareService->fileExistsInShare($share, $fileId)) {
+            return new DataResponse(['error' => 'File not in share'], Http::STATUS_FORBIDDEN);
+        }
+
+        $result = $this->shareService->saveComment($fileId, $text, 'guest', $guestName ?: 'Guest');
+
+        // Log-Eintrag
+        $this->shareService->appendCommentToLog($share, $fileId, $text, $guestName ?: 'Guest');
+
+        return new DataResponse($result);
+    }
+
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function guestDeleteComment(string $token, int $fileId): DataResponse
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!($share['allow_comment'] ?? false)) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->shareService->fileExistsInShare($share, $fileId)) {
+            return new DataResponse(['error' => 'File not in share'], Http::STATUS_FORBIDDEN);
+        }
+
+        $this->shareService->deleteComment($fileId);
+        return new DataResponse(['ok' => true]);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
