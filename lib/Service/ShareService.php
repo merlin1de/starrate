@@ -26,10 +26,11 @@ class ShareService
     public const PERM_VIEW = 'view';
     public const PERM_RATE = 'rate';
 
-    private const APP_ID        = 'starrate';
-    private const CONFIG_SHARES = 'starrate_shares';
-    private const CONFIG_LOG    = 'starrate_guest_log';  // key: CONFIG_LOG_<token>
-    private const TOKEN_LENGTH  = 24;
+    private const APP_ID               = 'starrate';
+    private const CONFIG_SHARES        = 'starrate_shares';
+    private const CONFIG_LOG           = 'starrate_guest_log';  // key: CONFIG_LOG_<token>
+    private const TOKEN_LENGTH         = 24;
+    private const GUEST_LOG_MAX_ENTRIES = 500;
 
     // Unterstützte MIME-Typen für Gast-Galerie
     private const GUEST_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -41,6 +42,7 @@ class ShareService
         private readonly ISecureRandom   $secureRandom,
         private readonly TagService      $tagService,
         private readonly LoggerInterface $logger,
+        private readonly \OCP\IDBConnection $db,
     ) {}
 
     // ─── Share erstellen / verwalten ─────────────────────────────────────────
@@ -79,6 +81,7 @@ class ShareService
             'guest_name'    => $guestName ? trim($guestName) : null,
             'allow_pick'    => $allowPick,
             'allow_export'  => $allowExport,
+            'allow_comment' => false,
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -170,6 +173,9 @@ class ShareService
         }
         if (isset($data['allow_export'])) {
             $all[$token]['allow_export'] = (bool) $data['allow_export'];
+        }
+        if (isset($data['allow_comment'])) {
+            $all[$token]['allow_comment'] = (bool) $data['allow_comment'];
         }
 
         $this->saveShares($ownerId, $all);
@@ -395,14 +401,7 @@ class ShareService
             'timestamp'  => time(),
         ];
 
-        $key = self::CONFIG_LOG . '_' . $token;
-        $raw = $this->config->getUserValue($ownerId, self::APP_ID, $key, '[]');
-        $log = json_decode($raw, true);
-        if (!is_array($log)) {
-            $log = [];
-        }
-        $log[] = $entry;
-        $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($log));
+        $this->appendToLog($ownerId, $token, $entry);
 
         $parts = [];
         if ($rating !== null)  $parts[] = "Rating {$rating}";
@@ -474,6 +473,170 @@ class ShareService
 
         $filtered = array_values(array_filter($log, fn($e) => ($e['timestamp'] ?? 0) >= $before));
         $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($filtered));
+    }
+
+    // ─── Kommentare ───────────────────────────────────────────────────────────
+
+    /**
+     * Speichert oder aktualisiert einen Kommentar zu einer Datei (UPSERT).
+     * Letzter Schreiber gewinnt — ein Kommentar pro Foto global.
+     *
+     * @return array{file_id: int, comment: string, author_type: string, author_name: string|null, updated_at: int}
+     */
+    public function saveComment(int $fileId, string $comment, string $authorType, ?string $authorName): array
+    {
+        $comment = mb_substr(trim($comment), 0, 2000);
+        $now     = time();
+
+        $qb = $this->db->getQueryBuilder();
+
+        // Prüfen ob Kommentar bereits existiert
+        $existing = $qb->select('id')
+            ->from('starrate_comments')
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->executeQuery()
+            ->fetchOne();
+
+        if ($existing !== false) {
+            $qb = $this->db->getQueryBuilder();
+            $qb->update('starrate_comments')
+                ->set('comment',     $qb->createNamedParameter($comment))
+                ->set('author_type', $qb->createNamedParameter($authorType))
+                ->set('author_name', $qb->createNamedParameter($authorName))
+                ->set('updated_at',  $qb->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+                ->executeStatement();
+        } else {
+            $qb = $this->db->getQueryBuilder();
+            $qb->insert('starrate_comments')
+                ->values([
+                    'file_id'     => $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
+                    'comment'     => $qb->createNamedParameter($comment),
+                    'author_type' => $qb->createNamedParameter($authorType),
+                    'author_name' => $qb->createNamedParameter($authorName),
+                    'updated_at'  => $qb->createNamedParameter($now, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
+                ])
+                ->executeStatement();
+        }
+
+        return [
+            'file_id'     => $fileId,
+            'comment'     => $comment,
+            'author_type' => $authorType,
+            'author_name' => $authorName,
+            'updated_at'  => $now,
+        ];
+    }
+
+    /**
+     * Liest den Kommentar zu einer Datei.
+     *
+     * @return array{file_id: int, comment: string, author_type: string, author_name: string|null, updated_at: int}|null
+     */
+    public function getComment(int $fileId): ?array
+    {
+        $qb     = $this->db->getQueryBuilder();
+        $result = $qb->select('file_id', 'comment', 'author_type', 'author_name', 'updated_at')
+            ->from('starrate_comments')
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->executeQuery()
+            ->fetch();
+
+        if ($result === false) {
+            return null;
+        }
+
+        return [
+            'file_id'     => (int) $result['file_id'],
+            'comment'     => $result['comment'],
+            'author_type' => $result['author_type'],
+            'author_name' => $result['author_name'],
+            'updated_at'  => (int) $result['updated_at'],
+        ];
+    }
+
+    /**
+     * Prüft ob eine Datei zum Share-Ordner gehört (Sicherheitscheck für Gäste).
+     */
+    public function fileExistsInShare(array $share, int $fileId): bool
+    {
+        try {
+            $userFolder = $this->rootFolder->getUserFolder($share['owner_id']);
+            $nodes      = $userFolder->getById($fileId);
+            $ncPath     = rtrim($share['nc_path'], '/');
+            foreach ($nodes as $node) {
+                $nodePath = $node->getPath();
+                if (str_starts_with($nodePath, $userFolder->getPath() . $ncPath . '/') ||
+                    str_starts_with($nodePath, $userFolder->getPath() . $ncPath)) {
+                    return true;
+                }
+            }
+        } catch (\Exception) {
+            // ignore
+        }
+        return false;
+    }
+
+    /**
+     * Schreibt einen Kommentar-Eintrag in den Gast-Log.
+     */
+    public function appendCommentToLog(array $share, int $fileId, string $comment, string $guestName): void
+    {
+        $ownerId  = $share['owner_id'];
+        $token    = $share['token'];
+        $filename = (string) $fileId;
+
+        try {
+            $userFolder = $this->rootFolder->getUserFolder($ownerId);
+            $nodes      = $userFolder->getById($fileId);
+            foreach ($nodes as $n) {
+                if ($n instanceof \OCP\Files\File) {
+                    $filename = $n->getName();
+                    break;
+                }
+            }
+        } catch (\Exception) {
+            // ignore
+        }
+
+        $this->appendToLog($ownerId, $token, [
+            'file_id'    => $fileId,
+            'filename'   => $filename,
+            'comment'    => mb_substr($comment, 0, 200),
+            'guest_name' => $guestName,
+            'timestamp'  => time(),
+        ]);
+    }
+
+    /**
+     * Löscht den Kommentar zu einer Datei.
+     */
+    public function deleteComment(int $fileId): void
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete('starrate_comments')
+            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->executeStatement();
+    }
+
+    // ─── Log-Hilfsmethode ─────────────────────────────────────────────────────
+
+    /**
+     * Hängt einen Eintrag an den Gast-Log an und trimmt ihn auf MAX_ENTRIES.
+     */
+    private function appendToLog(string $ownerId, string $token, array $entry): void
+    {
+        $key = self::CONFIG_LOG . '_' . $token;
+        $raw = $this->config->getUserValue($ownerId, self::APP_ID, $key, '[]');
+        $log = json_decode($raw, true);
+        if (!is_array($log)) {
+            $log = [];
+        }
+        $log[] = $entry;
+        if (count($log) > self::GUEST_LOG_MAX_ENTRIES) {
+            $log = array_slice($log, -self::GUEST_LOG_MAX_ENTRIES);
+        }
+        $this->config->setUserValue($ownerId, self::APP_ID, $key, json_encode($log));
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
