@@ -17,11 +17,10 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * occ starrate:import-xmp <nc-path> [--user=<uid>] [--dry-run] [--overwrite]
+ * occ starrate:import-xmp <nc-path> [--user=<uid>] [--dry-run] [--overwrite] [--recursive]
  *
  * Liest xmp:Rating und xmp:Label aus JPEG-Dateien und schreibt sie
  * in die StarRate Collaborative Tags-Datenbank.
- * Scannt nur die angegebene Ordner-Ebene (nicht rekursiv).
  *
  * Typischer Anwendungsfall: einmaliger Import einer bestehenden
  * Lightroom/digiKam-Bibliothek in StarRate.
@@ -60,22 +59,27 @@ class ImportXmpCommand extends Command
                 'overwrite', null,
                 InputOption::VALUE_NONE,
                 'Overwrite existing StarRate ratings (default: skip already-rated files)'
+            )
+            ->addOption(
+                'recursive', 'r',
+                InputOption::VALUE_NONE,
+                'Process all subfolders recursively'
             );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $ncPath       = $input->getArgument('nc-path');
-        $userId       = $input->getOption('user');
-        $dryRun       = (bool) $input->getOption('dry-run');
-        $overwrite    = (bool) $input->getOption('overwrite');
+        $ncPath    = $input->getArgument('nc-path');
+        $userId    = $input->getOption('user');
+        $dryRun    = (bool) $input->getOption('dry-run');
+        $overwrite = (bool) $input->getOption('overwrite');
+        $recursive = (bool) $input->getOption('recursive');
 
         if (!$userId) {
             $output->writeln('<error>--user is required</error>');
             return Command::FAILURE;
         }
 
-        // Ordner auflösen
         try {
             $userFolder = $this->rootFolder->getUserFolder($userId);
             $node       = $ncPath === '/' ? $userFolder : $userFolder->get(ltrim($ncPath, '/'));
@@ -93,22 +97,47 @@ class ImportXmpCommand extends Command
             $output->writeln('<comment>[dry-run] No changes will be written.</comment>');
         }
 
-        $imported  = 0;
-        $skipped   = 0;
-        $noXmp     = 0;
-        $errors    = 0;
-        $nonJpeg   = 0;
-        $processed = 0;
+        $counters = ['imported' => 0, 'skipped' => 0, 'noXmp' => 0, 'errors' => 0, 'nonJpeg' => 0];
 
-        $files = $node->getDirectoryListing();
-        $total = count($files);
-        $output->writeln(sprintf('Scanning %d files in %s...', $total, $ncPath));
+        $this->processFolder($node, $output, $dryRun, $overwrite, $recursive, $counters);
+
+        $output->writeln(sprintf(
+            '%s<comment>Done:</comment> %d imported, %d skipped (already rated), %d without XMP, %d non-JPEG, %d errors.',
+            $dryRun ? '[dry-run] ' : '',
+            $counters['imported'],
+            $counters['skipped'],
+            $counters['noXmp'],
+            $counters['nonJpeg'],
+            $counters['errors']
+        ));
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Verarbeitet einen Ordner und optional alle Unterordner rekursiv.
+     *
+     * @param array<string, int> $counters Referenz auf Zähler-Array
+     */
+    private function processFolder(
+        Folder          $folder,
+        OutputInterface $output,
+        bool            $dryRun,
+        bool            $overwrite,
+        bool            $recursive,
+        array           &$counters,
+    ): void {
+        $items     = $folder->getDirectoryListing();
+        $files     = array_filter($items, fn($n) => $n instanceof File);
+        $subDirs   = $recursive ? array_filter($items, fn($n) => $n instanceof Folder) : [];
+
+        $total     = count($files);
+        $processed = 0;
+        $path      = $folder->getPath();
+
+        $output->writeln(sprintf('Scanning %d files in %s...', $total, $path));
 
         foreach ($files as $file) {
-            if (!($file instanceof File)) {
-                continue;
-            }
-
             $processed++;
             if ($processed % 100 === 0) {
                 $output->writeln(sprintf('  [%d/%d] ...', $processed, $total));
@@ -116,26 +145,24 @@ class ImportXmpCommand extends Command
 
             $mime = $file->getMimeType();
             if (!in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
-                $nonJpeg++;
+                $counters['nonJpeg']++;
                 continue;
             }
 
             try {
-                // XMP aus Datei lesen
                 $xmp = $this->exifService->readMetadata($file);
 
                 if ($xmp['rating'] === 0 && $xmp['label'] === null) {
-                    $noXmp++;
+                    $counters['noXmp']++;
                     continue;
                 }
 
                 $fileId = (string) $file->getId();
 
-                // Bestehende StarRate-Bewertung prüfen (Standard: überspringen)
                 if (!$overwrite) {
                     $existing = $this->tagService->getMetadata($fileId);
                     if ($existing['rating'] > 0 || $existing['color'] !== null) {
-                        $skipped++;
+                        $counters['skipped']++;
                         if ($output->isVerbose()) {
                             $output->writeln(sprintf(
                                 '  skip  %s (already rated: %d★ %s)',
@@ -159,14 +186,13 @@ class ImportXmpCommand extends Command
                             $label ?? '—'
                         ));
                     }
-                    $imported++;
+                    $counters['imported']++;
                     continue;
                 }
 
-                // In StarRate-Tags schreiben (xmp:Label → color)
                 $this->tagService->setMetadata($fileId, [
                     'rating' => $xmp['rating'],
-                    'color'  => $label,          // null = kein Label (löscht vorhandenes)
+                    'color'  => $label,
                 ]);
 
                 if ($output->isVerbose()) {
@@ -177,10 +203,10 @@ class ImportXmpCommand extends Command
                         $label ?? '—'
                     ));
                 }
-                $imported++;
+                $counters['imported']++;
 
             } catch (\Exception $e) {
-                $errors++;
+                $counters['errors']++;
                 $output->writeln(sprintf(
                     '  <error>error</error>  %s: %s',
                     $file->getName(),
@@ -189,17 +215,9 @@ class ImportXmpCommand extends Command
             }
         }
 
-        $output->writeln(sprintf(
-            '%s<comment>Done:</comment> %d imported, %d skipped (already rated), %d without XMP, %d non-JPEG, %d errors.',
-            $dryRun ? '[dry-run] ' : '',
-            $imported,
-            $skipped,
-            $noXmp,
-            $nonJpeg,
-            $errors
-        ));
-
-
-        return Command::SUCCESS;
+        // Unterordner rekursiv verarbeiten
+        foreach ($subDirs as $subDir) {
+            $this->processFolder($subDir, $output, $dryRun, $overwrite, $recursive, $counters);
+        }
     }
 }
