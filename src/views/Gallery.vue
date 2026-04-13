@@ -659,9 +659,9 @@ function onShareCreated() {
 // Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.stopPropagation(); return }
-  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.stopPropagation(); return }
-  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.stopPropagation(); return }
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
+  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } e.preventDefault(); e.stopPropagation(); return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
   if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
