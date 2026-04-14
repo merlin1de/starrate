@@ -51,6 +51,14 @@ class ExifServiceTest extends TestCase
         $file->method('getName')->willReturn($name);
         $file->method('getMimeType')->willReturn($mime);
 
+        // fopen('rb') returns a php://memory stream backed by $content
+        $file->method('fopen')->willReturnCallback(function () use (&$content) {
+            $stream = fopen('php://memory', 'r+b');
+            fwrite($stream, $content);
+            rewind($stream);
+            return $stream;
+        });
+
         $file->expects($this->any())
             ->method('putContent')
             ->willReturnCallback(function (string $newContent) use (&$content) {

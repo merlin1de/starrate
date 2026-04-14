@@ -382,7 +382,7 @@ class ShareController extends Controller
         }
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
-        $color     = $body['color'] ?? null;
+        $color     = isset($body['color']) && $body['color'] !== null ? ucfirst(strtolower($body['color'])) : null;
         $pick      = !empty($share['allow_pick']) ? ($body['pick'] ?? null) : null;
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
