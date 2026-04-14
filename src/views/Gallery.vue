@@ -681,13 +681,17 @@ function onAppKeydown(e) {
   e.preventDefault()
 }
 
-// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
+// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl.
+// Muss in Capture-Phase laufen, da NC einen eigenen ESC-Handler auf document hat,
+// der sonst zuerst feuert. Modals sind per Teleport in <body> — @keydown auf
+// .sr-app greift dort nicht, deshalb reicht nur onAppKeydown nicht aus.
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShortcuts.value)        { showShortcuts.value  = false; return }
+  const stop = () => { e.preventDefault(); e.stopPropagation() }
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShortcuts.value)        { showShortcuts.value  = false; stop(); return }
   if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
 
@@ -746,7 +750,7 @@ function onVisibilityChange() {
 }
 
 onMounted(async () => {
-  document.addEventListener('keydown', onDocKeydown)
+  document.addEventListener('keydown', onDocKeydown, true)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('popstate', onPopState)
   startBackgroundSync()
@@ -773,7 +777,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onDocKeydown)
+  document.removeEventListener('keydown', onDocKeydown, true)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('popstate', onPopState)
   stopBackgroundSync()
