@@ -27,8 +27,9 @@ class ExifService
     // Lightroom-kompatible Label-Namen (kanonische Quelle: XmpService::LABEL_MAP)
     public const LABEL_MAP = XmpService::LABEL_MAP;
 
-    // Maximale Dateigröße für direktes In-Memory-Bearbeiten (50 MB)
-    private const MAX_MEMORY_SIZE = 52_428_800;
+    // Maximale Header-Bytes die zum Lesen von XMP/EXIF nötig sind (256 KB).
+    // XMP sitzt in APP1-Segmenten vor dem SOS-Marker, typisch unter 100 KB.
+    private const READ_HEADER_SIZE = 262_144;
 
     public function __construct(
         private readonly XmpService      $xmpService,
@@ -74,13 +75,21 @@ class ExifService
     public function readMetadata(File $file): array
     {
         try {
-            $content = $file->getContent();
-            if (!$this->isJpeg($content)) {
+            // Read only the JPEG header — XMP/EXIF sits before the SOS marker,
+            // typically well within 256 KB.  Avoids loading 30 MB+ RAW JPEGs.
+            $handle = $file->fopen('rb');
+            if ($handle === false) {
                 return ['rating' => 0, 'label' => null];
             }
-            $xmp = $this->readXmpFromContent($content);
+            $header = fread($handle, self::READ_HEADER_SIZE);
+            fclose($handle);
+
+            if ($header === false || !$this->isJpeg($header)) {
+                return ['rating' => 0, 'label' => null];
+            }
+            $xmp = $this->readXmpFromContent($header);
             if ($xmp['rating'] === 0 && $xmp['label'] === null) {
-                return $this->readExifRatingFromContent($content);
+                return $this->readExifRatingFromContent($header);
             }
             return $xmp;
         } catch (\Exception $e) {
@@ -127,8 +136,13 @@ class ExifService
     public function isJpegFile(File $file): bool
     {
         try {
-            $header = substr($file->getContent(), 0, 3);
-            return $this->isJpeg($header);
+            $handle = $file->fopen('rb');
+            if ($handle === false) {
+                return false;
+            }
+            $header = fread($handle, 2);
+            fclose($handle);
+            return $header !== false && $this->isJpeg($header);
         } catch (\Exception) {
             return false;
         }
