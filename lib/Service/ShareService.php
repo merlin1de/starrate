@@ -557,11 +557,9 @@ class ShareService
         try {
             $userFolder = $this->rootFolder->getUserFolder($share['owner_id']);
             $nodes      = $userFolder->getById($fileId);
-            $ncPath     = rtrim($share['nc_path'], '/');
+            $shareRoot  = $userFolder->getPath() . rtrim($share['nc_path'], '/') . '/';
             foreach ($nodes as $node) {
-                $nodePath = $node->getPath();
-                if (str_starts_with($nodePath, $userFolder->getPath() . $ncPath . '/') ||
-                    str_starts_with($nodePath, $userFolder->getPath() . $ncPath)) {
+                if (str_starts_with($node->getPath(), $shareRoot)) {
                     return true;
                 }
             }

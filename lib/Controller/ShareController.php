@@ -377,6 +377,11 @@ class ShareController extends Controller
             return new DataResponse(['error' => 'file_id missing'], Http::STATUS_BAD_REQUEST);
         }
 
+        $fileId = (int) $body['file_id'];
+        if (!$this->shareService->fileExistsInShare($share, $fileId)) {
+            return new DataResponse(['error' => 'File not in share'], Http::STATUS_FORBIDDEN);
+        }
+
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
         $color     = $body['color'] ?? null;
         $pick      = !empty($share['allow_pick']) ? ($body['pick'] ?? null) : null;
@@ -393,7 +398,7 @@ class ShareController extends Controller
         try {
             $result = $this->shareService->saveGuestRating(
                 $share,
-                (int) $body['file_id'],
+                $fileId,
                 $rating,
                 $color,
                 $pick,
