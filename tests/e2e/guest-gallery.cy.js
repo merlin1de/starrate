@@ -303,9 +303,11 @@ describe('Guest Gallery', () => {
       })
     })
 
-    // Alle Farb-Labels setzen (red, yellow, green, blue, purple)
-    ;['red', 'yellow', 'green', 'blue', 'purple'].forEach(color => {
-      it(`Farbe "${color}" setzt sich korrekt`, () => {
+    // Alle Farb-Labels setzen — API akzeptiert Groß- und Kleinschreibung,
+    // gibt immer kanonische Form zurück (Red, Yellow, ...)
+    ;['red', 'Yellow', 'green', 'BLUE', 'Purple'].forEach(color => {
+      const canonical = color.charAt(0).toUpperCase() + color.slice(1).toLowerCase()
+      it(`Farbe "${color}" → ${canonical}`, () => {
         cy.request({
           method: 'POST',
           url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/rate`,
@@ -313,7 +315,7 @@ describe('Guest Gallery', () => {
           headers: { 'Content-Type': 'application/json' },
         }).then(r => {
           expect(r.status).to.eq(200)
-          expect(r.body.color).to.eq(color)
+          expect(r.body.color).to.eq(canonical)
         })
       })
     })

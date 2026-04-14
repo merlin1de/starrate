@@ -11,6 +11,7 @@ module.exports = {
       'tests/e2e/loupe-navigation.cy.js',
       'tests/e2e/navigation.cy.js',
       'tests/e2e/pick-reject.cy.js',
+      'tests/e2e/comments.cy.js',
       'tests/e2e/api-security.cy.js',
     ],
     supportFile:        false,
