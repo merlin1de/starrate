@@ -105,28 +105,41 @@ function onDocKeydown(e) {
 function computePosition() {
   if (!triggerEl) return
   const rect = triggerEl.getBoundingClientRect()
-  // Menü immer rechtsbündig am Trigger ausrichten — so wandert es nicht mysteriös herum
-  const rightFromViewport = Math.max(8, window.innerWidth - rect.right)
+  // Initiale Positionierung rechtsbündig am Trigger — wird nach Render in
+  // recomputePosition() auf tatsächliche Menübreite nachgeklemmt.
+  const viewportW = window.innerWidth
   menuStyle.value = {
     position: 'fixed',
     top:   `${rect.bottom + 4}px`,
-    right: `${rightFromViewport}px`,
+    left:  `${Math.max(8, Math.min(rect.right - 240, viewportW - 248))}px`,
     minWidth: '200px',
-    maxWidth: `${window.innerWidth - 16}px`,
+    maxWidth: `${viewportW - 16}px`,
   }
 }
 
 function recomputePosition() {
   if (!triggerEl || !menuRef.value) return
   const rect = triggerEl.getBoundingClientRect()
+  const menuW = menuRef.value.offsetWidth
   const menuH = menuRef.value.offsetHeight
+  const viewportW = window.innerWidth
   const viewportH = window.innerHeight
+
+  // Wunsch: Menü rechtsbündig am Trigger (right edges aligned)
+  let left = rect.right - menuW
+  // Nach rechts clampen (nicht über Viewport-Rand hinaus)
+  if (left + menuW > viewportW - 8) left = viewportW - 8 - menuW
+  // Nach links clampen (mindestens 8px vom linken Viewport-Rand)
+  if (left < 8) left = 8
+
   // Flip nach oben, wenn unten kein Platz
   const top = (rect.bottom + 4 + menuH > viewportH && rect.top - 4 - menuH > 0)
     ? rect.top - 4 - menuH
     : rect.bottom + 4
+
   menuStyle.value = {
     ...menuStyle.value,
+    left: `${left}px`,
     top:  `${top}px`,
   }
 }
