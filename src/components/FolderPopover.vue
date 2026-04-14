@@ -8,7 +8,8 @@
       aria-haspopup="menu"
       @click="toggle"
     >
-      📁 {{ folders.length }}
+      <span aria-hidden="true">📁</span>
+      {{ n('starrate', '%n Ordner', '%n Ordner', folders.length) }}
       <span class="sr-folder-popover__caret" aria-hidden="true">▾</span>
     </button>
 
@@ -47,7 +48,7 @@
 
 <script setup>
 import { ref, nextTick, onUnmounted } from 'vue'
-import { t } from '@nextcloud/l10n'
+import { t, n } from '@nextcloud/l10n'
 
 defineProps({
   folders: {
@@ -104,11 +105,14 @@ function onDocKeydown(e) {
 function computePosition() {
   if (!triggerEl) return
   const rect = triggerEl.getBoundingClientRect()
+  // Menü immer rechtsbündig am Trigger ausrichten — so wandert es nicht mysteriös herum
+  const rightFromViewport = Math.max(8, window.innerWidth - rect.right)
   menuStyle.value = {
     position: 'fixed',
     top:   `${rect.bottom + 4}px`,
-    left:  `${Math.max(8, rect.right - 240)}px`,   // rechtsbündig, min 8px vom linken Rand
-    minWidth: `${Math.max(180, rect.width)}px`,
+    right: `${rightFromViewport}px`,
+    minWidth: '200px',
+    maxWidth: `${window.innerWidth - 16}px`,
   }
 }
 

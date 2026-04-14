@@ -1,7 +1,7 @@
 <template>
   <div class="sr-filterbar">
     <!-- Linke Seite: Filter -->
-    <div class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
+    <div ref="filtersEl" class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
       <!-- Trichter-Icon -->
       <svg class="sr-filterbar__funnel" :class="{ 'sr-filterbar__funnel--active': hasActiveFilter }" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M3 4h18l-7 8v6l-4 2V12L3 4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -194,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { t, n } from '@nextcloud/l10n'
 
 const COLOR_OPTIONS = [
@@ -247,6 +247,28 @@ const colorOptions = COLOR_OPTIONS
 // ─── Rating-Filter ────────────────────────────────────────────────────────────
 
 const selectedOp = ref('≥')
+const filtersEl  = ref(null)
+
+// Scroll-Hint auf Mobile: einmal pro Session kurz nach rechts wippen, damit
+// erkennbar wird, dass die Filter-Zeile horizontal scrollbar ist.
+onMounted(async () => {
+  await nextTick()
+  const el = filtersEl.value
+  if (!el) return
+  if (typeof window === 'undefined' || !window.matchMedia) return
+  if (!window.matchMedia('(pointer: coarse)').matches) return
+  if (el.scrollWidth <= el.clientWidth + 4) return
+  try {
+    if (sessionStorage.getItem('sr-filterbar-hint')) return
+    sessionStorage.setItem('sr-filterbar-hint', '1')
+  } catch (e) { /* sessionStorage evtl. blockiert */ }
+
+  // Sanft anschubsen und zurück — nicht zu grell
+  const steps = [8, 16, 8, 0]
+  steps.forEach((x, i) => setTimeout(() => {
+    el.scrollTo({ left: x, behavior: 'smooth' })
+  }, 400 + i * 220))
+})
 
 // selectedOp mit eingehendem Filter synchronisieren (z.B. aus localStorage)
 watch(() => props.filter, (f) => {
