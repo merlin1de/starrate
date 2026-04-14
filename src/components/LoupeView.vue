@@ -187,8 +187,12 @@
             <button class="sr-loupe__comment-btn-cancel" type="button" @click="commentSheetState = 'view'">
               {{ t('starrate', 'Abbrechen') }}
             </button>
-            <button class="sr-loupe__comment-btn-save sr-loupe__comment-btn-save--danger" type="button"
-                    :disabled="commentSaving" @click="confirmDeleteComment">
+            <button
+              class="sr-loupe__comment-btn-save sr-loupe__comment-btn-save--danger"
+              type="button"
+              :disabled="commentSaving"
+              @click="confirmDeleteComment"
+            >
               {{ t('starrate', 'Ja, löschen') }}
             </button>
           </div>
@@ -206,8 +210,12 @@
           <div class="sr-loupe__comment-actions sr-loupe__comment-actions--edit">
             <span v-if="commentStatus === 'ok'" class="sr-loupe__comment-status sr-loupe__comment-status--ok">✓</span>
             <span v-if="commentStatus === 'error'" class="sr-loupe__comment-status sr-loupe__comment-status--error">✗</span>
-            <button class="sr-loupe__comment-btn-save" type="button"
-                    :disabled="commentSaving || !commentDraft.trim()" @click="saveComment">
+            <button
+              class="sr-loupe__comment-btn-save"
+              type="button"
+              :disabled="commentSaving || !commentDraft.trim()"
+              @click="saveComment"
+            >
               {{ t('starrate', 'Speichern') }}
             </button>
           </div>
