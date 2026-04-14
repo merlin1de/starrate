@@ -13,7 +13,7 @@
     @touchend="onTouchEnd"
   >
     <!-- Hauptbild -->
-    <Transition :name="transitionName" mode="out-in">
+    <Transition :name="transitionName">
       <div
         class="sr-loupe__stage"
         :key="currentIndex"
@@ -290,9 +290,20 @@ const panStart  = ref({ x: 0, y: 0, panX: 0, panY: 0 })
 // Touch-Pinch
 const touches = ref([])
 let   lastPinchDist = 0
+let   touchStartedAsSingle = false
+let   swipeOrigin = null
+let   lastTouchEnd = 0
 
 // Bildübergang
 const transitionName = ref('slide-right')
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function previewUrlFor(id) {
+  return props.previewUrlFn
+    ? props.previewUrlFn(id)
+    : generateUrl(`/apps/starrate/api/preview/${id}?width=1920&height=1200`)
+}
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
@@ -303,9 +314,7 @@ const hasNext = computed(() => currentIndex.value < props.images.length - 1)
 
 const previewUrl = computed(() => {
   if (!currentImage.value) return ''
-  return props.previewUrlFn
-    ? props.previewUrlFn(currentImage.value.id)
-    : generateUrl(`/apps/starrate/api/preview/${currentImage.value.id}?width=1920&height=1200`)
+  return previewUrlFor(currentImage.value.id)
 })
 
 const zoomLabel = computed(() => {
@@ -340,9 +349,6 @@ function navigate(delta) {
 
   // Rating vom Server nachladen (Sync-Light für Multi-User)
   props.onRefreshRating?.(props.images[newIdx])
-
-  // Nächstes Bild vorab laden
-  preloadAdjacent(newIdx)
 }
 
 const preloadedUrls = new Set()
@@ -351,7 +357,7 @@ function preloadAdjacent(idx) {
   [-1, 1].forEach(d => {
     const img = props.images[idx + d]
     if (img) {
-      const url = generateUrl(`/apps/starrate/api/preview/${img.id}?width=1920&height=1200`)
+      const url = previewUrlFor(img.id)
       if (!preloadedUrls.has(url)) {
         const preImg = new Image()
         preImg.onload = /* c8 ignore next */ () => preloadedUrls.add(url)
@@ -444,6 +450,8 @@ function onWheel(e) {
 
 function onDblClick(e) {
   e.preventDefault()
+  // Ignore dblclick from touch — fast swiping can trigger accidental double-taps
+  if (Date.now() - lastTouchEnd < 500) return
 
   if (isFit.value) {
     zoomTo100()
@@ -483,14 +491,31 @@ function onTouchStart(e) {
   touches.value = Array.from(e.touches)
 
   if (touches.value.length === 2) {
+    // Allow pinch if gesture started with 2 fingers OR if the first finger
+    // hasn't moved much (user is stationary, intentionally adding 2nd finger).
+    // Block only when mid-swipe (first finger already moved significantly).
+    if (touchStartedAsSingle && swipeOrigin) {
+      const dx = touches.value[0].clientX - swipeOrigin.x
+      const dy = touches.value[0].clientY - swipeOrigin.y
+      if (Math.sqrt(dx * dx + dy * dy) > 30) {
+        // Mid-swipe — ignore accidental second finger
+        return
+      }
+      // Finger was stationary — allow intentional pinch
+      touchStartedAsSingle = false
+    }
     lastPinchDist = getPinchDist(touches.value)
-  } else if (touches.value.length === 1 && !isFit.value) {
-    isPanning.value = true
-    panStart.value  = {
-      x: touches.value[0].clientX,
-      y: touches.value[0].clientY,
-      panX: panX.value,
-      panY: panY.value,
+  } else if (touches.value.length === 1) {
+    touchStartedAsSingle = true
+    swipeOrigin = { x: touches.value[0].clientX, y: touches.value[0].clientY }
+    if (!isFit.value) {
+      isPanning.value = true
+      panStart.value  = {
+        x: touches.value[0].clientX,
+        y: touches.value[0].clientY,
+        panX: panX.value,
+        panY: panY.value,
+      }
     }
   }
 }
@@ -498,12 +523,14 @@ function onTouchStart(e) {
 function onTouchMove(e) {
   const currentTouches = Array.from(e.touches)
 
-  if (currentTouches.length === 2) {
-    // Pinch-to-Zoom
+  if (currentTouches.length === 2 && !touchStartedAsSingle) {
+    // Pinch-to-Zoom — only when gesture started with 2 fingers
     isPanning.value = false
     const dist  = getPinchDist(currentTouches)
     const ratio = dist / lastPinchDist
-    setZoom(zoom.value * ratio)
+    if (Math.abs(ratio - 1) > 0.03) {
+      setZoom(zoom.value * ratio)
+    }
     lastPinchDist = dist
   } else if (currentTouches.length === 1 && isPanning.value) {
     panX.value = panStart.value.panX + (currentTouches[0].clientX - panStart.value.x)
@@ -515,9 +542,9 @@ function onTouchMove(e) {
 function onTouchEnd(e) {
   const remaining = Array.from(e.touches)
 
-  if (remaining.length < 2) {
-    // Swipe-Erkennung (nur bei fit-Zoom, horizontale Geste)
-    if (isFit.value && touches.value.length === 1) {
+  if (remaining.length === 0) {
+    // Alle Finger weg — Swipe-Erkennung + State-Reset
+    if (touchStartedAsSingle && isFit.value && touches.value.length >= 1) {
       const t0  = touches.value[0]
       const t1  = e.changedTouches[0]
       const dx  = t1.clientX - t0.clientX
@@ -527,6 +554,12 @@ function onTouchEnd(e) {
         navigate(dx < 0 ? 1 : -1)
       }
     }
+    isPanning.value = false
+    touchStartedAsSingle = false
+    swipeOrigin = null
+    lastTouchEnd = Date.now()
+  } else if (remaining.length === 1) {
+    // Ein Finger übrig nach Pinch — kein Swipe-Reset, nur Panning stoppen
     isPanning.value = false
   }
 
@@ -656,6 +689,8 @@ function onImgLoad() {
   previewError.value   = false
   previewRetries       = 0
   resetControlsTimer()
+  // Preload neighbors only after current image is ready — avoids bandwidth contention
+  preloadAdjacent(currentIndex.value)
 }
 
 function onImgError() {
@@ -667,7 +702,7 @@ function onImgError() {
     previewRetryTimer = setTimeout(() => {
       // Cache-Buster erzwingt neuen Request (Browser würde sonst gecachte 404 nehmen)
       actualSrc.value = previewUrl.value + (previewUrl.value.includes('?') ? '&' : '?') + '_r=' + previewRetries
-    }, previewRetries * 3000)
+    }, previewRetries * 1000)
   } else {
     loadingPreview.value = false
     previewError.value   = true
@@ -675,11 +710,51 @@ function onImgError() {
 }
 
 watch(previewUrl, (url) => {
-  actualSrc.value      = url
-  loadingPreview.value = !preloadedUrls.has(url)
   previewError.value   = false
   previewRetries       = 0
   clearTimeout(previewRetryTimer)
+
+  if (preloadedUrls.has(url)) {
+    // Preview already cached by preloadAdjacent — show directly
+    actualSrc.value      = url
+    loadingPreview.value = false
+    return
+  }
+
+  // Show thumbnail instantly as placeholder (already in browser cache from grid)
+  const thumb = currentImage.value?.thumbUrl
+  if (thumb) {
+    actualSrc.value      = thumb
+    loadingPreview.value = true
+  } else {
+    actualSrc.value      = url
+    loadingPreview.value = true
+    return
+  }
+
+  // Load full preview in background, swap on load
+  const img = new Image()
+  img.onload = () => {
+    preloadedUrls.add(url)
+    // Only swap if still viewing the same image
+    if (previewUrl.value === url) {
+      // Use rAF to ensure the browser has the decoded image ready before
+      // swapping src — avoids a blank frame between thumbnail and preview
+      requestAnimationFrame(() => {
+        if (previewUrl.value === url) {
+          actualSrc.value      = url
+          loadingPreview.value = false
+        }
+      })
+    }
+  }
+  img.onerror = () => {
+    // Fall back to direct src swap — onImgError will handle retries
+    if (previewUrl.value === url) {
+      actualSrc.value = url
+    }
+  }
+  img.src = url
 }, { immediate: true })
 
 // ─── Kommentar-Sheet ──────────────────────────────────────────────────────────
@@ -828,7 +903,6 @@ watch(currentImage, (img) => {
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
-  preloadAdjacent(currentIndex.value)
   resetControlsTimer()
   // Kommentar für das erste Bild laden (ohne Watch-immediate um Jiggling zu vermeiden)
   if (props.allowComment || props.commentsEnabledOwner) {
@@ -1118,10 +1192,15 @@ watch(() => props.initialIndex, idx => {
 
 /* ── Übergänge ────────────────────────────────────────────────────────────── */
 .slide-left-enter-active,
-.slide-left-leave-active,
-.slide-right-enter-active,
-.slide-right-leave-active {
+.slide-right-enter-active {
   transition: transform 200ms ease, opacity 200ms ease;
+  position: absolute;
+  inset: 0;
+}
+
+.slide-left-leave-active,
+.slide-right-leave-active {
+  transition: opacity 80ms ease;
   position: absolute;
   inset: 0;
 }
