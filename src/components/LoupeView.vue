@@ -689,8 +689,12 @@ function onImgLoad() {
   previewError.value   = false
   previewRetries       = 0
   resetControlsTimer()
-  // Preload neighbors only after current image is ready — avoids bandwidth contention
-  preloadAdjacent(currentIndex.value)
+  // Fallback-Pfad (kein Thumb-Placeholder): Preview lädt direkt im <img>,
+  // hier ist "image ready" = "preview ready" → Nachbarn preloaden.
+  // Mit Thumb-Placeholder übernimmt das der img.onload / Cache-Hit-Zweig im watcher.
+  if (actualSrc.value === previewUrl.value) {
+    preloadAdjacent(currentIndex.value)
+  }
 }
 
 function onImgError() {
@@ -718,6 +722,8 @@ watch(previewUrl, (url) => {
     // Preview already cached by preloadAdjacent — show directly
     actualSrc.value      = url
     loadingPreview.value = false
+    // Preload neighbors now that current preview is ready — avoids bandwidth contention
+    preloadAdjacent(currentIndex.value)
     return
   }
 
@@ -744,6 +750,8 @@ watch(previewUrl, (url) => {
         if (previewUrl.value === url) {
           actualSrc.value      = url
           loadingPreview.value = false
+          // Preload neighbors only after current preview is ready — avoids bandwidth contention
+          preloadAdjacent(currentIndex.value)
         }
       })
     }
