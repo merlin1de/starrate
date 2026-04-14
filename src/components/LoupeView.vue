@@ -1311,10 +1311,10 @@ watch(() => props.initialIndex, idx => {
   .sr-loupe__comment-btn {
     order: 2;
     align-self: center;
-    padding: 4px 10px;
+    padding: 0 10px;
     margin: 0 0 0 14px;
   }
-  .sr-loupe__comment-icon { width: 20px; height: 20px; }
+  .sr-loupe__comment-icon { width: 26px; height: 26px; }
   .sr-loupe__comment-label { display: none; }
 }
 
