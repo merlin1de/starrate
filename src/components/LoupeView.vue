@@ -1289,7 +1289,7 @@ watch(() => props.initialIndex, idx => {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 12px;
+    gap: 2px 12px;
   }
   /* Zeile 1: Steuerelemente */
   .sr-loupe__footer-center { order: 1; flex: 0 0 auto; justify-content: center; }
