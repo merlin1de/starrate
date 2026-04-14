@@ -50,7 +50,6 @@ class UserSettings implements ISettings
      * @return array{
      *   default_sort: string,
      *   default_sort_order: string,
-     *   thumbnail_size: int,
      *   show_filename: bool,
      *   show_rating_overlay: bool,
      *   show_color_overlay: bool,
@@ -62,7 +61,6 @@ class UserSettings implements ISettings
         return [
             'default_sort'          => $this->get($userId, 'default_sort', 'name'),
             'default_sort_order'    => $this->get($userId, 'default_sort_order', 'asc'),
-            'thumbnail_size'        => (int) $this->get($userId, 'thumbnail_size', '280'),
             'show_filename'         => $this->getBool($userId, 'show_filename', true),
             'show_rating_overlay'   => $this->getBool($userId, 'show_rating_overlay', true),
             'show_color_overlay'    => $this->getBool($userId, 'show_color_overlay', true),
@@ -82,7 +80,7 @@ class UserSettings implements ISettings
     public function saveSettings(string $userId, array $data): void
     {
         $allowed = [
-            'default_sort', 'default_sort_order', 'thumbnail_size',
+            'default_sort', 'default_sort_order',
             'show_filename', 'show_rating_overlay',
             'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp', 'comments_enabled',
         ];
@@ -121,7 +119,6 @@ class UserSettings implements ISettings
         match ($key) {
             'default_sort' => $this->assertIn($key, $value, ['name', 'mtime', 'size']),
             'default_sort_order' => $this->assertIn($key, $value, ['asc', 'desc']),
-            'thumbnail_size' => $this->assertRange($key, (int) $value, 120, 600),
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
             'enable_pick_ui', 'write_xmp', 'comments_enabled' => null,
@@ -137,10 +134,4 @@ class UserSettings implements ISettings
         }
     }
 
-    private function assertRange(string $key, int $value, int $min, int $max): void
-    {
-        if ($value < $min || $value > $max) {
-            throw new \InvalidArgumentException("{$key} muss zwischen {$min} und {$max} liegen.");
-        }
-    }
 }

@@ -2,6 +2,28 @@
   <div class="sr-settings">
 
     <div class="sr-settings__group">
+      <h3 class="sr-settings__heading">{{ t('starrate', 'Funktionen') }}</h3>
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.enable_pick_ui" @change="autosave" />
+          {{ t('starrate', 'Pick / Reject aktivieren') }}
+        </label>
+      </div>
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.write_xmp" @change="autosave" />
+          {{ t('starrate', 'XMP in JPEG schreiben') }}
+        </label>
+      </div>
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.comments_enabled" @change="autosave" />
+          {{ t('starrate', 'Kommentare aktivieren') }}
+        </label>
+      </div>
+    </div>
+
+    <div class="sr-settings__group">
       <h3 class="sr-settings__heading">{{ t('starrate', 'Anzeige') }}</h3>
 
       <!-- Spalten -->
@@ -19,43 +41,6 @@
           </select>
         </div>
       </div>
-
-      <!-- Vorschaugröße -->
-      <div class="sr-settings__row">
-        <label class="sr-settings__label">{{ t('starrate', 'Vorschaugröße') }}</label>
-        <div class="sr-settings__control sr-settings__control--slider">
-          <input
-            v-model.number="form.thumbnail_size"
-            type="range" min="120" max="600" step="40"
-            class="sr-settings__slider"
-            @change="autosave"
-          />
-          <span class="sr-settings__slider-val">{{ form.thumbnail_size }}px</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sr-settings__group">
-      <h3 class="sr-settings__heading">{{ t('starrate', 'Sortierung') }}</h3>
-
-      <div class="sr-settings__row">
-        <label class="sr-settings__label">{{ t('starrate', 'Standard-Sortierung') }}</label>
-        <div class="sr-settings__control sr-settings__control--inline">
-          <select v-model="form.default_sort" class="sr-settings__select" @change="autosave">
-            <option value="name">{{ t('starrate', 'Name') }}</option>
-            <option value="mtime">{{ t('starrate', 'Änderungsdatum') }}</option>
-            <option value="size">{{ t('starrate', 'Dateigröße') }}</option>
-          </select>
-          <select v-model="form.default_sort_order" class="sr-settings__select" @change="autosave">
-            <option value="asc">{{ t('starrate', 'Aufsteigend') }}</option>
-            <option value="desc">{{ t('starrate', 'Absteigend') }}</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="sr-settings__group">
-      <h3 class="sr-settings__heading">{{ t('starrate', 'Info-Leiste') }}</h3>
 
       <div class="sr-settings__row">
         <label class="sr-settings__label sr-settings__label--check">
@@ -78,24 +63,21 @@
     </div>
 
     <div class="sr-settings__group">
-      <h3 class="sr-settings__heading">{{ t('starrate', 'Funktionen') }}</h3>
+      <h3 class="sr-settings__heading">{{ t('starrate', 'Sortierung') }}</h3>
+
       <div class="sr-settings__row">
-        <label class="sr-settings__label sr-settings__label--check">
-          <input type="checkbox" v-model="form.enable_pick_ui" @change="autosave" />
-          {{ t('starrate', 'Pick / Reject aktivieren') }}
-        </label>
-      </div>
-      <div class="sr-settings__row">
-        <label class="sr-settings__label sr-settings__label--check">
-          <input type="checkbox" v-model="form.write_xmp" @change="autosave" />
-          {{ t('starrate', 'XMP in JPEG schreiben') }}
-        </label>
-      </div>
-      <div class="sr-settings__row">
-        <label class="sr-settings__label sr-settings__label--check">
-          <input type="checkbox" v-model="form.comments_enabled" @change="autosave" />
-          {{ t('starrate', 'Kommentare aktivieren') }}
-        </label>
+        <label class="sr-settings__label">{{ t('starrate', 'Standard-Sortierung') }}</label>
+        <div class="sr-settings__control sr-settings__control--inline">
+          <select v-model="form.default_sort" class="sr-settings__select" @change="autosave">
+            <option value="name">{{ t('starrate', 'Name') }}</option>
+            <option value="mtime">{{ t('starrate', 'Änderungsdatum') }}</option>
+            <option value="size">{{ t('starrate', 'Dateigröße') }}</option>
+          </select>
+          <select v-model="form.default_sort_order" class="sr-settings__select" @change="autosave">
+            <option value="asc">{{ t('starrate', 'Aufsteigend') }}</option>
+            <option value="desc">{{ t('starrate', 'Absteigend') }}</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -122,7 +104,6 @@ const props = defineProps({
 const DEFAULTS = {
   default_sort:        'name',
   default_sort_order:  'asc',
-  thumbnail_size:       280,
   show_filename:        true,
   show_rating_overlay:  true,
   show_color_overlay:   true,
@@ -192,6 +173,16 @@ async function autosave() {
   gap: 8px;
   min-width: unset;
   cursor: pointer;
+  line-height: 20px;
+}
+
+.sr-settings__label--check :deep(input[type="checkbox"]) {
+  flex-shrink: 0;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 !important;
+  position: relative;
+  top: 1px;
 }
 
 .sr-settings__control {
@@ -203,10 +194,6 @@ async function autosave() {
   gap: 8px;
 }
 
-.sr-settings__control--slider {
-  gap: 10px;
-}
-
 .sr-settings__select {
   padding: 5px 8px;
   border-radius: 5px;
@@ -215,17 +202,6 @@ async function autosave() {
   color: var(--color-main-text, #222);
   font-size: 13px;
   cursor: pointer;
-}
-
-.sr-settings__slider {
-  width: 160px;
-  accent-color: var(--color-primary, #0082c9);
-}
-
-.sr-settings__slider-val {
-  font-size: 12px;
-  color: var(--color-text-maxcontrast, #888);
-  min-width: 42px;
 }
 
 .sr-settings__status {

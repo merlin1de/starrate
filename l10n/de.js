@@ -224,7 +224,6 @@ OC.L10N.register(
         "Dateigröße" : "Dateigröße",
         "Aufsteigend" : "Aufsteigend",
         "Absteigend" : "Absteigend",
-        "Thumbnail-Größe" : "Thumbnail-Größe",
         "XMP in JPEG schreiben" : "XMP in JPEG schreiben",
         "Kommentare aktivieren" : "Kommentare aktivieren",
         "Kommentare erlauben" : "Kommentare erlauben",
