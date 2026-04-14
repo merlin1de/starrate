@@ -45,8 +45,11 @@ Rate in Nextcloud → open in Lightroom → stars are already there.
 |---|---|
 | ⭐ Star rating | 0–5 stars, hover preview, keyboard shortcuts `0`–`5` |
 | 🎨 Color labels | Red / Yellow / Green / Blue / Purple (keys `6`–`9`) |
-| 🚩 Pick / Reject | Flag images with `P` / `X` — enable in Settings |
+| 🚩 Pick / Reject | Flag images with `P` / `X`, batch support via selection bar |
 | 📝 XMP metadata | Ratings written directly into JPEG (APP1 segment) |
+| 📥 XMP import | `occ starrate:import-xmp` — import existing ratings from Lightroom, digiKam, etc. |
+| 💬 Comments | Per-photo notes in loupe view — owner and guests can comment |
+| 📤 Export | CSV download or clipboard copy of ratings and metadata |
 | 🔍 Filter bar | Combinable filters: stars, color, Pick/Reject, unrated |
 | 🔎 Loupe view | Zoom 25–400 %, pan, pinch-to-zoom, keyboard navigation |
 | 🖱️ Batch rating | `Shift+click` / `Ctrl+click`, `Ctrl+A`, floating selection bar |
@@ -76,7 +79,7 @@ Rate in Nextcloud → open in Lightroom → stars are already there.
 3. Optionally: add a password, expiry date, and minimum star filter
 4. Copy the link → send to your client or model
 
-Guests can rate images in their browser — **no Nextcloud account required**. The photographer sees all guest ratings in real time.
+Guests can rate images in their browser — **no Nextcloud account required**. The photographer sees all guest ratings in real time. Optionally, enable comments so guests can leave per-photo notes.
 
 ---
 
@@ -135,13 +138,13 @@ make package        # → dist/starrate.tar.gz
 ```bash
 make test          # PHPUnit + Vitest
 make test-php      # PHPUnit only
-make test-js       # Vitest only (259 component tests)
+make test-js       # Vitest only (325 component tests)
 make test-e2e      # Cypress headless (requires a running Nextcloud instance)
 npm run e2e:open   # Cypress GUI with browser selection
 make test-coverage # Reports written to tests/results/
 ```
 
-CI runs on every PR: Vitest (259 component tests) + PHPUnit (PHP 8.1 + 8.3)
+CI runs on every PR: Vitest (325 component tests) + PHPUnit (~260 tests, PHP 8.1 + 8.3)
 
 ---
 

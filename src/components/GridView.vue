@@ -130,8 +130,6 @@ const props = defineProps({
     type: Number,
     default: -1,
   },
-  /** Thumbnail-Größe in Pixeln (aus Settings) */
-  thumbnailSize: { type: Number,  default: 280 },
   thumbnailUrlFn: {
     type: Function,
     default: null,
@@ -156,6 +154,8 @@ const emit = defineEmits([
   'clear-filter',     // ()
 ])
 
+const THUMB_SIZE = 280
+
 const gridStyle = computed(() => {
   // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
   // werden in einigen Browsern nicht korrekt in grid-template-columns geparsed.
@@ -164,7 +164,7 @@ const gridStyle = computed(() => {
   }
   // min() stellt sicher dass auf Mobile mindestens 2 Spalten passen:
   // min(280px, calc(50vw - 16px)) → Desktop: 280px, Mobile 390px: ~179px → 2 Spalten
-  return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${props.thumbnailSize}px, calc(50vw - 16px)), 1fr))` }
+  return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ function drainQueue() {
 
 function loadThumb(image) {
   image.thumbLoading = true
-  const sz  = props.thumbnailSize
+  const sz  = THUMB_SIZE
   const url = props.thumbnailUrlFn
     ? props.thumbnailUrlFn(image.id, sz)
     : generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
@@ -497,7 +497,7 @@ function moveFocus(delta, extend = false) {
 
 function columnsEstimate() {
   if (!gridEl.value) return 4
-  return Math.max(1, Math.floor(gridEl.value.offsetWidth / props.thumbnailSize))
+  return Math.max(1, Math.floor(gridEl.value.offsetWidth / THUMB_SIZE))
 }
 
 function scrollItemIntoView(index) {

@@ -13,7 +13,6 @@ const GridViewStub = defineComponent({
     loading: Boolean,
     hasActiveFilter: Boolean,
     currentIndex: Number,
-    thumbnailSize: Number,
     gridColumns: [String, Number],
     showFilename: Boolean,
     showRatingInfo: Boolean,

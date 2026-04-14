@@ -47,7 +47,6 @@ class UserSettingsTest extends TestCase
 
         $this->assertSame('name', $result['default_sort']);
         $this->assertSame('asc', $result['default_sort_order']);
-        $this->assertSame(280, $result['thumbnail_size']);
         $this->assertTrue($result['show_filename']);
         $this->assertTrue($result['show_rating_overlay']);
         $this->assertTrue($result['show_color_overlay']);
@@ -60,7 +59,6 @@ class UserSettingsTest extends TestCase
         $stored = [
             'default_sort'       => 'mtime',
             'default_sort_order' => 'desc',
-            'thumbnail_size'     => '400',
             'show_filename'      => '0',
             'show_rating_overlay' => '1',
             'show_color_overlay' => 'yes',
@@ -77,24 +75,11 @@ class UserSettingsTest extends TestCase
 
         $this->assertSame('mtime', $result['default_sort']);
         $this->assertSame('desc', $result['default_sort_order']);
-        $this->assertSame(400, $result['thumbnail_size']);
         $this->assertFalse($result['show_filename']);
         $this->assertTrue($result['show_rating_overlay']);
         $this->assertTrue($result['show_color_overlay']);
         $this->assertSame('4', $result['grid_columns']);
         $this->assertTrue($result['enable_pick_ui']);
-    }
-
-    public function testGetSettingsCastsThumbnailSizeToInt(): void
-    {
-        $this->config->method('getUserValue')
-            ->willReturnCallback(function ($uid, $app, $key, $default) {
-                return $key === 'thumbnail_size' ? '350' : $default;
-            });
-
-        $result = $this->settings->getSettings(self::USER_ID);
-        $this->assertIsInt($result['thumbnail_size']);
-        $this->assertSame(350, $result['thumbnail_size']);
     }
 
     /** @dataProvider booleanParsingProvider */
@@ -160,15 +145,6 @@ class UserSettingsTest extends TestCase
         $this->settings->saveSettings(self::USER_ID, ['default_sort_order' => 'desc']);
     }
 
-    public function testSaveSettingsStoresValidThumbnailSize(): void
-    {
-        $this->config->expects($this->once())
-            ->method('setUserValue')
-            ->with(self::USER_ID, 'starrate', 'thumbnail_size', '300');
-
-        $this->settings->saveSettings(self::USER_ID, ['thumbnail_size' => 300]);
-    }
-
     public function testSaveSettingsStoresValidGridColumns(): void
     {
         $this->config->expects($this->once())
@@ -205,12 +181,10 @@ class UserSettingsTest extends TestCase
 
         $this->settings->saveSettings(self::USER_ID, [
             'default_sort' => 'size',
-            'thumbnail_size' => 500,
             'grid_columns' => '3',
         ]);
 
         $this->assertSame('size', $saved['default_sort']);
-        $this->assertSame('500', $saved['thumbnail_size']);
         $this->assertSame('3', $saved['grid_columns']);
     }
 
@@ -232,18 +206,6 @@ class UserSettingsTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->settings->saveSettings(self::USER_ID, ['default_sort_order' => 'up']);
-    }
-
-    public function testSaveSettingsThrowsForThumbnailSizeTooSmall(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->settings->saveSettings(self::USER_ID, ['thumbnail_size' => 50]);
-    }
-
-    public function testSaveSettingsThrowsForThumbnailSizeTooLarge(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->settings->saveSettings(self::USER_ID, ['thumbnail_size' => 1000]);
     }
 
     public function testSaveSettingsThrowsForInvalidGridColumns(): void
@@ -288,28 +250,6 @@ class UserSettingsTest extends TestCase
         return [['auto'], ['2'], ['3'], ['4'], ['5'], ['6'], ['8']];
     }
 
-    /** @dataProvider thumbnailBoundaryProvider */
-    public function testSaveSettingsThumbnailSizeBoundaries(int $size, bool $valid): void
-    {
-        if (!$valid) {
-            $this->expectException(\InvalidArgumentException::class);
-        } else {
-            $this->config->expects($this->once())->method('setUserValue');
-        }
-        $this->settings->saveSettings(self::USER_ID, ['thumbnail_size' => $size]);
-    }
-
-    public static function thumbnailBoundaryProvider(): array
-    {
-        return [
-            'min valid'     => [120, true],
-            'max valid'     => [600, true],
-            'mid valid'     => [350, true],
-            'below min'     => [119, false],
-            'above max'     => [601, false],
-        ];
-    }
-
     // ─── getSection / getPriority ────────────────────────────────────────────
 
     public function testGetSectionReturnsStarrate(): void
@@ -345,7 +285,7 @@ class UserSettingsTest extends TestCase
 
         $this->assertArrayHasKey('settings', $params);
         $this->assertArrayHasKey('default_sort', $params['settings']);
-        $this->assertArrayHasKey('thumbnail_size', $params['settings']);
+        $this->assertArrayHasKey('grid_columns', $params['settings']);
         $this->assertArrayHasKey('enable_pick_ui', $params['settings']);
     }
 }

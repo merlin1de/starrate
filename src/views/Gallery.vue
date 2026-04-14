@@ -92,7 +92,6 @@
         :loading="loading"
         :has-active-filter="hasActiveFilter"
         :current-index="currentIndex"
-        :thumbnail-size="settings.thumbnail_size"
         :grid-columns="settings.grid_columns"
         :show-filename="settings.show_filename"
         :show-rating-info="settings.show_rating_overlay"
@@ -282,7 +281,6 @@ const allImages    = ref([])
 const settings = ref({
   default_sort:        'name',
   default_sort_order:  'asc',
-  thumbnail_size:       280,
   show_filename:        true,
   show_rating_overlay:  true,
   show_color_overlay:   true,
