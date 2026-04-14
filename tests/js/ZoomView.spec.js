@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import LoupeView from '../../src/components/LoupeView.vue'
 
@@ -8,13 +8,25 @@ const sampleImages = [
   { id: 3, name: 'IMG_0003.jpg', rating: 5, color: 'Green', pick: 'none' },
 ]
 
-const factory = (props = {}) => mount(LoupeView, {
-  props: {
-    images:       sampleImages,
-    initialIndex: 0,
-    ...props,
-  },
-  attachTo: document.body,
+// Track mounted wrappers for cleanup (LoupeView adds document-level keydown listeners)
+const wrappers = []
+
+const factory = (props = {}) => {
+  const w = mount(LoupeView, {
+    props: {
+      images:       sampleImages,
+      initialIndex: 0,
+      ...props,
+    },
+    attachTo: document.body,
+  })
+  wrappers.push(w)
+  return w
+}
+
+afterEach(() => {
+  wrappers.forEach(w => w.unmount())
+  wrappers.length = 0
 })
 
 describe('LoupeView – Kommentare', () => {

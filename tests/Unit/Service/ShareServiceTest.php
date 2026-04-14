@@ -481,9 +481,9 @@ class ShareServiceTest extends TestCase
     {
         $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
 
-        // Bestehendes Log mit 499 Einträgen
+        // Bestehendes Log mit 500 Einträgen (genau am Limit)
         $existingLog = [];
-        for ($i = 0; $i < 499; $i++) {
+        for ($i = 0; $i < 500; $i++) {
             $existingLog[] = ['file_id' => $i, 'rating' => 1, 'color' => null, 'pick' => null, 'guest_name' => 'Bot', 'timestamp' => $i + 1];
         }
 
@@ -492,20 +492,13 @@ class ShareServiceTest extends TestCase
         $this->config->method('setUserValue')
             ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
 
-        // Eintrag 500 → genau am Limit
-        $this->service->saveGuestRating($share, 500, 5, null, null, 'Anna');
-        $this->assertCount(500, $saved);
-
-        // Eintrag 501 → wird getrimmt
-        $saved = null;
-        $existingLog500 = $existingLog;
-        $existingLog500[] = ['file_id' => 500, 'rating' => 5, 'color' => null, 'pick' => null, 'guest_name' => 'Anna', 'timestamp' => 500];
-        $this->config->method('getUserValue')->willReturn(json_encode($existingLog500));
-
+        // Eintrag 501 → muss getrimmt werden (500 + 1 > 500)
         $this->service->saveGuestRating($share, 501, 3, null, null, 'Bob');
         $this->assertCount(500, $saved);
         // Ältester Eintrag (file_id=0) sollte raus sein
         $this->assertNotSame(0, $saved[0]['file_id']);
+        // Neuster Eintrag ist der gerade gespeicherte
+        $this->assertSame(501, $saved[499]['file_id']);
     }
 
     // ─── Tests: getSharesByOwner ──────────────────────────────────────────────
