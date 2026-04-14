@@ -249,7 +249,6 @@ class ShareController extends Controller
 
         return new TemplateResponse($this->appName, 'guest', [
             'token'           => $token,
-            'share'           => $share,
             'min_rating'      => $share['min_rating'] ?? 0,
             'can_rate'        => $share['permissions'] === ShareService::PERM_RATE,
             'allow_pick'      => !empty($share['allow_pick']),
@@ -445,6 +444,8 @@ class ShareController extends Controller
 
     // ─── Kommentare (Gast) ────────────────────────────────────────────────────
 
+    #[PublicPage]
+    #[NoCSRFRequired]
     #[AnonRateLimit(limit: 60, period: 60)]
     public function guestGetComment(string $token, int $fileId): DataResponse
     {
@@ -452,8 +453,14 @@ class ShareController extends Controller
         if ($share === null) {
             return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
         }
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
+        }
         if (!($share['allow_comment'] ?? false)) {
             return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->shareService->fileExistsInShare($share, $fileId)) {
+            return new DataResponse(['error' => 'File not in share'], Http::STATUS_FORBIDDEN);
         }
 
         $comment = $this->shareService->getComment($fileId);
@@ -463,12 +470,17 @@ class ShareController extends Controller
         return new DataResponse($comment);
     }
 
+    #[PublicPage]
+    #[NoCSRFRequired]
     #[AnonRateLimit(limit: 30, period: 60)]
     public function guestSaveComment(string $token): DataResponse
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
             return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
         if (!($share['allow_comment'] ?? false)) {
             return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
@@ -483,7 +495,6 @@ class ShareController extends Controller
             return new DataResponse(['error' => 'Missing comment or file_id'], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
-        // Sicherstellen dass die Datei zum Share gehört
         if (!$this->shareService->fileExistsInShare($share, $fileId)) {
             return new DataResponse(['error' => 'File not in share'], Http::STATUS_FORBIDDEN);
         }
@@ -496,12 +507,17 @@ class ShareController extends Controller
         return new DataResponse($result);
     }
 
+    #[PublicPage]
+    #[NoCSRFRequired]
     #[AnonRateLimit(limit: 30, period: 60)]
     public function guestDeleteComment(string $token, int $fileId): DataResponse
     {
         $share = $this->getValidShare($token);
         if ($share === null) {
             return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
         if (!($share['allow_comment'] ?? false)) {
             return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
