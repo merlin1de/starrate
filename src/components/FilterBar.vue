@@ -91,9 +91,32 @@
         @click="resetFilters"
       >✕</button>
 
+      <!-- Mobile: Teilen/Export ans Ende der Scroll-Zone (selten genutzt, nicht prominent) -->
+      <div
+        v-if="allowShare || allowExport"
+        class="sr-filterbar__actions sr-filterbar__actions--mobile"
+      >
+        <div class="sr-filterbar__sep" aria-hidden="true" />
+        <button
+          v-if="allowShare"
+          class="sr-filterbar__action"
+          type="button"
+          :title="t('starrate', 'Freigabe-Links verwalten')"
+          @click="$emit('open-share-list')"
+        >{{ t('starrate', 'Teilen') }}</button>
+        <button
+          v-if="allowExport"
+          class="sr-filterbar__action"
+          type="button"
+          :disabled="!canExport"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="$emit('open-export-modal')"
+        >{{ t('starrate', 'Export') }}</button>
+      </div>
+
     </div>
 
-    <!-- Rechte Seite: Count + Reset + Modus -->
+    <!-- Rechte Seite: Count + Reset + Actions + Modus -->
     <div class="sr-filterbar__right">
       <!-- Aktive Filter: Count + Reset (immer gerendert, nur sichtbar wenn aktiv) -->
       <div class="sr-filterbar__status" :style="{ visibility: hasActiveFilter ? 'visible' : 'hidden' }">
@@ -109,6 +132,28 @@
           :tabindex="hasActiveFilter ? 0 : -1"
           @click="resetFilters"
         >{{ t('starrate', 'Alle anzeigen') }}</button>
+      </div>
+
+      <!-- Desktop: Teilen + Export (rechts vom Filter-Count, statisch sichtbar) -->
+      <div
+        v-if="allowShare || allowExport"
+        class="sr-filterbar__actions sr-filterbar__actions--desktop"
+      >
+        <button
+          v-if="allowShare"
+          class="sr-filterbar__action"
+          type="button"
+          :title="t('starrate', 'Freigabe-Links verwalten')"
+          @click="$emit('open-share-list')"
+        >{{ t('starrate', 'Teilen') }}</button>
+        <button
+          v-if="allowExport"
+          class="sr-filterbar__action"
+          type="button"
+          :disabled="!canExport"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="$emit('open-export-modal')"
+        >{{ t('starrate', 'Export') }}</button>
       </div>
 
       <!-- Modus-Umschalter -->
@@ -181,9 +226,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  allowShare: {
+    type: Boolean,
+    default: false,
+  },
+  allowExport: {
+    type: Boolean,
+    default: false,
+  },
+  canExport: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update:filter', 'toggle-mode'])
+const emit = defineEmits(['update:filter', 'toggle-mode', 'open-share-list', 'open-export-modal'])
 
 const colorOptions = COLOR_OPTIONS
 
@@ -642,6 +699,59 @@ function updateFilter(newFilter) {
 /* Desktop: Toggle ist in der Nav-Zeile, hier ausblenden */
 @media (pointer: fine) {
   .sr-filterbar__mode { display: none; }
+}
+
+/* ── Teilen / Export Actions ──────────────────────────────────────────────── */
+.sr-filterbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sr-filterbar__action {
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid #3f3f5a;
+  background: #2a2a3e;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 150ms, border-color 150ms, background 150ms;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  min-height: 0;
+  line-height: 1.6;
+}
+
+@media (pointer: fine) {
+  .sr-filterbar__action:hover {
+    color: #d4d4d8;
+    border-color: #7a3050;
+    background: #32323e;
+  }
+}
+
+.sr-filterbar__action:focus,
+.sr-filterbar__action:focus-visible,
+.sr-filterbar__action:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.sr-filterbar__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Desktop-Variante: nur auf Maus-Geräten */
+.sr-filterbar__actions--mobile { display: none; }
+@media (pointer: coarse) {
+  .sr-filterbar__actions--desktop { display: none; }
+  .sr-filterbar__actions--mobile  { display: flex; }
 }
 
 /* ── Mobile: single row, horizontal scroll ────────────────────────────────── */
