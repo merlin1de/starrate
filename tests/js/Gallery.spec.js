@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { defineComponent } from 'vue'
@@ -39,9 +39,10 @@ const stubs = {
     emits: ['rate', 'clear'],
     template: '<div class="selection-bar-stub" />',
   },
-  ShareList:  { template: '<div />' },
-  ShareModal: { template: '<div />' },
-  Teleport:   true,
+  ShareList:   { template: '<div />' },
+  ShareModal:  { template: '<div />' },
+  ExportModal: { name: 'ExportModal', props: ['images', 'showPickCol'], emits: ['close'], template: '<div class="export-modal-stub" />' },
+  Teleport:    true,
 }
 
 function makeRouter() {
@@ -98,6 +99,11 @@ describe('Gallery – onBatchRate', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // ── Sterne ────────────────────────────────────────────────────────────────
@@ -108,6 +114,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 2])
     await triggerBatchRate(w, 4, undefined, undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -122,6 +129,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerBatchRate(w, 0, undefined, undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -136,6 +144,7 @@ describe('Gallery – onBatchRate', () => {
 
     // Keine Auswahl gesetzt
     await triggerBatchRate(w, 3, undefined, undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).not.toHaveBeenCalled()
@@ -149,6 +158,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 3])
     await triggerBatchRate(w, undefined, 'Green', undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -163,6 +173,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [2])
     await triggerBatchRate(w, undefined, null, undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -176,8 +187,8 @@ describe('Gallery – onBatchRate', () => {
     await flushPromises()
 
     await selectImages(w, [1, 2])
-    // SelectionBar emittiert ('rate', undefined, null) nach dem Fix
     await triggerSelectionBarRate(w, undefined, null)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -192,6 +203,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerSelectionBarRate(w, undefined, 'Blue')
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     const payload = batchRateFn.mock.calls[0][1]
@@ -205,6 +217,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1])
     await triggerSelectionBarRate(w, 3, undefined)
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     const payload = batchRateFn.mock.calls[0][1]
@@ -220,6 +233,7 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [1, 2])
     await triggerBatchRate(w, undefined, undefined, 'pick')
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith(
@@ -234,9 +248,85 @@ describe('Gallery – onBatchRate', () => {
 
     await selectImages(w, [3])
     await triggerBatchRate(w, undefined, undefined, 'reject')
+    vi.advanceTimersByTime(2100)
     await flushPromises()
 
     expect(batchRateFn).toHaveBeenCalledWith([3], expect.objectContaining({ pick: 'reject' }))
+  })
+
+  // ── Debounce-Merge ────────────────────────────────────────────────────────
+
+  it('batch-rate: schnelle Stern+Farbe Klicks werden zu einem Request zusammengeführt', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1, 2])
+    await triggerBatchRate(w, 3, undefined, undefined)
+    await triggerBatchRate(w, undefined, 'Red', undefined)
+    vi.advanceTimersByTime(2100)
+    await flushPromises()
+
+    expect(batchRateFn).toHaveBeenCalledTimes(1)
+    expect(batchRateFn).toHaveBeenCalledWith(
+      expect.arrayContaining([1, 2]),
+      expect.objectContaining({ rating: 3, color: 'Red' })
+    )
+  })
+
+  it('batch-rate: Stern+Farbe+Pick werden zu einem Request zusammengeführt', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1, 2, 3])
+    await triggerBatchRate(w, 4, undefined, undefined)
+    await triggerBatchRate(w, undefined, 'Yellow', undefined)
+    await triggerBatchRate(w, undefined, undefined, 'pick')
+    vi.advanceTimersByTime(2100)
+    await flushPromises()
+
+    expect(batchRateFn).toHaveBeenCalledTimes(1)
+    expect(batchRateFn).toHaveBeenCalledWith(
+      expect.arrayContaining([1, 2, 3]),
+      expect.objectContaining({ rating: 4, color: 'Yellow', pick: 'pick' })
+    )
+  })
+
+  it('batch-rate: zweiter Klick mit neuer Auswahl aktualisiert fileIds', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1, 2])
+    await triggerBatchRate(w, 3, undefined, undefined)
+    // Auswahl ändert sich vor dem zweiten Klick
+    await selectImages(w, [3])
+    await triggerBatchRate(w, undefined, 'Blue', undefined)
+    vi.advanceTimersByTime(2100)
+    await flushPromises()
+
+    // fileIds muss dem letzten Stand entsprechen
+    expect(batchRateFn).toHaveBeenCalledTimes(1)
+    expect(batchRateFn).toHaveBeenCalledWith(
+      [3],
+      expect.objectContaining({ rating: 3, color: 'Blue' })
+    )
+  })
+
+  it('batch-rate: zwei separate Klicks mit >1s Abstand senden zwei Requests', async () => {
+    const { w, batchRateFn } = factory()
+    await flushPromises()
+
+    await selectImages(w, [1])
+    await triggerBatchRate(w, 3, undefined, undefined)
+    vi.advanceTimersByTime(2100)
+    await flushPromises()
+
+    await triggerBatchRate(w, undefined, 'Red', undefined)
+    vi.advanceTimersByTime(2100)
+    await flushPromises()
+
+    expect(batchRateFn).toHaveBeenCalledTimes(2)
+    expect(batchRateFn).toHaveBeenNthCalledWith(1, [1], expect.objectContaining({ rating: 3 }))
+    expect(batchRateFn).toHaveBeenNthCalledWith(2, [1], expect.objectContaining({ color: 'Red' }))
   })
 
   // ── Optimistisches Update ─────────────────────────────────────────────────
@@ -264,5 +354,41 @@ describe('Gallery – onBatchRate', () => {
     const grid = w.findComponent(GridViewStub)
     const img = grid.props('images').find(i => i.id === 2)
     expect(img.color).toBeNull()
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('Gallery – Export Modal', () => {
+  it('Export-Button ist sichtbar wenn allowExport=true', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    expect(w.find('[title="Bewertungsliste exportieren"]').exists()).toBe(true)
+  })
+
+  it('Export-Button öffnet ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    expect(w.find('.export-modal-stub').exists()).toBe(true)
+  })
+
+  it('ESC schließt ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    expect(w.find('.export-modal-stub').exists()).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await w.vm.$nextTick()
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
+  })
+
+  it('@close-Event schließt ExportModal', async () => {
+    const { w } = factory({ allowExport: true })
+    await flushPromises()
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    await w.findComponent({ name: 'ExportModal' }).vm.$emit('close')
+    expect(w.find('.export-modal-stub').exists()).toBe(false)
   })
 })

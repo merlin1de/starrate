@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Controller;
 
-use OCA\StarRate\Service\ExifService;
 use OCA\StarRate\Service\TagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -45,7 +44,6 @@ class GalleryController extends Controller
         private readonly IRootFolder  $rootFolder,
         private readonly IUserSession $userSession,
         private readonly TagService   $tagService,
-        private readonly ExifService  $exifService,
         private readonly IPreviewManager $previewManager,
         private readonly IURLGenerator   $urlGenerator,
         private readonly LoggerInterface $logger,

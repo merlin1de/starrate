@@ -44,7 +44,7 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
 - Englisch und Deutsch
     ]]></description>
 
-    <version>1.1.0</version>
+    <version>1.2.6</version>
     <licence>agpl</licence>
 
     <author mail="starrate@merlin1.de" homepage="https://github.com/merlin1de/starrate">
@@ -82,6 +82,10 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
             <order>10</order>
         </navigation>
     </navigations>
+
+    <commands>
+        <command>OCA\StarRate\Command\ImportXmpCommand</command>
+    </commands>
 
     <settings>
         <personal-section>OCA\StarRate\Settings\PersonalSection</personal-section>

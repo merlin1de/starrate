@@ -6,7 +6,9 @@ namespace OCA\StarRate\Tests\Unit\Controller;
 
 use OCA\StarRate\Controller\RatingController;
 use OCA\StarRate\Service\ExifService;
+use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
+use OCA\StarRate\Settings\UserSettings;
 use OCP\AppFramework\Http;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -32,6 +34,10 @@ class RatingControllerTest extends TestCase
     private TagService $tagService;
     /** @var ExifService&MockObject */
     private ExifService $exifService;
+    /** @var UserSettings&MockObject */
+    private UserSettings $userSettings;
+    /** @var ShareService&MockObject */
+    private ShareService $shareService;
     /** @var LoggerInterface&MockObject */
     private LoggerInterface $logger;
 
@@ -40,16 +46,24 @@ class RatingControllerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->request     = $this->createMock(IRequest::class);
-        $this->rootFolder  = $this->createMock(IRootFolder::class);
-        $this->userSession = $this->createMock(IUserSession::class);
-        $this->tagService  = $this->createMock(TagService::class);
-        $this->exifService = $this->createMock(ExifService::class);
-        $this->logger      = $this->createMock(LoggerInterface::class);
+        $this->request      = $this->createMock(IRequest::class);
+        $this->rootFolder   = $this->createMock(IRootFolder::class);
+        $this->userSession  = $this->createMock(IUserSession::class);
+        $this->tagService   = $this->createMock(TagService::class);
+        $this->exifService  = $this->createMock(ExifService::class);
+        $this->userSettings = $this->createMock(UserSettings::class);
+        $this->shareService = $this->createMock(ShareService::class);
+        $this->logger       = $this->createMock(LoggerInterface::class);
 
         $user = $this->createMock(IUser::class);
         $user->method('getUID')->willReturn(self::USER_ID);
         $this->userSession->method('getUser')->willReturn($user);
+
+        // Default: write_xmp aktiv, comments_enabled aktiv
+        $this->userSettings->method('getSettings')->willReturn([
+            'write_xmp'        => true,
+            'comments_enabled' => true,
+        ]);
 
         $this->controller = new RatingController(
             'starrate',
@@ -58,6 +72,8 @@ class RatingControllerTest extends TestCase
             $this->userSession,
             $this->tagService,
             $this->exifService,
+            $this->userSettings,
+            $this->shareService,
             $this->logger,
         );
     }
@@ -379,6 +395,126 @@ class RatingControllerTest extends TestCase
         $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
     }
 
+    // ─── Tests: Kommentare (Owner) ──────────────────────────────────────────
+
+    public function testGetCommentReturnsData(): void
+    {
+        $this->shareService->method('getComment')
+            ->with(self::FILE_ID)
+            ->willReturn([
+                'file_id'     => self::FILE_ID,
+                'comment'     => 'Tolles Licht!',
+                'author_type' => 'owner',
+                'author_name' => self::USER_ID,
+                'updated_at'  => 1713000000,
+            ]);
+
+        $response = $this->controller->getComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame('Tolles Licht!', $response->getData()['comment']);
+        $this->assertSame(self::USER_ID, $response->getData()['author_name']);
+        $this->assertSame(1713000000, $response->getData()['updated_at']);
+    }
+
+    public function testGetCommentReturnsNullWhenEmpty(): void
+    {
+        $this->shareService->method('getComment')->willReturn(null);
+
+        $response = $this->controller->getComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertNull($response->getData()['comment']);
+    }
+
+    public function testGetCommentReturns403WhenDisabled(): void
+    {
+        $this->userSettings = $this->createMock(UserSettings::class);
+        $this->userSettings->method('getSettings')->willReturn([
+            'write_xmp'        => true,
+            'comments_enabled' => false,
+        ]);
+
+        $controller = new RatingController(
+            'starrate', $this->request, $this->rootFolder,
+            $this->userSession, $this->tagService, $this->exifService,
+            $this->userSettings, $this->shareService, $this->logger,
+        );
+
+        $response = $controller->getComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+    }
+
+    public function testSaveCommentCallsService(): void
+    {
+        $this->mockJsonBody(['comment' => 'Schönes Bild']);
+        $this->shareService->expects($this->once())
+            ->method('saveComment')
+            ->with(self::FILE_ID, 'Schönes Bild', 'owner', self::USER_ID)
+            ->willReturn([
+                'file_id' => self::FILE_ID, 'comment' => 'Schönes Bild',
+                'author_type' => 'owner', 'author_name' => self::USER_ID, 'updated_at' => time(),
+            ]);
+
+        $response = $this->controller->saveComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame('Schönes Bild', $response->getData()['comment']);
+    }
+
+    public function testSaveCommentReturns422WhenEmpty(): void
+    {
+        $this->mockJsonBody(['comment' => '   ']);
+
+        $response = $this->controller->saveComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+    }
+
+    public function testSaveCommentReturns403WhenDisabled(): void
+    {
+        $this->userSettings = $this->createMock(UserSettings::class);
+        $this->userSettings->method('getSettings')->willReturn([
+            'write_xmp'        => true,
+            'comments_enabled' => false,
+        ]);
+
+        $controller = new RatingController(
+            'starrate', $this->request, $this->rootFolder,
+            $this->userSession, $this->tagService, $this->exifService,
+            $this->userSettings, $this->shareService, $this->logger,
+        );
+
+        $this->mockJsonBody(['comment' => 'Test']);
+        $response = $controller->saveComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+    }
+
+    public function testDeleteCommentCallsService(): void
+    {
+        $this->shareService->expects($this->once())
+            ->method('deleteComment')
+            ->with(self::FILE_ID);
+
+        $response = $this->controller->deleteComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertTrue($response->getData()['ok']);
+    }
+
+    public function testDeleteCommentReturns403WhenDisabled(): void
+    {
+        $this->userSettings = $this->createMock(UserSettings::class);
+        $this->userSettings->method('getSettings')->willReturn([
+            'write_xmp'        => true,
+            'comments_enabled' => false,
+        ]);
+
+        $controller = new RatingController(
+            'starrate', $this->request, $this->rootFolder,
+            $this->userSession, $this->tagService, $this->exifService,
+            $this->userSettings, $this->shareService, $this->logger,
+        );
+
+        $response = $controller->deleteComment(self::FILE_ID);
+        $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+    }
+
     // ─── Tests: Nicht authentifiziert ────────────────────────────────────────
 
     public function testGetReturns401WhenNotAuthenticated(): void
@@ -389,6 +525,7 @@ class RatingControllerTest extends TestCase
         $controller = new RatingController(
             'starrate', $this->request, $this->rootFolder,
             $this->userSession, $this->tagService, $this->exifService,
+            $this->userSettings, $this->shareService,
             $this->createMock(LoggerInterface::class),
         );
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }">
+  <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }" @keydown="onAppKeydown">
 
     <!-- Nav-Zeile: Breadcrumb + Unterordner (auf Mobile eine scrollbare Zeile) -->
     <div class="sr-nav-row">
@@ -12,6 +12,13 @@
         <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" :title="t('starrate', 'Freigabe-Links verwalten')">
           {{ t('starrate', 'Teilen') }}
         </button>
+        <button
+          v-if="!guestMode || allowExport"
+          class="sr-breadcrumb__share"
+          :disabled="filteredImages.length === 0"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="showExportModal = true"
+        >{{ t('starrate', 'Export') }}</button>
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
         <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
         <div class="sr-breadcrumb__mode">
@@ -107,6 +114,9 @@
         :on-refresh-rating="guestMode ? null : refreshImageRating"
         :preview-url-fn="previewUrlFn"
         :enable-pick-ui="settings.enable_pick_ui"
+        :allow-comment="settings.comments_enabled || allowComment"
+        :comment-api="commentApi"
+        :comments-enabled-owner="settings.comments_enabled"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -119,6 +129,8 @@
       :count="selectedIds.size"
       :active-rating="batchActiveRating"
       :active-color="batchActiveColor"
+      :active-pick="batchActivePick"
+      :enable-pick-ui="settings.enable_pick_ui"
       @rate="onBatchRate"
       @clear="gridRef?.clearSelection()"
     />
@@ -136,8 +148,17 @@
     <ShareModal
       v-if="!guestMode && showShareModal"
       :nc-path="currentPath"
+      :comments-globally-enabled="settings.comments_enabled"
       @close="showShareModal = false"
       @created="onShareCreated"
+    />
+
+    <!-- Export List Modal -->
+    <ExportModal
+      v-if="showExportModal"
+      :images="filteredImages"
+      :show-pick-col="settings.enable_pick_ui"
+      @close="showExportModal = false"
     />
 
     <!-- Shortcut-Hilfe-Modal -->
@@ -220,6 +241,7 @@ import SelectionBar from '../components/SelectionBar.vue'
 import LoupeView from '../components/LoupeView.vue'
 import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
+import ExportModal from '../components/ExportModal.vue'
 
 // ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
 
@@ -240,6 +262,12 @@ const props = defineProps({
   previewUrlFn:   { type: Function, default: null },
   /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
   enablePickOverride: { type: [Boolean, null], default: null },
+  /** Gast-Modus: Export List erlaubt (per-Share Einstellung, default: false) */
+  allowExport: { type: Boolean, default: false },
+  /** Gast-Modus: Kommentare erlaubt (per-Share Einstellung, default: false) */
+  allowComment: { type: Boolean, default: false },
+  /** Kommentar-API (Gast) — { save, load, remove } */
+  commentApi: { type: Object, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -260,12 +288,15 @@ const settings = ref({
   show_color_overlay:   true,
   grid_columns:        'auto',
   enable_pick_ui:       false,
+  write_xmp:            true,
+  comments_enabled:     false,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
 const selectedIds       = ref(new Set())
 const batchActiveRating = ref(null)        // zuletzt per Batch gesetztes Rating
 const batchActiveColor  = ref(undefined)   // undefined=nie gesetzt, null=entfernt, String=Farbe
+const batchActivePick   = ref(undefined)   // undefined=nie gesetzt, 'none'=entfernt, 'pick'|'reject'
 const gridRef      = ref(null)
 const shareListRef = ref(null)
 const toasts       = ref([])
@@ -274,6 +305,7 @@ let   toastCounter = 0
 const showShareList  = ref(false)
 const showShareModal = ref(false)
 const showShortcuts  = ref(false)
+const showExportModal = ref(false)
 
 const activeFilter = ref({
   minRating: 0,     // 0 = alle  (>=)
@@ -436,15 +468,17 @@ async function onRate(image, rating, color, pick) {
       await axios.post(url, payload)
     }
 
-    if (payload.rating !== undefined) {
-      const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
-      showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
-    } else if (payload.color !== undefined) {
-      const label = payload.color || '○'
-      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
-    } else if (payload.pick !== undefined) {
-      const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— ' + t('starrate', 'kein Pick')
-      showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+    if (settings.value.write_xmp) {
+      if (payload.rating !== undefined) {
+        const stars = '★'.repeat(payload.rating) + '☆'.repeat(5 - payload.rating)
+        showToast(t('starrate', '{name}: {stars}', { name: image.name, stars }), 'success')
+      } else if (payload.color !== undefined) {
+        const label = payload.color || '○'
+        showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+      } else if (payload.pick !== undefined) {
+        const label = payload.pick === 'pick' ? '✓ Pick' : payload.pick === 'reject' ? '⊘ Reject' : '— ' + t('starrate', 'kein Pick')
+        showToast(t('starrate', '{name}: {label}', { name: image.name, label }), 'success')
+      }
     }
   } catch {
     // Rollback
@@ -455,54 +489,88 @@ async function onRate(image, rating, color, pick) {
 
 // ─── Stapel-Bewertung ─────────────────────────────────────────────────────────
 
-async function onBatchRate(rating, color, pick) {
+// Debounce-State: mehrere schnelle Klicks (Stern + Farbe + Pick) werden zu einem
+// kombinierten API-Request zusammengeführt, um konkurrierende JPEG-Writes zu vermeiden.
+let _batchDebounceTimer = null
+let _pendingBatch = null
+
+function onBatchRate(rating, color, pick) {
   const ids = Array.from(selectedIds.value)
   if (ids.length === 0) return
 
-  const payload = { fileIds: ids }
-  if (rating !== undefined) payload.rating = rating
-  if (color  !== undefined) payload.color  = color
-  if (pick   !== undefined) payload.pick   = pick
-
-  // Bar-Anzeige synchron aktualisieren (auch bei Keyboard-Auslösung)
+  // Optimistischer UI-Update sofort (unabhängig vom Debounce)
   if (rating !== undefined) batchActiveRating.value = rating
   if (color  !== undefined) batchActiveColor.value  = color
+  if (pick   !== undefined) batchActivePick.value   = pick
 
-  // Optimistisch
   ids.forEach(id => {
     const local = allImages.value.find(i => i.id === id)
     if (local) {
-      if (payload.rating !== undefined) local.rating = payload.rating
-      if (payload.color  !== undefined) local.color  = payload.color
-      if (payload.pick   !== undefined) local.pick   = payload.pick
+      if (rating !== undefined) local.rating = rating
+      if (color  !== undefined) local.color  = color
+      if (pick   !== undefined) local.pick   = pick
     }
   })
+
+  // Payload akkumulieren — mehrere Klicks innerhalb des Debounce-Fensters
+  // werden zu einem einzigen Request zusammengeführt.
+  // fileIds wird bei jedem Klick aktualisiert, damit eine geänderte Auswahl
+  // immer den letzten Stand widerspiegelt.
+  const isFirst = !_pendingBatch
+  if (!_pendingBatch) _pendingBatch = {}
+  _pendingBatch.fileIds = ids
+  if (rating !== undefined) _pendingBatch.rating = rating
+  if (color  !== undefined) _pendingBatch.color  = color
+  if (pick   !== undefined) _pendingBatch.pick   = pick
+
+  // Sofort-Feedback nur wenn XMP-Writes aktiv — dann dauert der Batch spürbar länger
+  if (isFirst && ids.length > 10 && settings.value.write_xmp) {
+    showToast(n('starrate', '%n Bild wird bewertet…\nBitte warten', '%n Bilder werden bewertet…\nBitte warten', ids.length), 'info')
+  }
+
+  clearTimeout(_batchDebounceTimer)
+  _batchDebounceTimer = setTimeout(() => _sendBatch(), 2000)
+}
+
+async function _sendBatch() {
+  const payload = _pendingBatch
+  _pendingBatch = null
+
+  if (!payload) return
 
   // Grid-Focus zurückgeben (SelectionBar-Klick nimmt Focus vom Grid weg)
   await nextTick()
   gridRef.value?.$el?.focus?.()
 
+  const bildText = n('starrate', '%n Bild', '%n Bilder', payload.fileIds.length)
+  const stars = payload.rating !== undefined
+    ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
+    : ''
+
   try {
     if (props.batchRateFn) {
       const { fileIds: _, ...ratingData } = payload
-      await props.batchRateFn(ids, ratingData)
+      await props.batchRateFn(payload.fileIds, ratingData)
     } else {
       const url = generateUrl('/apps/starrate/api/rating/batch')
       const { data } = await axios.post(url, payload)
+
       if (data.errors > 0) {
         showToast(n('starrate', '%n Fehler', '%n Fehler', data.errors), 'error')
       }
+      if (data.xmpSkipped > 0) {
+        const xmpLine = t('starrate', 'XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen',
+                          { written: data.xmpWritten, skipped: data.xmpSkipped })
+        showToast(xmpLine, 'warning', 7000)
+      }
     }
 
-    const bildText = n('starrate', '%n Bild', '%n Bilder', ids.length)
-    const stars = payload.rating !== undefined
-      ? ' — ' + '★'.repeat(payload.rating) + (payload.rating < 5 ? '☆'.repeat(5 - payload.rating) : '')
-      : ''
-    showToast(`${bildText} bewertet${stars}`, 'success')
+    showToast(`${bildText} ${t('starrate', 'bewertet')}${stars}`, 'success')
   } catch {
     // Rollback: lokalen State wiederherstellen und Bar-Anzeige zurücksetzen
     batchActiveRating.value = null
     batchActiveColor.value  = undefined
+    batchActivePick.value   = undefined
     await loadImages()
     showToast(t('starrate', 'Stapel-Bewertung fehlgeschlagen'), 'error')
   }
@@ -575,17 +643,18 @@ function onSelectionChange(ids) {
   if (ids.size === 0) {
     batchActiveRating.value = null
     batchActiveColor.value  = undefined
+    batchActivePick.value   = undefined
   }
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', duration = 3000) {
   const id = ++toastCounter
   toasts.value.push({ id, message, type })
   setTimeout(() => {
     toasts.value = toasts.value.filter(t => t.id !== id)
-  }, 3000)
+  }, duration)
 }
 
 // ─── Share ────────────────────────────────────────────────────────────────────
@@ -596,13 +665,25 @@ function onShareCreated() {
   shareListRef.value?.loadShares()
 }
 
+// Escape auf App-Root-Ebene: stoppt NC's ESC-Handler bevor das Event bubbled.
+// Nur aktiv wenn ein Modal offen ist — sonst NC Folder-Navigation normal lassen.
+function onAppKeydown(e) {
+  if (e.key !== 'Escape') return
+  const modalOpen = showExportModal.value || showShareModal.value
+    || showShareList.value || showShortcuts.value
+  if (!modalOpen) return
+  e.stopPropagation()
+  e.preventDefault()
+}
+
 // Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  if (showShareModal.value)       { showShareModal.value = false; return }
-  if (showShareList.value)        { showShareList.value  = false; return }
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
+  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
   if (showShortcuts.value)        { showShortcuts.value  = false; return }
-  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection() }
+  if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
 
 async function loadSettings() {
@@ -743,13 +824,14 @@ watch(() => route.query, q => {
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
+  white-space: pre-line;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   pointer-events: auto;
 }
 
 .sr-toast--success { background: #2a4a2a; color: #7ecf7e; border: 1px solid #3a6a3a; }
 .sr-toast--error   { background: #4a1a1a; color: #e94560; border: 1px solid #6a2a2a; }
+.sr-toast--warning { background: #4a2e0a; color: #f0a030; border: 1px solid #6a4a1a; }
 .sr-toast--info    { background: #1a2a4a; color: #7eaecf; border: 1px solid #2a3a6a; }
 
 .toast-enter-active,
@@ -824,6 +906,12 @@ watch(() => route.query, q => {
 .sr-breadcrumb__share:hover {
   color: #d4d4d8;
   border-color: #7a3050;
+}
+.sr-breadcrumb__share:focus,
+.sr-breadcrumb__share:focus-visible {
+  color: #a1a1aa;
+  outline: none;
+  box-shadow: none;
 }
 
 .sr-breadcrumb__guest-label {
@@ -1053,5 +1141,14 @@ watch(() => route.query, q => {
   }
   .sr-breadcrumb__version { display: none; }
   .sr-breadcrumb__mode    { display: none; }
+
+  /* Pfad-Segmente dürfen schrumpfen und bei Platzmangel abschneiden,
+     damit Teilen/Export immer vollständig sichtbar bleiben */
+  .sr-breadcrumb__seg {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>

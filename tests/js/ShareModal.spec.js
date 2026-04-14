@@ -62,13 +62,13 @@ describe('ShareModal', () => {
 
   it('zeigt Pick-Checkbox bei permissions=rate', () => {
     const w = factory()
-    expect(w.find('.sr-share-modal__checkbox').exists()).toBe(true)
+    expect(w.find('[data-testid="allow-pick"]').exists()).toBe(true)
   })
 
   it('versteckt Pick-Checkbox bei permissions=view', async () => {
     const w = factory()
     await w.findAll('.sr-share-modal__toggle')[0].trigger('click') // view
-    expect(w.find('.sr-share-modal__checkbox').exists()).toBe(false)
+    expect(w.find('[data-testid="allow-pick"]').exists()).toBe(false)
   })
 
   // ── Passwort ──────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ describe('ShareModal', () => {
     const w = factory({ ncPath: '/Bilder' })
 
     await w.find('.sr-share-modal__input[type="text"]').setValue('Anna')
-    await w.find('.sr-share-modal__checkbox').setValue(true) // allowPick
+    await w.find('[data-testid="allow-pick"]').setValue(true) // allowPick
     await w.find('.sr-share-modal__select').setValue(3) // minRating
     await w.find('.sr-share-modal__input--pw').setValue('geheim')
     await w.find('input[type="date"]').setValue('2026-12-31')
@@ -185,7 +185,7 @@ describe('ShareModal', () => {
     const w = factory()
 
     // Erst rate + allowPick, dann zu view wechseln
-    await w.find('.sr-share-modal__checkbox').setValue(true)
+    await w.find('[data-testid="allow-pick"]').setValue(true)
     await w.findAll('.sr-share-modal__toggle')[0].trigger('click') // view
     await w.find('.sr-share-modal__form').trigger('submit')
     await flushPromises()

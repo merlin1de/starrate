@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace OCA\StarRate\Controller;
 
 use OCA\StarRate\Service\ExifService;
+use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
+use OCA\StarRate\Settings\UserSettings;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,6 +29,8 @@ class RatingController extends Controller
         private readonly IUserSession $userSession,
         private readonly TagService   $tagService,
         private readonly ExifService  $exifService,
+        private readonly UserSettings $userSettings,
+        private readonly ShareService $shareService,
         private readonly LoggerInterface $logger,
     ) {
         parent::__construct($appName, $request);
@@ -108,18 +112,18 @@ class RatingController extends Controller
             // 1. NC-Tags setzen
             $this->tagService->setMetadata($fileIdStr, $data);
 
-            // 2. JPEG-XMP schreiben (nur wenn JPEG) — non-fatal: Tags sind die primäre Quelle
+            // 2. JPEG-XMP schreiben — nur wenn JPEG und in den Einstellungen aktiviert
             $mime = $file->getMimeType();
-            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
+                && $this->userSettings->getSettings($userId)['write_xmp']) {
                 try {
                     $this->exifService->writeMetadata(
                         $file,
-                        isset($data['rating']) ? $data['rating'] : null,
+                        $data['rating'] ?? null,
                         array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
                     );
                 } catch (\Exception $e) {
-                    // XMP write failed (e.g. concurrent write / file lock) — tags already set, not fatal
-                    $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                    $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
                 }
             }
 
@@ -182,9 +186,12 @@ class RatingController extends Controller
             $data['pick'] = $body['pick'];
         }
 
-        $updated = 0;
-        $errCount = 0;
-        $details = [];
+        $updated    = 0;
+        $errCount   = 0;
+        $xmpWritten = 0;
+        $xmpSkipped = 0;
+        $details    = [];
+        $writeXmp   = $this->userSettings->getSettings($userId)['write_xmp'];
 
         foreach ($body['fileIds'] as $rawId) {
             $fileId = (int) $rawId;
@@ -200,17 +207,19 @@ class RatingController extends Controller
                 // NC-Tags
                 $this->tagService->setMetadata((string) $fileId, $data);
 
-                // JPEG-XMP — non-fatal
+                // JPEG-XMP — non-fatal, nur wenn in den Einstellungen aktiviert
                 $mime = $file->getMimeType();
-                if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+                if (in_array($mime, ['image/jpeg', 'image/jpg'], true) && $writeXmp) {
                     try {
                         $this->exifService->writeMetadata(
                             $file,
-                            isset($data['rating']) ? $data['rating'] : null,
+                            $data['rating'] ?? null,
                             array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
                         );
+                        $xmpWritten++;
                     } catch (\Exception $e) {
-                        $this->logger->warning("StarRate: XMP write skipped for {$fileId} (concurrent write?): " . $e->getMessage());
+                        $xmpSkipped++;
+                        $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
                     }
                 }
 
@@ -225,9 +234,11 @@ class RatingController extends Controller
         }
 
         return new DataResponse([
-            'updated' => $updated,
-            'errors'  => $errCount,
-            'details' => $details,
+            'updated'     => $updated,
+            'errors'      => $errCount,
+            'xmpWritten'  => $xmpWritten,
+            'xmpSkipped'  => $xmpSkipped,
+            'details'     => $details,
         ], Http::STATUS_OK);
     }
 
@@ -252,7 +263,8 @@ class RatingController extends Controller
             $this->tagService->clearAll((string) $fileId);
 
             $mime = $file->getMimeType();
-            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
+                && $this->userSettings->getSettings($userId)['write_xmp']) {
                 $this->exifService->writeMetadata($file, 0, '');
             }
 
@@ -261,6 +273,65 @@ class RatingController extends Controller
             $this->logger->error("StarRate RatingController::delete – {$e->getMessage()}");
             return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // ─── Kommentare (Owner) ───────────────────────────────────────────────────
+
+    #[NoAdminRequired]
+    public function getComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $comment = $this->shareService->getComment($fileId);
+        if ($comment === null) {
+            return new DataResponse(['comment' => null]);
+        }
+        return new DataResponse($comment);
+    }
+
+    #[NoAdminRequired]
+    public function saveComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $body = $this->getJsonBody();
+        $text = trim($body['comment'] ?? '');
+        if ($text === '') {
+            return new DataResponse(['error' => 'Comment is empty'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        $result = $this->shareService->saveComment($fileId, $text, 'owner', $userId);
+        return new DataResponse($result);
+    }
+
+    #[NoAdminRequired]
+    public function deleteComment(int $fileId): DataResponse
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $settings = $this->userSettings->getSettings($userId);
+        if (!$settings['comments_enabled']) {
+            return new DataResponse(['error' => 'Comments disabled'], Http::STATUS_FORBIDDEN);
+        }
+
+        $this->shareService->deleteComment($fileId);
+        return new DataResponse(['ok' => true]);
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────

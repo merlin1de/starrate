@@ -99,6 +99,19 @@
           <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
           <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
         </div>
+        <button
+          v-if="allowComment || commentsEnabledOwner"
+          class="sr-loupe__comment-btn"
+          :class="{ 'sr-loupe__comment-btn--active': hasComment }"
+          type="button"
+          :title="t('starrate', 'Kommentar')"
+          @click="openCommentSheet"
+        >
+          <svg class="sr-loupe__comment-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="sr-loupe__comment-label">{{ t('starrate', 'Kommentar') }}</span>
+        </button>
         <div class="sr-loupe__footer-center">
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
@@ -134,6 +147,73 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Kommentar Bottom Sheet (immer im DOM, CSS-only Transition) -->
+    <div
+      class="sr-loupe__comment-sheet-overlay"
+      :class="{ 'sr-loupe__comment-sheet-overlay--open': commentSheetOpen }"
+      @click.self="closeCommentSheet"
+    >
+      <div class="sr-loupe__comment-sheet">
+        <div class="sr-loupe__comment-sheet-header">
+          <span class="sr-loupe__comment-meta">
+            <template v-if="commentAuthor && commentDate">
+              {{ commentAuthor }} · {{ formatCommentDate(commentDate) }}
+            </template>
+            <template v-else>
+              {{ t('starrate', 'Neuer Kommentar') }}
+            </template>
+          </span>
+          <button class="sr-loupe__comment-close" type="button" @click="closeCommentSheet">✕</button>
+        </div>
+
+        <!-- View-Modus -->
+        <div v-if="commentSheetState === 'view'" class="sr-loupe__comment-body">
+          <p class="sr-loupe__comment-text">{{ commentText }}</p>
+          <div class="sr-loupe__comment-actions">
+            <button class="sr-loupe__comment-action" type="button" @click="commentSheetState = 'edit'; commentDraft = commentText">
+              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="sr-loupe__comment-action sr-loupe__comment-action--delete" type="button" @click="commentSheetState = 'confirm-delete'">
+              <svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Löschen-Bestätigung -->
+        <div v-else-if="commentSheetState === 'confirm-delete'" class="sr-loupe__comment-body">
+          <p class="sr-loupe__comment-text">{{ commentText }}</p>
+          <div class="sr-loupe__comment-actions sr-loupe__comment-actions--confirm">
+            <button class="sr-loupe__comment-btn-cancel" type="button" @click="commentSheetState = 'view'">
+              {{ t('starrate', 'Abbrechen') }}
+            </button>
+            <button class="sr-loupe__comment-btn-save sr-loupe__comment-btn-save--danger" type="button"
+                    :disabled="commentSaving" @click="confirmDeleteComment">
+              {{ t('starrate', 'Ja, löschen') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Neu / Edit-Modus -->
+        <div v-else class="sr-loupe__comment-body">
+          <textarea
+            v-model="commentDraft"
+            class="sr-loupe__comment-textarea"
+            :placeholder="t('starrate', 'Kommentar hinzufügen...')"
+            rows="3"
+            maxlength="2000"
+          />
+          <div class="sr-loupe__comment-actions sr-loupe__comment-actions--edit">
+            <span v-if="commentStatus === 'ok'" class="sr-loupe__comment-status sr-loupe__comment-status--ok">✓</span>
+            <span v-if="commentStatus === 'error'" class="sr-loupe__comment-status sr-loupe__comment-status--error">✗</span>
+            <button class="sr-loupe__comment-btn-save" type="button"
+                    :disabled="commentSaving || !commentDraft.trim()" @click="saveComment">
+              {{ t('starrate', 'Speichern') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -141,6 +221,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import axios from '@nextcloud/axios'
 import RatingStars from './RatingStars.vue'
 import ColorLabel from './ColorLabel.vue'
 
@@ -162,6 +243,20 @@ const props = defineProps({
     default: null,
   },
   enablePickUi: {
+    type: Boolean,
+    default: false,
+  },
+  allowComment: {
+    type: Boolean,
+    default: false,
+  },
+  /** Gast-Kommentar-API { save, load, remove } — null = Owner-API */
+  commentApi: {
+    type: Object,
+    default: null,
+  },
+  /** Owner-Modus: Kommentare global aktiviert */
+  commentsEnabledOwner: {
     type: Boolean,
     default: false,
   },
@@ -250,12 +345,18 @@ function navigate(delta) {
   preloadAdjacent(newIdx)
 }
 
+const preloadedUrls = new Set()
+
 function preloadAdjacent(idx) {
   [-1, 1].forEach(d => {
     const img = props.images[idx + d]
     if (img) {
       const url = generateUrl(`/apps/starrate/api/preview/${img.id}?width=1920&height=1200`)
-      new Image().src = url
+      if (!preloadedUrls.has(url)) {
+        const preImg = new Image()
+        preImg.onload = /* c8 ignore next */ () => preloadedUrls.add(url)
+        preImg.src = url
+      }
     }
   })
 }
@@ -441,6 +542,14 @@ function getPinchDist(ts) {
 // ─── Tastatur ────────────────────────────────────────────────────────────────
 
 function onKeydown(e) {
+  // ESC schließt das Kommentar-Sheet zuerst
+  if (e.key === 'Escape' && commentSheetOpen.value) {
+    e.stopPropagation()
+    e.preventDefault()
+    closeCommentSheet()
+    return
+  }
+
   // Eingabefelder in Ruhe lassen
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -567,11 +676,153 @@ function onImgError() {
 
 watch(previewUrl, (url) => {
   actualSrc.value      = url
-  loadingPreview.value = true
+  loadingPreview.value = !preloadedUrls.has(url)
   previewError.value   = false
   previewRetries       = 0
   clearTimeout(previewRetryTimer)
 }, { immediate: true })
+
+// ─── Kommentar-Sheet ──────────────────────────────────────────────────────────
+// States: 'closed' | 'new' | 'view' | 'edit' | 'confirm-delete'
+
+const commentSheetState = ref('closed')
+const commentText       = ref('')
+const commentDraft      = ref('')
+const commentAuthor     = ref('')
+const commentDate       = ref(0)
+const commentSaving     = ref(false)
+const commentStatus     = ref('')   // '' | 'ok' | 'error'
+const commentLoaded     = ref(false)
+let   commentStatusTimer   = null
+let   _commentLoadPromise  = null   // Promise-Lock gegen parallele Loads
+
+const hasComment = computed(() => commentText.value !== '')
+const commentSheetOpen = computed(() => commentSheetState.value !== 'closed')
+
+function formatCommentDate(ts) {
+  if (!ts) return ''
+  const d = new Date(ts * 1000)
+  return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+}
+
+function loadComment(fileId) {
+  if (!fileId) return Promise.resolve()
+  if (commentLoaded.value) return Promise.resolve()
+  // Schon am Laden? Bestehenden Promise zurückgeben statt zweiten Request zu starten
+  if (_commentLoadPromise) return _commentLoadPromise
+
+  _commentLoadPromise = (async () => {
+    commentText.value   = ''
+    commentAuthor.value = ''
+    commentDate.value   = 0
+    try {
+      let result = null
+      if (props.commentApi) {
+        result = await props.commentApi.load(fileId)
+      } else if (props.commentsEnabledOwner) {
+        const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
+        const { data } = await axios.get(url)
+        result = data ?? null
+      }
+      if (result && typeof result === 'object') {
+        commentText.value   = result.comment    ?? ''
+        commentAuthor.value = result.author_name ?? ''
+        commentDate.value   = result.updated_at  ?? 0
+      } else if (typeof result === 'string') {
+        commentText.value = result
+      }
+    } catch { /* ignore */ } finally {
+      commentLoaded.value  = true
+      _commentLoadPromise  = null
+    }
+  })()
+
+  return _commentLoadPromise
+}
+
+async function openCommentSheet() {
+  commentStatus.value = ''
+  // Sicherstellen dass Kommentar geladen ist (kein Doppel-Request dank commentLoaded-Flag)
+  if (!commentLoaded.value) {
+    await loadComment(currentImage.value?.id)
+  }
+  if (hasComment.value) {
+    commentSheetState.value = 'view'
+    commentDraft.value      = commentText.value
+  } else {
+    commentSheetState.value = 'new'
+    commentDraft.value      = ''
+    // Focus erst nach CSS-Transition (200ms) um Reflow-Jitter zu vermeiden
+    setTimeout(() => document.querySelector('.sr-loupe__comment-textarea')?.focus(), 250)
+  }
+}
+
+function closeCommentSheet() {
+  commentSheetState.value = 'closed'
+  commentStatus.value     = ''
+}
+
+async function saveComment() {
+  const fileId = currentImage.value?.id
+  if (!fileId || !commentDraft.value.trim()) return
+  commentSaving.value = true
+  commentStatus.value = ''
+  try {
+    if (props.commentApi) {
+      const result = await props.commentApi.save(fileId, commentDraft.value.trim())
+      commentText.value   = result.comment      ?? commentDraft.value.trim()
+      commentAuthor.value = result.author_name  ?? ''
+      commentDate.value   = result.updated_at   ?? Math.floor(Date.now() / 1000)
+    } else {
+      const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
+      const { data } = await axios.post(url, { comment: commentDraft.value.trim() })
+      commentText.value   = data.comment     ?? commentDraft.value.trim()
+      commentAuthor.value = data.author_name ?? ''
+      commentDate.value   = data.updated_at  ?? Math.floor(Date.now() / 1000)
+    }
+    commentSheetState.value = 'view'
+    commentStatus.value     = 'ok'
+    clearTimeout(commentStatusTimer)
+    commentStatusTimer = setTimeout(() => { commentStatus.value = '' }, 2500)
+  } catch {
+    commentStatus.value = 'error'
+  } finally {
+    commentSaving.value = false
+  }
+}
+
+async function confirmDeleteComment() {
+  const fileId = currentImage.value?.id
+  if (!fileId) return
+  commentSaving.value = true
+  try {
+    if (props.commentApi) {
+      await props.commentApi.remove(fileId)
+    } else {
+      const url = generateUrl(`/apps/starrate/api/rating/${fileId}/comment`)
+      await axios.delete(url)
+    }
+    commentText.value       = ''
+    commentAuthor.value     = ''
+    commentDate.value       = 0
+    commentSheetState.value = 'closed'
+  } catch {
+    commentStatus.value = 'error'
+    commentSheetState.value = 'view'
+  } finally {
+    commentSaving.value = false
+  }
+}
+
+// Kommentar laden wenn Bild wechselt (kein immediate — verhindert Jiggling beim Mount)
+watch(currentImage, (img) => {
+  if (props.allowComment || props.commentsEnabledOwner) {
+    closeCommentSheet()
+    commentLoaded.value  = false
+    _commentLoadPromise  = null
+    loadComment(img?.id)
+  }
+})
 
 // ─── Mount / Unmount ──────────────────────────────────────────────────────────
 
@@ -579,12 +830,17 @@ onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   preloadAdjacent(currentIndex.value)
   resetControlsTimer()
+  // Kommentar für das erste Bild laden (ohne Watch-immediate um Jiggling zu vermeiden)
+  if (props.allowComment || props.commentsEnabledOwner) {
+    loadComment(currentImage.value?.id)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   clearTimeout(hideControlsTimer)
   clearTimeout(previewRetryTimer)
+  clearTimeout(commentStatusTimer)
 })
 
 watch(() => props.initialIndex, idx => {
@@ -815,8 +1071,9 @@ watch(() => props.initialIndex, idx => {
 .sr-loupe__footer-center {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  flex-shrink: 0;
+  flex: 1;
 }
 
 .sr-loupe__footer-right {
@@ -906,6 +1163,31 @@ watch(() => props.initialIndex, idx => {
   }
 }
 
+/* ── Kommentar-Button ──────────────────────────────────────────────────────── */
+
+.sr-loupe__comment-btn {
+  background: none;
+  border: none;
+  color: #52525b;
+  cursor: pointer;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.sr-loupe__comment-icon { width: 16px; height: 16px; }
+.sr-loupe__comment-label {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.sr-loupe__comment-btn--active { color: #e94560; }
+.sr-loupe__comment-btn:hover   { color: #d4d4d8; }
+
 /* ── Mobile: zweizeiliger Footer + Android-Navigationsleiste ─────────────── */
 @media (pointer: coarse) {
   .sr-loupe__footer {
@@ -914,15 +1196,165 @@ watch(() => props.initialIndex, idx => {
     justify-content: center;
     gap: 6px 12px;
   }
-  /* Steuerelemente (Zeile 1) */
-  .sr-loupe__footer-center { order: 1; }
+  /* Zeile 1: Steuerelemente */
+  .sr-loupe__footer-center { order: 1; flex: 0 0 auto; justify-content: center; }
   .sr-loupe__footer-right  { order: 1; }
-  /* Index + Dateiname (Zeile 2, volle Breite, zentriert) */
+  /* Zeilenumbruch zwischen Zeile 1 und 2 */
+  .sr-loupe__footer::after {
+    content: '';
+    order: 1;
+    flex-basis: 100%;
+    height: 0;
+  }
+  /* Zeile 2: Dateiname + Kommentar-Button, zentriert */
   .sr-loupe__footer-left {
     order: 2;
-    flex: 0 0 100%;
+    flex: 0 1 auto;
     align-items: center;
-    min-width: 0;
+    text-align: center;
+  }
+  .sr-loupe__comment-btn {
+    order: 2;
+    align-self: center;
+    padding: 8px 16px;
+    margin: 0 0 0 14px;
+  }
+  .sr-loupe__comment-icon { width: 26px; height: 26px; }
+  .sr-loupe__comment-label { display: none; }
+}
+
+/* ── Kommentar Bottom Sheet ────────────────────────────────────────────────── */
+
+.sr-loupe__comment-sheet-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+.sr-loupe__comment-sheet-overlay--open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sr-loupe__comment-sheet {
+  background: #1a1a2e;
+  border-top: 1px solid #2a2a4a;
+  padding: 6px 16px 10px;
+  max-height: 60%;
+  overflow-y: auto;
+}
+@media (pointer: coarse) {
+  .sr-loupe__comment-sheet {
+    /* Platz für Android-Navigationsleiste (~56px) */
+    padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
   }
 }
+
+.sr-loupe__comment-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+.sr-loupe__comment-meta {
+  font-size: 11px;
+  color: #71717a;
+}
+.sr-loupe__comment-close {
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.sr-loupe__comment-close:hover { color: #d4d4d8; }
+
+.sr-loupe__comment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* min-height verhindert Höhen-Sprung beim State-Wechsel new/edit → view */
+  min-height: 80px;
+}
+
+.sr-loupe__comment-text {
+  color: #d4d4d8;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.sr-loupe__comment-textarea {
+  width: 100%;
+  background: #0f0f1a;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #d4d4d8;
+  font-size: 13px;
+  padding: 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.sr-loupe__comment-textarea:focus { outline: none; border-color: #7a3050; }
+
+.sr-loupe__comment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sr-loupe__comment-actions--confirm { justify-content: flex-end; }
+.sr-loupe__comment-actions--edit    { justify-content: flex-end; }
+
+.sr-loupe__comment-action {
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.sr-loupe__comment-action:hover         { color: #d4d4d8; }
+.sr-loupe__comment-action--delete:hover { color: #e94560; }
+
+.sr-loupe__comment-btn-save {
+  background: #7a3050;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+.sr-loupe__comment-btn-save:hover    { background: #9a3060; }
+.sr-loupe__comment-btn-save:disabled { opacity: 0.5; cursor: default; }
+.sr-loupe__comment-btn-save--danger  { background: #7f1d1d; }
+.sr-loupe__comment-btn-save--danger:hover { background: #991b1b; }
+
+.sr-loupe__comment-btn-cancel {
+  background: none;
+  border: 1px solid #3f3f5a;
+  border-radius: 4px;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+.sr-loupe__comment-btn-cancel:hover { color: #d4d4d8; border-color: #5a5a8a; }
+
+.sr-loupe__comment-status { font-size: 13px; }
+.sr-loupe__comment-status--ok    { color: #7ecf7e; }
+.sr-loupe__comment-status--error { color: #e94560; }
+
 </style>
