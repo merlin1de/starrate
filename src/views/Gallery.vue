@@ -680,7 +680,7 @@ function onAppKeydown(e) {
 // .sr-app greift dort nicht, deshalb reicht nur onAppKeydown nicht aus.
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  const stop = () => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation() }
+  const stop = () => { e.preventDefault(); e.stopPropagation() }
   if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
   if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
   if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
