@@ -272,7 +272,7 @@ function togglePickFilter(pick) {
 }
 
 function resetFilters() {
-  selectedOp.value = '='
+  selectedOp.value = '≥'
   updateFilter({
     minRating:   0,
     exactRating: null,

@@ -10,6 +10,7 @@ use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
+use OCP\IDBConnection;
 use OCP\IPreview as IPreviewManager;
 use OCP\Security\ISecureRandom;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -26,6 +27,8 @@ class ShareServiceTest extends TestCase
     private ISecureRandom $secureRandom;
     /** @var IRootFolder&MockObject */
     private IRootFolder $rootFolder;
+    /** @var IDBConnection&MockObject */
+    private IDBConnection $db;
 
     private const OWNER_ID     = 'photographer1';
     private const SAMPLE_TOKEN = 'AbCdEfGh12345678AbCdEfGh';
@@ -35,6 +38,7 @@ class ShareServiceTest extends TestCase
         $this->config       = $this->createMock(IConfig::class);
         $this->rootFolder   = $this->createMock(IRootFolder::class);
         $this->secureRandom = $this->createMock(ISecureRandom::class);
+        $this->db           = $this->createMock(IDBConnection::class);
 
         // Default: getUserFolder returns a Folder that finds nothing
         $emptyFolder = $this->createMock(Folder::class);
@@ -48,6 +52,7 @@ class ShareServiceTest extends TestCase
             $this->secureRandom,
             $this->createMock(TagService::class),
             $this->createMock(LoggerInterface::class),
+            $this->db,
         );
     }
 
@@ -333,6 +338,167 @@ class ShareServiceTest extends TestCase
     {
         // getGuestLog requires getShare() which uses \OC::$server DB — skip
         $this->markTestSkipped('getGuestLog() calls getShare() which requires \OC::$server — integration test only.');
+    }
+
+    // ─── Tests: getSharesByOwner ──────────────────────────────────────────────
+
+    // ─── Tests: Kommentare ──────────────────────────────────────────────────
+
+    public function testSaveCommentInsertsNew(): void
+    {
+        // Mock: UPDATE betrifft 0 Zeilen → INSERT
+        $qbUpdate = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qbUpdate->method('update')->willReturnSelf();
+        $qbUpdate->method('set')->willReturnSelf();
+        $qbUpdate->method('where')->willReturnSelf();
+        $qbUpdate->method('createNamedParameter')->willReturnSelf();
+        $qbUpdate->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+        $qbUpdate->method('executeStatement')->willReturn(0);
+
+        $qbInsert = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qbInsert->method('insert')->willReturnSelf();
+        $qbInsert->method('values')->willReturnSelf();
+        $qbInsert->method('createNamedParameter')->willReturnSelf();
+        $qbInsert->method('executeStatement')->willReturn(1);
+
+        $this->db->expects($this->exactly(2))
+            ->method('getQueryBuilder')
+            ->willReturnOnConsecutiveCalls($qbUpdate, $qbInsert);
+
+        $result = $this->service->saveComment(42, 'Tolles Bild!', 'owner', 'photographer1');
+
+        $this->assertSame(42, $result['file_id']);
+        $this->assertSame('Tolles Bild!', $result['comment']);
+        $this->assertSame('owner', $result['author_type']);
+        $this->assertSame('photographer1', $result['author_name']);
+        $this->assertGreaterThan(0, $result['updated_at']);
+    }
+
+    public function testSaveCommentUpdatesExisting(): void
+    {
+        // Mock: UPDATE betrifft 1 Zeile → kein INSERT
+        $qbUpdate = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qbUpdate->method('update')->willReturnSelf();
+        $qbUpdate->method('set')->willReturnSelf();
+        $qbUpdate->method('where')->willReturnSelf();
+        $qbUpdate->method('createNamedParameter')->willReturnSelf();
+        $qbUpdate->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+        $qbUpdate->method('executeStatement')->willReturn(1);
+
+        $this->db->expects($this->once())
+            ->method('getQueryBuilder')
+            ->willReturn($qbUpdate);
+
+        $result = $this->service->saveComment(42, 'Update!', 'guest', 'Anna');
+
+        $this->assertSame('Update!', $result['comment']);
+        $this->assertSame('guest', $result['author_type']);
+        $this->assertSame('Anna', $result['author_name']);
+    }
+
+    public function testSaveCommentTruncatesTo2000Chars(): void
+    {
+        $qbUpdate = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qbUpdate->method('update')->willReturnSelf();
+        $qbUpdate->method('set')->willReturnSelf();
+        $qbUpdate->method('where')->willReturnSelf();
+        $qbUpdate->method('createNamedParameter')->willReturnSelf();
+        $qbUpdate->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+        $qbUpdate->method('executeStatement')->willReturn(1);
+
+        $this->db->method('getQueryBuilder')->willReturn($qbUpdate);
+
+        $longText = str_repeat('x', 3000);
+        $result = $this->service->saveComment(42, $longText, 'owner', 'user1');
+
+        $this->assertSame(2000, mb_strlen($result['comment']));
+    }
+
+    public function testGetCommentReturnsNullWhenNotFound(): void
+    {
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturnSelf();
+        $qb->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+
+        $queryResult = $this->createMock(\OCP\DB\IResult::class);
+        $queryResult->method('fetch')->willReturn(false);
+        $qb->method('executeQuery')->willReturn($queryResult);
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
+
+        $this->assertNull($this->service->getComment(999));
+    }
+
+    public function testGetCommentReturnsData(): void
+    {
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturnSelf();
+        $qb->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+
+        $queryResult = $this->createMock(\OCP\DB\IResult::class);
+        $queryResult->method('fetch')->willReturn([
+            'file_id'     => '42',
+            'comment'     => 'Super Foto',
+            'author_type' => 'guest',
+            'author_name' => 'Anna',
+            'updated_at'  => '1713000000',
+        ]);
+        $qb->method('executeQuery')->willReturn($queryResult);
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
+
+        $result = $this->service->getComment(42);
+        $this->assertSame(42, $result['file_id']);
+        $this->assertSame('Super Foto', $result['comment']);
+        $this->assertSame('guest', $result['author_type']);
+        $this->assertSame('Anna', $result['author_name']);
+        $this->assertSame(1713000000, $result['updated_at']);
+    }
+
+    public function testDeleteCommentExecutesDelete(): void
+    {
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('delete')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturnSelf();
+        $qb->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+        $qb->expects($this->once())->method('executeStatement');
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
+
+        $this->service->deleteComment(42);
+    }
+
+    // ─── Tests: Guest-Log-Trimming ────────────────────────────────────────────
+
+    public function testGuestLogTrimmedTo500Entries(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        // Bestehendes Log mit 500 Einträgen (genau am Limit)
+        $existingLog = [];
+        for ($i = 0; $i < 500; $i++) {
+            $existingLog[] = ['file_id' => $i, 'rating' => 1, 'color' => null, 'pick' => null, 'guest_name' => 'Bot', 'timestamp' => $i + 1];
+        }
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn(json_encode($existingLog));
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        // Eintrag 501 → muss getrimmt werden (500 + 1 > 500)
+        $this->service->saveGuestRating($share, 501, 3, null, null, 'Bob');
+        $this->assertCount(500, $saved);
+        // Ältester Eintrag (file_id=0) sollte raus sein
+        $this->assertNotSame(0, $saved[0]['file_id']);
+        // Neuster Eintrag ist der gerade gespeicherte
+        $this->assertSame(501, $saved[499]['file_id']);
     }
 
     // ─── Tests: getSharesByOwner ──────────────────────────────────────────────
