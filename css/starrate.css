@@ -56,6 +56,43 @@
   overflow: hidden;
 }
 
+/* ── Kritische Layout-Regeln (FOUC-Schutz) ────────────────────────────────── */
+/* Diese Regeln liegen sonst in den async geladenen Gallery/FilterBar-Chunks.
+   Ohne sie kollabieren Nav-Row + FilterBar beim ersten Loupe-Einstieg auf 0px,
+   und der Loupe-Stage nimmt den gesamten Bildschirm ein („Vollbild-Flash").   */
+
+.sr-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+.sr-app--loupe { background: #000; }
+
+.sr-nav-row { display: contents; }
+
+.sr-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #12122a;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 46px;
+}
+
+.sr-view-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
 
 /* In Loupe-Ansicht auf Mobile: Nav-Zeile + FilterBar ausblenden */
