@@ -1289,7 +1289,7 @@ watch(() => props.initialIndex, idx => {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 12px;
+    gap: 2px 12px;
   }
   /* Zeile 1: Steuerelemente */
   .sr-loupe__footer-center { order: 1; flex: 0 0 auto; justify-content: center; }
@@ -1311,7 +1311,7 @@ watch(() => props.initialIndex, idx => {
   .sr-loupe__comment-btn {
     order: 2;
     align-self: center;
-    padding: 8px 16px;
+    padding: 0 10px;
     margin: 0 0 0 14px;
   }
   .sr-loupe__comment-icon { width: 26px; height: 26px; }

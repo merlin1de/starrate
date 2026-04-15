@@ -30,7 +30,8 @@ const GridViewStub = defineComponent({
 
 const stubs = {
   GridView: GridViewStub,
-  FilterBar: { template: '<div />' },
+  // FilterBar: NOT stubbed — Export/Teilen-Buttons hängen seit Plan "Ordneransicht
+  // aufräumen" in der FilterBar, Export-Tests unten prüfen sie via [title="…"]
   LoupeView: { template: '<div />' },
   SelectionBar: {
     name: 'SelectionBar',
