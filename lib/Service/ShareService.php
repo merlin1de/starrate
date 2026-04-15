@@ -584,6 +584,31 @@ class ShareService
     }
 
     /**
+     * Schreibt einen Login-Erfolgs-Eintrag (erstes Öffnen pro Session).
+     */
+    public function appendLoginToLog(array $share): void
+    {
+        $this->appendToLog($share['owner_id'], $share['token'], [
+            'event'      => 'login',
+            'guest_name' => $share['guest_name'] ?? '',
+            'timestamp'  => time(),
+        ]);
+    }
+
+    /**
+     * Schreibt einen Fehlversuch-Eintrag (falsches Passwort).
+     * Kein guest_name — der Share ist per Definition an einen Namen gebunden,
+     * der Fehlversuch kommt von jemandem, der das Passwort nicht kennt.
+     */
+    public function appendLoginFailedToLog(array $share): void
+    {
+        $this->appendToLog($share['owner_id'], $share['token'], [
+            'event'     => 'login_failed',
+            'timestamp' => time(),
+        ]);
+    }
+
+    /**
      * Löscht den Kommentar zu einer Datei (auch beim File-Delete aufgerufen).
      */
     public function deleteComment(int $fileId): void
