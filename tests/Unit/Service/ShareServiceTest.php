@@ -475,6 +475,90 @@ class ShareServiceTest extends TestCase
         $this->service->deleteComment(42);
     }
 
+    // ─── Tests: Login-Log-Events ──────────────────────────────────────────────
+
+    public function testAppendLoginToLogStoresEventWithGuestName(): void
+    {
+        $share = [
+            'owner_id'   => self::OWNER_ID,
+            'token'      => self::SAMPLE_TOKEN,
+            'guest_name' => 'Anna',
+        ];
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('[]');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $this->service->appendLoginToLog($share);
+
+        $this->assertCount(1, $saved);
+        $this->assertSame('login', $saved[0]['event']);
+        $this->assertSame('Anna', $saved[0]['guest_name']);
+        $this->assertIsInt($saved[0]['timestamp']);
+    }
+
+    public function testAppendLoginToLogHandlesMissingGuestName(): void
+    {
+        $share = ['owner_id' => self::OWNER_ID, 'token' => self::SAMPLE_TOKEN];
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('[]');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $this->service->appendLoginToLog($share);
+
+        $this->assertSame('login', $saved[0]['event']);
+        $this->assertSame('', $saved[0]['guest_name']);
+    }
+
+    public function testAppendLoginFailedToLogOmitsGuestName(): void
+    {
+        $share = [
+            'owner_id'   => self::OWNER_ID,
+            'token'      => self::SAMPLE_TOKEN,
+            'guest_name' => 'Anna',
+        ];
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('[]');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $this->service->appendLoginFailedToLog($share);
+
+        $this->assertCount(1, $saved);
+        $this->assertSame('login_failed', $saved[0]['event']);
+        $this->assertArrayNotHasKey('guest_name', $saved[0]);
+        $this->assertIsInt($saved[0]['timestamp']);
+    }
+
+    public function testLoginEventsShareRingBufferLimit(): void
+    {
+        $share = [
+            'owner_id'   => self::OWNER_ID,
+            'token'      => self::SAMPLE_TOKEN,
+            'guest_name' => 'Anna',
+        ];
+
+        $existingLog = [];
+        for ($i = 0; $i < 500; $i++) {
+            $existingLog[] = ['file_id' => $i, 'rating' => 1, 'color' => null, 'pick' => null, 'guest_name' => 'Bot', 'timestamp' => $i + 1];
+        }
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn(json_encode($existingLog));
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $this->service->appendLoginToLog($share);
+
+        $this->assertCount(500, $saved);
+        $this->assertSame('login', $saved[499]['event']);
+        $this->assertNotSame(0, $saved[0]['file_id']);
+    }
+
     // ─── Tests: Guest-Log-Trimming ────────────────────────────────────────────
 
     public function testGuestLogTrimmedTo500Entries(): void
