@@ -209,7 +209,7 @@ defineExpose({ close })
 }
 
 /* Desktop: Popover-Trigger ausblenden — Kind-Ordner sind als Pills (sr-folders) sichtbar */
-@media (pointer: fine) {
+@media (min-width: 641px) {
   .sr-folder-popover { display: none; }
 }
 </style>
