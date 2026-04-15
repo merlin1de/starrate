@@ -31,7 +31,7 @@
         @dblclick="$emit('open-loupe', image, index)"
       >
         <!-- Thumbnail -->
-        <div class="sr-grid__thumb-wrap">
+        <div class="sr-grid__thumb-wrap" style="position:relative; padding-top:75%; overflow:hidden;">
           <img
             v-if="image.thumbLoaded"
             class="sr-grid__thumb"
@@ -39,8 +39,9 @@
             :alt="image.name"
             loading="lazy"
             draggable="false"
+            style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"
           />
-          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
+          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" style="position:absolute; inset:0;" />
 
           <!-- Pick-Badge -->
           <div v-if="enablePickUi && image.pick === 'pick'" class="sr-grid__pick-badge" aria-label="Picked">
