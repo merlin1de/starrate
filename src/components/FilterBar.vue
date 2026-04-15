@@ -724,7 +724,7 @@ function updateFilter(newFilter) {
 
 
 /* Desktop: Toggle ist in der Nav-Zeile, hier ausblenden */
-@media (pointer: fine) {
+@media (min-width: 641px) {
   .sr-filterbar__mode { display: none; }
 }
 
