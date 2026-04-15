@@ -276,6 +276,14 @@ class ShareController extends Controller
             return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
         }
 
+        // Login-Event: einmal pro Session loggen (deckt pw-Shares UND offene Shares ab)
+        $session = \OC::$server->getSession();
+        $sessionKey = "starrate_share_{$token}_logged";
+        if (!$session->get($sessionKey)) {
+            $this->shareService->appendLoginToLog($share);
+            $session->set($sessionKey, true);
+        }
+
         $subPath = (string) ($this->request->getParam('path', ''));
 
         try {
@@ -439,6 +447,7 @@ class ShareController extends Controller
         }
 
         $this->logger->warning("StarRate guest password failed: token={$token} ip={$this->request->getRemoteAddress()}");
+        $this->shareService->appendLoginFailedToLog($share);
         return new DataResponse(['error' => 'Wrong password'], Http::STATUS_UNAUTHORIZED);
     }
 
