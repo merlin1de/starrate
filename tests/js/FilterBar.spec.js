@@ -35,15 +35,21 @@ describe('FilterBar', () => {
     expect(w.findAll('.sr-filterbar__colordot')).toHaveLength(5)
   })
 
-  it('Status-Bereich ist versteckt wenn kein Filter aktiv', async () => {
-    const w = factory()
+  it('Status-Bereich zeigt Gesamtzahl wenn kein Filter aktiv', async () => {
+    const w = factory({ total: 42 })
     await w.vm.$nextTick()
-    expect(w.find('.sr-filterbar__status').element.style.visibility).toBe('hidden')
+    const status = w.find('.sr-filterbar__status')
+    expect(status.exists()).toBe(true)
+    expect(status.text()).toContain('42')
+    expect(status.find('.sr-filterbar__reset').exists()).toBe(false)
   })
 
-  it('Status-Bereich ist sichtbar wenn Filter aktiv', () => {
-    const w = factory({ filter: { ...defaultFilter(), minRating: 3 } })
-    expect(w.find('.sr-filterbar__status').element.style.visibility).not.toBe('hidden')
+  it('Status-Bereich zeigt "X von Y" und Reset wenn Filter aktiv', () => {
+    const w = factory({ filter: { ...defaultFilter(), minRating: 3 }, total: 42, filteredCount: 10 })
+    const status = w.find('.sr-filterbar__status')
+    expect(status.text()).toContain('10')
+    expect(status.text()).toContain('42')
+    expect(status.find('.sr-filterbar__reset').exists()).toBe(true)
   })
 
   it('zeigt Grid/Loupe Modus-Buttons', () => {
