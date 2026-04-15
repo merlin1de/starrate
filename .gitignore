@@ -37,3 +37,6 @@ bash.exe.stackdump
 
 # PHP
 *.log
+composer.phar
+composer.lock
+.phpunit.cache/
