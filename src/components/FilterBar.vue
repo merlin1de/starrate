@@ -118,18 +118,21 @@
 
     <!-- Rechte Seite: Count + Reset + Actions + Modus -->
     <div class="sr-filterbar__right">
-      <!-- Aktive Filter: Count + Reset (immer gerendert, nur sichtbar wenn aktiv) -->
-      <div class="sr-filterbar__status" :style="{ visibility: hasActiveFilter ? 'visible' : 'hidden' }">
+      <!-- Count: immer sichtbar. Reset: nur bei aktivem Filter. -->
+      <div class="sr-filterbar__status">
         <span class="sr-filterbar__count" aria-live="polite">
-          {{ n('starrate', '%n Bild', '%n Bilder', filteredCount) }}
-          <span class="sr-filterbar__count-sep">/</span>
-          {{ n('starrate', '%n gesamt', '%n gesamt', total) }}
+          <template v-if="hasActiveFilter">
+            {{ t('starrate', '{filtered} von {total}', { filtered: filteredCount, total }) }}
+          </template>
+          <template v-else>
+            {{ n('starrate', '%n Bild', '%n Bilder', total) }}
+          </template>
         </span>
         <button
+          v-if="hasActiveFilter"
           class="sr-filterbar__reset"
           type="button"
           :aria-label="t('starrate', 'Alle Filter zurücksetzen')"
-          :tabindex="hasActiveFilter ? 0 : -1"
           @click="resetFilters"
         >{{ t('starrate', 'Alle anzeigen') }}</button>
       </div>
