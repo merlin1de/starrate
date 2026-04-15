@@ -1,7 +1,7 @@
 <template>
   <div class="sr-filterbar">
     <!-- Linke Seite: Filter -->
-    <div class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
+    <div ref="filtersEl" class="sr-filterbar__filters" role="toolbar" :aria-label="t('starrate', 'Bildfilter')">
       <!-- Trichter-Icon -->
       <svg class="sr-filterbar__funnel" :class="{ 'sr-filterbar__funnel--active': hasActiveFilter }" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path d="M3 4h18l-7 8v6l-4 2V12L3 4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -91,24 +91,72 @@
         @click="resetFilters"
       >✕</button>
 
+      <!-- Mobile: Teilen/Export ans Ende der Scroll-Zone (selten genutzt, nicht prominent) -->
+      <div
+        v-if="allowShare || allowExport"
+        class="sr-filterbar__actions sr-filterbar__actions--mobile"
+      >
+        <div class="sr-filterbar__sep" aria-hidden="true" />
+        <button
+          v-if="allowShare"
+          class="sr-filterbar__action"
+          type="button"
+          :title="t('starrate', 'Freigabe-Links verwalten')"
+          @click="$emit('open-share-list')"
+        >{{ t('starrate', 'Teilen') }}</button>
+        <button
+          v-if="allowExport"
+          class="sr-filterbar__action"
+          type="button"
+          :disabled="!canExport"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="$emit('open-export-modal')"
+        >{{ t('starrate', 'Export') }}</button>
+      </div>
+
     </div>
 
-    <!-- Rechte Seite: Count + Reset + Modus -->
+    <!-- Rechte Seite: Count + Reset + Actions + Modus -->
     <div class="sr-filterbar__right">
-      <!-- Aktive Filter: Count + Reset (immer gerendert, nur sichtbar wenn aktiv) -->
-      <div class="sr-filterbar__status" :style="{ visibility: hasActiveFilter ? 'visible' : 'hidden' }">
+      <!-- Count: immer sichtbar. Reset: nur bei aktivem Filter. -->
+      <div class="sr-filterbar__status">
         <span class="sr-filterbar__count" aria-live="polite">
-          {{ n('starrate', '%n Bild', '%n Bilder', filteredCount) }}
-          <span class="sr-filterbar__count-sep">/</span>
-          {{ n('starrate', '%n gesamt', '%n gesamt', total) }}
+          <template v-if="hasActiveFilter">
+            {{ t('starrate', '{filtered} von {total}', { filtered: filteredCount, total }) }}
+          </template>
+          <template v-else>
+            {{ n('starrate', '%n Bild', '%n Bilder', total) }}
+          </template>
         </span>
         <button
+          v-if="hasActiveFilter"
           class="sr-filterbar__reset"
           type="button"
           :aria-label="t('starrate', 'Alle Filter zurücksetzen')"
-          :tabindex="hasActiveFilter ? 0 : -1"
           @click="resetFilters"
         >{{ t('starrate', 'Alle anzeigen') }}</button>
+      </div>
+
+      <!-- Desktop: Teilen + Export (rechts vom Filter-Count, statisch sichtbar) -->
+      <div
+        v-if="allowShare || allowExport"
+        class="sr-filterbar__actions sr-filterbar__actions--desktop"
+      >
+        <button
+          v-if="allowShare"
+          class="sr-filterbar__action"
+          type="button"
+          :title="t('starrate', 'Freigabe-Links verwalten')"
+          @click="$emit('open-share-list')"
+        >{{ t('starrate', 'Teilen') }}</button>
+        <button
+          v-if="allowExport"
+          class="sr-filterbar__action"
+          type="button"
+          :disabled="!canExport"
+          :title="t('starrate', 'Bewertungsliste exportieren')"
+          @click="$emit('open-export-modal')"
+        >{{ t('starrate', 'Export') }}</button>
       </div>
 
       <!-- Modus-Umschalter -->
@@ -149,7 +197,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { t, n } from '@nextcloud/l10n'
 
 const COLOR_OPTIONS = [
@@ -181,15 +229,51 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  allowShare: {
+    type: Boolean,
+    default: false,
+  },
+  allowExport: {
+    type: Boolean,
+    default: false,
+  },
+  canExport: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update:filter', 'toggle-mode'])
+const emit = defineEmits(['update:filter', 'toggle-mode', 'open-share-list', 'open-export-modal'])
 
 const colorOptions = COLOR_OPTIONS
 
 // ─── Rating-Filter ────────────────────────────────────────────────────────────
 
 const selectedOp = ref('≥')
+const filtersEl  = ref(null)
+
+// Scroll-Hint auf Mobile: einmal pro Session kurz nach rechts wippen, damit
+// erkennbar wird, dass die Filter-Zeile horizontal scrollbar ist.
+onMounted(async () => {
+  await nextTick()
+  const el = filtersEl.value
+  if (!el) return
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+  let mq
+  try { mq = window.matchMedia('(max-width: 640px)') } catch { return }
+  if (!mq || !mq.matches) return
+  if (el.scrollWidth <= el.clientWidth + 4) return
+  try {
+    if (sessionStorage.getItem('sr-filterbar-hint')) return
+    sessionStorage.setItem('sr-filterbar-hint', '1')
+  } catch { /* sessionStorage evtl. blockiert */ }
+
+  // Sanft anschubsen und zurück — nicht zu grell
+  const steps = [8, 16, 8, 0]
+  steps.forEach((x, i) => setTimeout(() => {
+    el.scrollTo({ left: x, behavior: 'smooth' })
+  }, 400 + i * 220))
+})
 
 // selectedOp mit eingehendem Filter synchronisieren (z.B. aus localStorage)
 watch(() => props.filter, (f) => {
@@ -559,8 +643,8 @@ function updateFilter(newFilter) {
 
 /* ── Anzahl ───────────────────────────────────────────────────────────────── */
 .sr-filterbar__count {
-  font-size: 11px;
-  color: #666;
+  font-size: 12px;
+  color: #a1a1aa;
   white-space: nowrap;
 }
 
@@ -640,12 +724,65 @@ function updateFilter(newFilter) {
 
 
 /* Desktop: Toggle ist in der Nav-Zeile, hier ausblenden */
-@media (pointer: fine) {
+@media (min-width: 641px) {
   .sr-filterbar__mode { display: none; }
 }
 
+/* ── Teilen / Export Actions ──────────────────────────────────────────────── */
+.sr-filterbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sr-filterbar__action {
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid #3f3f5a;
+  background: #2a2a3e;
+  color: #a1a1aa;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 150ms, border-color 150ms, background 150ms;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  min-height: 0;
+  line-height: 1.6;
+}
+
+@media (pointer: fine) {
+  .sr-filterbar__action:hover {
+    color: #d4d4d8;
+    border-color: #7a3050;
+    background: #32323e;
+  }
+}
+
+.sr-filterbar__action:focus,
+.sr-filterbar__action:focus-visible,
+.sr-filterbar__action:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.sr-filterbar__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Desktop-Variante: nur auf Maus-Geräten ODER breitem Viewport */
+.sr-filterbar__actions--mobile { display: none; }
+@media (max-width: 640px) {
+  .sr-filterbar__actions--desktop { display: none; }
+  .sr-filterbar__actions--mobile  { display: flex; }
+}
+
 /* ── Mobile: single row, horizontal scroll ────────────────────────────────── */
-@media (pointer: coarse) {
+@media (max-width: 640px) {
   .sr-filterbar {
     flex-wrap: nowrap;
     padding: 5px 8px;

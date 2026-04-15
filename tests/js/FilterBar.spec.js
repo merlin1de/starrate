@@ -35,15 +35,21 @@ describe('FilterBar', () => {
     expect(w.findAll('.sr-filterbar__colordot')).toHaveLength(5)
   })
 
-  it('Status-Bereich ist versteckt wenn kein Filter aktiv', async () => {
-    const w = factory()
+  it('Status-Bereich zeigt Gesamtzahl wenn kein Filter aktiv', async () => {
+    const w = factory({ total: 42 })
     await w.vm.$nextTick()
-    expect(w.find('.sr-filterbar__status').element.style.visibility).toBe('hidden')
+    const status = w.find('.sr-filterbar__status')
+    expect(status.exists()).toBe(true)
+    expect(status.text()).toContain('42')
+    expect(status.find('.sr-filterbar__reset').exists()).toBe(false)
   })
 
-  it('Status-Bereich ist sichtbar wenn Filter aktiv', () => {
-    const w = factory({ filter: { ...defaultFilter(), minRating: 3 } })
-    expect(w.find('.sr-filterbar__status').element.style.visibility).not.toBe('hidden')
+  it('Status-Bereich zeigt "X von Y" und Reset wenn Filter aktiv', () => {
+    const w = factory({ filter: { ...defaultFilter(), minRating: 3 }, total: 42, filteredCount: 10 })
+    const status = w.find('.sr-filterbar__status')
+    expect(status.text()).toContain('10')
+    expect(status.text()).toContain('42')
+    expect(status.find('.sr-filterbar__reset').exists()).toBe(true)
   })
 
   it('zeigt Grid/Loupe Modus-Buttons', () => {
@@ -257,5 +263,49 @@ describe('FilterBar', () => {
     expect(emitted[0][0].exactRating).toBe(5)
     expect(emitted[0][0].color).toBe('Green')
     expect(emitted[0][0].pick).toBe('pick')
+  })
+
+  // ── Actions: Teilen / Export ──────────────────────────────────────────────
+
+  it('zeigt keine Actions wenn weder allowShare noch allowExport', () => {
+    const w = factory()
+    expect(w.find('[title="Freigabe-Links verwalten"]').exists()).toBe(false)
+    expect(w.find('[title="Bewertungsliste exportieren"]').exists()).toBe(false)
+  })
+
+  it('zeigt Teilen-Button wenn allowShare=true', () => {
+    const w = factory({ allowShare: true })
+    expect(w.find('[title="Freigabe-Links verwalten"]').exists()).toBe(true)
+  })
+
+  it('blendet Teilen-Button aus wenn allowShare=false, zeigt aber Export', () => {
+    const w = factory({ allowShare: false, allowExport: true, canExport: true })
+    expect(w.find('[title="Freigabe-Links verwalten"]').exists()).toBe(false)
+    expect(w.find('[title="Bewertungsliste exportieren"]').exists()).toBe(true)
+  })
+
+  it('Export-Button disabled wenn canExport=false', () => {
+    const w = factory({ allowExport: true, canExport: false })
+    const btn = w.find('[title="Bewertungsliste exportieren"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeDefined()
+  })
+
+  it('Export-Button aktiv wenn canExport=true', () => {
+    const w = factory({ allowExport: true, canExport: true })
+    const btn = w.find('[title="Bewertungsliste exportieren"]')
+    expect(btn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('Klick Teilen emittiert open-share-list', async () => {
+    const w = factory({ allowShare: true })
+    await w.find('[title="Freigabe-Links verwalten"]').trigger('click')
+    expect(w.emitted('open-share-list')).toBeTruthy()
+  })
+
+  it('Klick Export emittiert open-export-modal', async () => {
+    const w = factory({ allowExport: true, canExport: true })
+    await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
+    expect(w.emitted('open-export-modal')).toBeTruthy()
   })
 })

@@ -12,6 +12,7 @@ OC.L10N.register(
         "Bewertung entfernen" : "Bewertung entfernen",
         "Bewertung:" : "Bewertung:",
         "%n Stern" : ["%n Stern", "%n Sterne"],
+        "%n Ordner" : ["%n Ordner", "%n Ordner"],
         "Bewertung konnte nicht gespeichert werden" : "Bewertung konnte nicht gespeichert werden",
         "{name}: {stars}" : "{name}: {stars}",
         "%n Bild bewertet %s" : ["%n Bild bewertet %s", "%n Bilder bewertet %s"],

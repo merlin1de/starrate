@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release-Tag (z.B. v1.0.3)'
+        description: 'Release-Tag (z.B. v1.2.9)'
         required: true
         type: string
+      nightly:
+        description: 'Nightly-Release? (nur auf explizite Anweisung)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   appstore:
@@ -17,15 +22,27 @@ jobs:
       - name: Upload to Nextcloud App Store
         env:
           NC_APP_STORE_TOKEN: ${{ secrets.NC_APP_STORE_TOKEN }}
+          NC_APP_STORE_SIGNING_KEY: ${{ secrets.NC_APP_STORE_SIGNING_KEY }}
         run: |
+          if [ -z "$NC_APP_STORE_TOKEN" ] || [ -z "$NC_APP_STORE_SIGNING_KEY" ]; then
+            echo "NC_APP_STORE_TOKEN or NC_APP_STORE_SIGNING_KEY not set — cannot upload."
+            exit 1
+          fi
           TAG="${{ github.event.inputs.tag }}"
+          NIGHTLY="${{ github.event.inputs.nightly }}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/starrate.tar.gz"
-          echo "Uploading: $DOWNLOAD_URL"
+          echo "Downloading release archive for signing..."
+          curl -sL "$DOWNLOAD_URL" -o /tmp/starrate.tar.gz
+          echo "Signing archive..."
+          echo "$NC_APP_STORE_SIGNING_KEY" | base64 -d > /tmp/starrate.key
+          SIGNATURE=$(openssl dgst -sha512 -sign /tmp/starrate.key /tmp/starrate.tar.gz | openssl base64 -A)
+          rm -f /tmp/starrate.key
+          echo "Uploading: $DOWNLOAD_URL (nightly=$NIGHTLY)"
           HTTP_STATUS=$(curl -s -o /tmp/appstore_response.json -w "%{http_code}" \
             -X POST https://apps.nextcloud.com/api/v1/apps/releases/ \
             -H "Authorization: Token $NC_APP_STORE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"download\": \"$DOWNLOAD_URL\"}")
+            -d "{\"download\": \"$DOWNLOAD_URL\", \"signature\": \"$SIGNATURE\", \"nightly\": $NIGHTLY}")
           echo "HTTP Status: $HTTP_STATUS"
           cat /tmp/appstore_response.json
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then

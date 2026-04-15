@@ -197,28 +197,46 @@
                 {{ t('starrate', 'Noch keine Bewertungen über diesen Link.') }}
               </div>
               <div v-else class="sr-share-list__log-entries">
-                <div
-                  v-for="(entry, i) in logs[share.token]"
-                  :key="i"
-                  class="sr-share-list__log-entry"
-                >
-                  <span class="sr-share-list__log-name">{{ entry.guest_name }}</span>
-                  <span class="sr-share-list__log-rating">
-                    {{ entry.rating !== null
-                        ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0))
-                        : (entry.pick && entry.pick !== 'none' ? '' : '–') }}
-                  </span>
-                  <span v-if="entry.color" class="sr-share-list__log-color" :class="`sr-share-list__log-color--${entry.color.toLowerCase()}`">
-                    ●
-                  </span>
-                  <span
-                    v-if="entry.pick && entry.pick !== 'none'"
-                    class="sr-share-list__log-pick"
-                    :class="`sr-share-list__log-pick--${entry.pick}`"
-                  >{{ entry.pick === 'pick' ? '✓' : '⊘' }}</span>
-                  <span class="sr-share-list__log-file">{{ entry.filename ?? `#${entry.file_id}` }}</span>
-                  <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
-                </div>
+                <template v-for="(entry, i) in logs[share.token]" :key="i">
+                  <!-- Login / Login-Fehlversuch -->
+                  <div
+                    v-if="entry.event === 'login' || entry.event === 'login_failed'"
+                    class="sr-share-list__log-entry sr-share-list__log-entry--event"
+                    :class="`sr-share-list__log-entry--${entry.event}`"
+                  >
+                    <span class="sr-share-list__log-icon" aria-hidden="true">
+                      {{ entry.event === 'login' ? '🔓' : '🔒' }}
+                    </span>
+                    <span class="sr-share-list__log-text">
+                      <template v-if="entry.event === 'login'">
+                        {{ t('starrate', '{name} hat sich angemeldet', { name: entry.guest_name || t('starrate', 'Gast') }) }}
+                      </template>
+                      <template v-else>
+                        {{ t('starrate', 'Passwort falsch') }}
+                      </template>
+                    </span>
+                    <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
+                  </div>
+                  <!-- Bewertung / Kommentar -->
+                  <div v-else class="sr-share-list__log-entry">
+                    <span class="sr-share-list__log-name">{{ entry.guest_name }}</span>
+                    <span class="sr-share-list__log-rating">
+                      {{ entry.rating !== null
+                          ? '★'.repeat(entry.rating) + '☆'.repeat(5 - (entry.rating ?? 0))
+                          : (entry.pick && entry.pick !== 'none' ? '' : '–') }}
+                    </span>
+                    <span v-if="entry.color" class="sr-share-list__log-color" :class="`sr-share-list__log-color--${entry.color.toLowerCase()}`">
+                      ●
+                    </span>
+                    <span
+                      v-if="entry.pick && entry.pick !== 'none'"
+                      class="sr-share-list__log-pick"
+                      :class="`sr-share-list__log-pick--${entry.pick}`"
+                    >{{ entry.pick === 'pick' ? '✓' : '⊘' }}</span>
+                    <span class="sr-share-list__log-file">{{ entry.filename ?? `#${entry.file_id}` }}</span>
+                    <span class="sr-share-list__log-time">{{ formatDateTime(entry.timestamp) }}</span>
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -707,6 +725,15 @@ defineExpose({ loadShares })
   font-size: 0.8rem;
 }
 .sr-share-list__log-entry:last-child { border-bottom: none; }
+.sr-share-list__log-entry--event {
+  color: #a1a1aa;
+  font-style: italic;
+}
+.sr-share-list__log-entry--login_failed {
+  color: #e94560;
+}
+.sr-share-list__log-icon { flex-shrink: 0; }
+.sr-share-list__log-text { flex: 1; }
 .sr-share-list__log-name {
   color: #d4d4d8;
   font-weight: 500;
