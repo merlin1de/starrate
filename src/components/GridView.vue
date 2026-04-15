@@ -158,14 +158,20 @@ const emit = defineEmits([
 const THUMB_SIZE = 280
 
 const gridStyle = computed(() => {
-  // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
-  // werden in einigen Browsern nicht korrekt in grid-template-columns geparsed.
+  // display/gap/padding als Inline-Style: verhindert FOUC (volle Bildgroesse beim
+  // ersten Paint), falls das async geladene Gallery-Chunk-CSS noch nicht da ist.
+  const base = {
+    display: 'grid',
+    gap: '6px',
+    padding: '8px',
+    alignContent: 'start',
+  }
   if (props.gridColumns !== 'auto') {
-    return { gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
+    return { ...base, gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
   }
   // min() stellt sicher dass auf Mobile mindestens 2 Spalten passen:
   // min(280px, calc(50vw - 16px)) → Desktop: 280px, Mobile 390px: ~179px → 2 Spalten
-  return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
+  return { ...base, gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
