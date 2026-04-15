@@ -3,6 +3,10 @@
 /dist/
 /build/
 /css/*.chunk.css
+/css/starrate-main.css
+/css/starrate-guest.css
+/css/starrate-settings.css
+/css/starrate-files-context.css
 
 # Dependencies
 /node_modules/
@@ -33,3 +37,6 @@ bash.exe.stackdump
 
 # PHP
 *.log
+composer.phar
+composer.lock
+.phpunit.cache/
