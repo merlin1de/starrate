@@ -219,6 +219,7 @@ jobs:
   appstore:
     name: Nextcloud App Store
     needs: release
+    if: inputs.nightly != true
     runs-on: ubuntu-latest
 
     steps:
