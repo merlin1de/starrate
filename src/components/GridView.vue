@@ -500,19 +500,22 @@ function columnsEstimate() {
   return Math.max(1, Math.floor(gridEl.value.offsetWidth / THUMB_SIZE))
 }
 
-function scrollItemIntoView(index) {
+function scrollItemIntoView(index, behavior = 'smooth') {
   nextTick(() => {
     const el = gridEl.value?.querySelector(`[data-index="${index}"]`)
-    el?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    el?.scrollIntoView?.({ block: 'nearest', behavior })
   })
 }
 
 // ─── Sync mit Lupenansicht ────────────────────────────────────────────────────
 
+let firstScrollSync = true
 watch(() => props.currentIndex, idx => {
   if (idx >= 0) {
     focusedIndex.value = idx
-    scrollItemIntoView(idx)
+    // Erster Sync (Mount / Loupe→Grid): sofort, nicht animiert. Sonst smooth.
+    scrollItemIntoView(idx, firstScrollSync ? 'auto' : 'smooth')
+    firstScrollSync = false
   }
 }, { immediate: true })   // immediate: focusedIndex beim Mount sofort setzen
 
