@@ -256,7 +256,7 @@ onMounted(async () => {
   const el = filtersEl.value
   if (!el) return
   if (typeof window === 'undefined' || !window.matchMedia) return
-  if (!window.matchMedia('(pointer: coarse)').matches) return
+  if (!window.matchMedia('(max-width: 640px)').matches) return
   if (el.scrollWidth <= el.clientWidth + 4) return
   try {
     if (sessionStorage.getItem('sr-filterbar-hint')) return
@@ -769,15 +769,15 @@ function updateFilter(newFilter) {
   cursor: not-allowed;
 }
 
-/* Desktop-Variante: nur auf Maus-Geräten */
+/* Desktop-Variante: nur auf Maus-Geräten ODER breitem Viewport */
 .sr-filterbar__actions--mobile { display: none; }
-@media (pointer: coarse) {
+@media (max-width: 640px) {
   .sr-filterbar__actions--desktop { display: none; }
   .sr-filterbar__actions--mobile  { display: flex; }
 }
 
 /* ── Mobile: single row, horizontal scroll ────────────────────────────────── */
-@media (pointer: coarse) {
+@media (max-width: 640px) {
   .sr-filterbar {
     flex-wrap: nowrap;
     padding: 5px 8px;

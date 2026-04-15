@@ -1109,7 +1109,7 @@ watch(() => route.query, q => {
 .sr-shortcuts-leave-to { opacity: 0; }
 
 /* ── Mobile: Nav-Zeile kompakt, Breadcrumb scrollbar ─────────────────────── */
-@media (pointer: coarse) {
+@media (max-width: 640px) {
   .sr-nav-row {
     display: flex;
     flex-direction: row;
