@@ -31,7 +31,7 @@
         @dblclick="$emit('open-loupe', image, index)"
       >
         <!-- Thumbnail -->
-        <div class="sr-grid__thumb-wrap" style="position:relative; padding-top:75%; overflow:hidden;">
+        <div class="sr-grid__thumb-wrap">
           <img
             v-if="image.thumbLoaded"
             class="sr-grid__thumb"
@@ -39,9 +39,8 @@
             :alt="image.name"
             loading="lazy"
             draggable="false"
-            style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;"
           />
-          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" style="position:absolute; inset:0;" />
+          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
 
           <!-- Pick-Badge -->
           <div v-if="enablePickUi && image.pick === 'pick'" class="sr-grid__pick-badge" aria-label="Picked">
@@ -158,20 +157,14 @@ const emit = defineEmits([
 const THUMB_SIZE = 280
 
 const gridStyle = computed(() => {
-  // display/gap/padding als Inline-Style: verhindert FOUC (volle Bildgroesse beim
-  // ersten Paint), falls das async geladene Gallery-Chunk-CSS noch nicht da ist.
-  const base = {
-    display: 'grid',
-    gap: '6px',
-    padding: '8px',
-    alignContent: 'start',
-  }
+  // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
+  // werden in einigen Browsern nicht korrekt in grid-template-columns geparsed.
   if (props.gridColumns !== 'auto') {
-    return { ...base, gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
+    return { gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
   }
   // min() stellt sicher dass auf Mobile mindestens 2 Spalten passen:
   // min(280px, calc(50vw - 16px)) → Desktop: 280px, Mobile 390px: ~179px → 2 Spalten
-  return { ...base, gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
+  return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
