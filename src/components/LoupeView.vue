@@ -2,6 +2,7 @@
   <div
     class="sr-loupe"
     ref="loupeEl"
+    style="position:relative; width:100%; height:100%; background:#000; overflow:hidden;"
     @wheel.prevent="onWheel"
     @dblclick="onDblClick"
     @mousedown="onMouseDown"
@@ -17,6 +18,7 @@
       <div
         class="sr-loupe__stage"
         :key="currentIndex"
+        style="position:absolute; inset:0;"
       >
         <img
           v-if="currentImage && !previewError"
@@ -330,14 +332,30 @@ const zoomLabel = computed(() => {
   return `${Math.round(zoom.value * 100)}%`
 })
 
+// Kritische Layout-Regeln als Inline-Style (verhindert FOUC, falls das async
+// geladene LoupeView-Chunk-CSS noch nicht da ist): absolute + centered +
+// max-width/-height auf 100% + object-fit:contain.
+const imgBaseStyle = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  maxWidth: '100%',
+  maxHeight: '100%',
+  objectFit: 'contain',
+  userSelect: 'none',
+  WebkitUserDrag: 'none',
+}
+
 const imgStyle = computed(() => {
   if (isFit.value) {
     return {
+      ...imgBaseStyle,
       transform: 'translate(-50%, -50%) scale(1)',
       cursor: 'default',
     }
   }
   return {
+    ...imgBaseStyle,
     transform: `translate(calc(-50% + ${panX.value}px), calc(-50% + ${panY.value}px)) scale(${zoom.value})`,
     cursor: isPanning.value ? 'grabbing' : (zoom.value > 1 ? 'grab' : 'default'),
     transformOrigin: 'center center',
