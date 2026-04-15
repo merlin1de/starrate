@@ -638,8 +638,8 @@ function updateFilter(newFilter) {
 
 /* ── Anzahl ───────────────────────────────────────────────────────────────── */
 .sr-filterbar__count {
-  font-size: 11px;
-  color: #666;
+  font-size: 12px;
+  color: #a1a1aa;
   white-space: nowrap;
 }
 
