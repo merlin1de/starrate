@@ -687,6 +687,8 @@ function onAppKeydown(e) {
 // .sr-app greift dort nicht, deshalb reicht nur onAppKeydown nicht aus.
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
+  // FolderPopover schließt sich selbst — nicht zusätzlich Selektion räumen
+  if (document.querySelector('.sr-folder-popover__menu')) return
   const stop = () => { e.preventDefault(); e.stopPropagation() }
   if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
   if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
