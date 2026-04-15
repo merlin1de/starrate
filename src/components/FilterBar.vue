@@ -260,13 +260,13 @@ onMounted(async () => {
   if (!el) return
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
   let mq
-  try { mq = window.matchMedia('(max-width: 640px)') } catch (e) { return }
+  try { mq = window.matchMedia('(max-width: 640px)') } catch { return }
   if (!mq || !mq.matches) return
   if (el.scrollWidth <= el.clientWidth + 4) return
   try {
     if (sessionStorage.getItem('sr-filterbar-hint')) return
     sessionStorage.setItem('sr-filterbar-hint', '1')
-  } catch (e) { /* sessionStorage evtl. blockiert */ }
+  } catch { /* sessionStorage evtl. blockiert */ }
 
   // Sanft anschubsen und zurück — nicht zu grell
   const steps = [8, 16, 8, 0]
