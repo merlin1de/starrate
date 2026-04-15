@@ -152,8 +152,8 @@ function select(folder) {
 function focusItem(idx) {
   const items = itemRefs.value
   if (!items.length) return
-  const n = (idx + items.length) % items.length
-  items[n]?.focus()
+  const target = (idx + items.length) % items.length
+  items[target]?.focus()
 }
 
 onUnmounted(() => {
