@@ -1,7 +1,7 @@
 <template>
   <div class="sr-app" :class="{ 'sr-app--loupe': mode === 'loupe' }" @keydown="onAppKeydown">
 
-    <!-- Nav-Zeile: Breadcrumb + Unterordner (auf Mobile eine scrollbare Zeile) -->
+    <!-- Nav-Zeile: Breadcrumb + Unterordner -->
     <div class="sr-nav-row">
       <div class="sr-breadcrumb">
         <button class="sr-breadcrumb__seg" @click="navigateTo('/')">⌂</button>
@@ -9,68 +9,69 @@
           <span class="sr-breadcrumb__sep">/</span>
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
-        <button v-if="!guestMode" class="sr-breadcrumb__share" @click="showShareList = true" :title="t('starrate', 'Freigabe-Links verwalten')">
-          {{ t('starrate', 'Teilen') }}
-        </button>
-        <button
-          v-if="!guestMode || allowExport"
-          class="sr-breadcrumb__share"
-          :disabled="filteredImages.length === 0"
-          :title="t('starrate', 'Bewertungsliste exportieren')"
-          @click="showExportModal = true"
-        >{{ t('starrate', 'Export') }}</button>
+
+        <!-- Mobile-only: Unterordner-Popover am Ende des Pfads -->
+        <FolderPopover
+          v-if="subFolders.length && mode !== 'loupe'"
+          :folders="subFolders"
+          @navigate="navigateTo"
+        />
+
         <span v-if="guestMode && guestLabel" class="sr-breadcrumb__guest-label">{{ guestLabel }}</span>
-        <!-- Modus-Toggle: nur Desktop (Mobile: in FilterBar) -->
-        <div class="sr-breadcrumb__mode">
-          <button
-            class="sr-breadcrumb__mode-btn"
-            :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'grid' }"
-            type="button"
-            :title="t('starrate', 'Rasteransicht')"
-            @click="toggleMode"
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="3" y="3" width="7" height="7" rx="1" fill="currentColor"/>
-              <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor"/>
-              <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor"/>
-              <rect x="14" y="14" width="7" height="7" rx="1" fill="currentColor"/>
-            </svg>
-          </button>
-          <button
-            class="sr-breadcrumb__mode-btn"
-            :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'loupe' }"
-            type="button"
-            :title="t('starrate', 'Lupenansicht')"
-            @click="toggleMode"
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
-              <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </button>
+
+        <!-- Utility-Cluster (Desktop-only via CSS): Modus-Toggle, Help, Version -->
+        <div class="sr-breadcrumb__utility">
+          <div class="sr-breadcrumb__mode">
+            <button
+              class="sr-breadcrumb__mode-btn"
+              :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'grid' }"
+              type="button"
+              :title="t('starrate', 'Rasteransicht')"
+              @click="toggleMode"
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1" fill="currentColor"/>
+                <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor"/>
+                <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor"/>
+                <rect x="14" y="14" width="7" height="7" rx="1" fill="currentColor"/>
+              </svg>
+            </button>
+            <button
+              class="sr-breadcrumb__mode-btn"
+              :class="{ 'sr-breadcrumb__mode-btn--active': mode === 'loupe' }"
+              type="button"
+              :title="t('starrate', 'Lupenansicht')"
+              @click="toggleMode"
+            >
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Shortcut-Hilfe -->
+          <button class="sr-breadcrumb__help" :title="t('starrate', 'Tastaturkürzel')" @click="showShortcuts = true">?</button>
+
+          <span class="sr-breadcrumb__version">
+            StarRate v{{ appVersion }}<br/>
+            by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
+          </span>
         </div>
-
-        <!-- Shortcut-Hilfe -->
-        <button class="sr-breadcrumb__help" :title="t('starrate', 'Tastaturkürzel')" @click="showShortcuts = true">?</button>
-
-        <span class="sr-breadcrumb__version">
-          StarRate v{{ appVersion }}<br/>
-          by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
-        </span>
       </div>
 
-      <!-- Unterordner (in Loupe ausgeblendet) -->
+      <!-- Desktop-only: Unterordner-Pills als eigene Zeile -->
       <div v-if="subFolders.length && mode !== 'loupe'" class="sr-folders">
-      <button
-        v-for="f in subFolders"
-        :key="f.path"
-        class="sr-folders__item"
-        @click="navigateTo(f.path)"
-      >
-        <span class="sr-folders__icon">📁</span>
-        <span class="sr-folders__name">{{ f.name }}</span>
-      </button>
-    </div>
+        <button
+          v-for="f in subFolders"
+          :key="f.path"
+          class="sr-folders__item"
+          @click="navigateTo(f.path)"
+        >
+          <span class="sr-folders__icon">📁</span>
+          <span class="sr-folders__name">{{ f.name }}</span>
+        </button>
+      </div>
     </div><!-- /.sr-nav-row -->
 
     <!-- Filterleiste -->
@@ -80,7 +81,12 @@
       :filtered-count="filteredImages.length"
       :mode="mode"
       :enable-pick-ui="settings.enable_pick_ui"
+      :allow-share="!guestMode"
+      :allow-export="!guestMode || allowExport"
+      :can-export="filteredImages.length > 0"
       @toggle-mode="toggleMode"
+      @open-share-list="showShareList = true"
+      @open-export-modal="showExportModal = true"
     />
 
     <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
@@ -241,6 +247,7 @@ import LoupeView from '../components/LoupeView.vue'
 import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
 import ExportModal from '../components/ExportModal.vue'
+import FolderPopover from '../components/FolderPopover.vue'
 
 // ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
 
@@ -674,13 +681,19 @@ function onAppKeydown(e) {
   e.preventDefault()
 }
 
-// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl
+// Escape auf Dokument-Ebene: schließt Modals von innen nach außen, dann Auswahl.
+// Muss in Capture-Phase laufen, da NC einen eigenen ESC-Handler auf document hat,
+// der sonst zuerst feuert. Modals sind per Teleport in <body> — @keydown auf
+// .sr-app greift dort nicht, deshalb reicht nur onAppKeydown nicht aus.
 function onDocKeydown(e) {
   if (e.key !== 'Escape') return
-  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } return }
-  if (showShortcuts.value)        { showShortcuts.value  = false; return }
+  // FolderPopover schließt sich selbst — nicht zusätzlich Selektion räumen
+  if (document.querySelector('.sr-folder-popover__menu')) return
+  const stop = () => { e.preventDefault(); e.stopPropagation() }
+  if (showExportModal.value)      { showExportModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShareModal.value)       { showShareModal.value = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShareList.value)        { showShareList.value  = false; try { document.activeElement?.blur() } catch { /* ignore */ } stop(); return }
+  if (showShortcuts.value)        { showShortcuts.value  = false; stop(); return }
   if (selectedIds.value.size > 0) { gridRef.value?.clearSelection?.() }
 }
 
@@ -739,7 +752,7 @@ function onVisibilityChange() {
 }
 
 onMounted(async () => {
-  document.addEventListener('keydown', onDocKeydown)
+  document.addEventListener('keydown', onDocKeydown, true)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('popstate', onPopState)
   startBackgroundSync()
@@ -766,7 +779,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onDocKeydown)
+  document.removeEventListener('keydown', onDocKeydown, true)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('popstate', onPopState)
   stopBackgroundSync()
@@ -889,27 +902,12 @@ watch(() => route.query, q => {
   min-height: 0;
 }
 
-.sr-breadcrumb__share {
-  background: #2a2a3e;
-  border: 1px solid #3f3f5a;
-  border-radius: 4px;
-  color: #a1a1aa;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 2px 8px;
-  white-space: nowrap;
+.sr-breadcrumb__utility {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
   flex-shrink: 0;
-  transition: color 0.15s, border-color 0.15s;
-}
-.sr-breadcrumb__share:hover {
-  color: #d4d4d8;
-  border-color: #7a3050;
-}
-.sr-breadcrumb__share:focus,
-.sr-breadcrumb__share:focus-visible {
-  color: #a1a1aa;
-  outline: none;
-  box-shadow: none;
 }
 
 .sr-breadcrumb__guest-label {
@@ -943,7 +941,6 @@ watch(() => route.query, q => {
   border: 1px solid #2a2a4a;
   border-radius: 6px;
   overflow: hidden;
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -1113,37 +1110,35 @@ watch(() => route.query, q => {
 .sr-shortcuts-enter-from,
 .sr-shortcuts-leave-to { opacity: 0; }
 
-/* ── Mobile: Nav-Zeile als einzelne scrollbare Reihe ─────────────────────── */
-@media (pointer: coarse) {
+/* ── Mobile: Nav-Zeile kompakt, Breadcrumb scrollbar ─────────────────────── */
+@media (max-width: 640px) {
   .sr-nav-row {
     display: flex;
     flex-direction: row;
     align-items: center;
-    overflow-x: auto;
-    scrollbar-width: none;
     flex-shrink: 0;
     gap: 0;
   }
-  .sr-nav-row::-webkit-scrollbar { display: none; }
 
   .sr-nav-row .sr-breadcrumb {
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
     width: auto;
     padding: 4px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .sr-nav-row .sr-folders {
-    flex-shrink: 0;
-    padding: 4px 8px 4px 0;
-    border: none;
-    background: transparent;
-  }
-  .sr-breadcrumb__version { display: none; }
-  .sr-breadcrumb__mode    { display: none; }
+  .sr-nav-row .sr-breadcrumb::-webkit-scrollbar { display: none; }
 
-  /* Pfad-Segmente dürfen schrumpfen und bei Platzmangel abschneiden,
-     damit Teilen/Export immer vollständig sichtbar bleiben */
+  /* Unterordner-Pills auf Mobile ausblenden — sind im FolderPopover verfügbar */
+  .sr-nav-row .sr-folders { display: none; }
+
+  /* Utility-Cluster (Modus/Help/Version) nur Desktop */
+  .sr-breadcrumb__utility { display: none; }
+
+  /* Pfad-Segmente dürfen schrumpfen */
   .sr-breadcrumb__seg {
-    max-width: 120px;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

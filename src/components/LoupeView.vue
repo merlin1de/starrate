@@ -735,7 +735,10 @@ watch(previewUrl, (url) => {
     return
   }
 
-  // Show thumbnail instantly as placeholder (already in browser cache from grid)
+  // Show thumbnail instantly as placeholder (already in browser cache from grid).
+  // Aspect-Mismatch zwischen cover-gecropptem Thumb und Preview erzeugt beim
+  // ersten Grid→Loupe-Wechsel kurzes Zucken — akzeptiert, weil sofort etwas
+  // sichtbar ist und kein Preload-Overhead beim Hover entsteht.
   const thumb = currentImage.value?.thumbUrl
   if (thumb) {
     actualSrc.value      = thumb
@@ -750,22 +753,17 @@ watch(previewUrl, (url) => {
   const img = new Image()
   img.onload = () => {
     preloadedUrls.add(url)
-    // Only swap if still viewing the same image
     if (previewUrl.value === url) {
-      // Use rAF to ensure the browser has the decoded image ready before
-      // swapping src — avoids a blank frame between thumbnail and preview
       requestAnimationFrame(() => {
         if (previewUrl.value === url) {
           actualSrc.value      = url
           loadingPreview.value = false
-          // Preload neighbors only after current preview is ready — avoids bandwidth contention
           preloadAdjacent(currentIndex.value)
         }
       })
     }
   }
   img.onerror = () => {
-    // Fall back to direct src swap — onImgError will handle retries
     if (previewUrl.value === url) {
       actualSrc.value = url
     }
@@ -1289,7 +1287,7 @@ watch(() => props.initialIndex, idx => {
     padding-bottom: max(72px, env(safe-area-inset-bottom));
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 12px;
+    gap: 2px 12px;
   }
   /* Zeile 1: Steuerelemente */
   .sr-loupe__footer-center { order: 1; flex: 0 0 auto; justify-content: center; }
@@ -1311,7 +1309,7 @@ watch(() => props.initialIndex, idx => {
   .sr-loupe__comment-btn {
     order: 2;
     align-self: center;
-    padding: 8px 16px;
+    padding: 0 10px;
     margin: 0 0 0 14px;
   }
   .sr-loupe__comment-icon { width: 26px; height: 26px; }

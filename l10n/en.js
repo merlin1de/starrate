@@ -12,6 +12,7 @@ OC.L10N.register(
         "Bewertung entfernen" : "Remove rating",
         "Bewertung:" : "Rating:",
         "%n Stern" : ["%n star", "%n stars"],
+        "%n Ordner" : ["%n folder", "%n folders"],
         "Bewertung konnte nicht gespeichert werden" : "Rating could not be saved",
         "{name}: {stars}" : "{name}: {stars}",
         "%n Bild bewertet %s" : ["%n image rated %s", "%n images rated %s"],
