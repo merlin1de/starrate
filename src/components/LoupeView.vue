@@ -735,7 +735,10 @@ watch(previewUrl, (url) => {
     return
   }
 
-  // Show thumbnail instantly as placeholder (already in browser cache from grid)
+  // Show thumbnail instantly as placeholder (already in browser cache from grid).
+  // Aspect-Mismatch zwischen cover-gecropptem Thumb und Preview erzeugt beim
+  // ersten Grid→Loupe-Wechsel kurzes Zucken — akzeptiert, weil sofort etwas
+  // sichtbar ist und kein Preload-Overhead beim Hover entsteht.
   const thumb = currentImage.value?.thumbUrl
   if (thumb) {
     actualSrc.value      = thumb
@@ -750,22 +753,17 @@ watch(previewUrl, (url) => {
   const img = new Image()
   img.onload = () => {
     preloadedUrls.add(url)
-    // Only swap if still viewing the same image
     if (previewUrl.value === url) {
-      // Use rAF to ensure the browser has the decoded image ready before
-      // swapping src — avoids a blank frame between thumbnail and preview
       requestAnimationFrame(() => {
         if (previewUrl.value === url) {
           actualSrc.value      = url
           loadingPreview.value = false
-          // Preload neighbors only after current preview is ready — avoids bandwidth contention
           preloadAdjacent(currentIndex.value)
         }
       })
     }
   }
   img.onerror = () => {
-    // Fall back to direct src swap — onImgError will handle retries
     if (previewUrl.value === url) {
       actualSrc.value = url
     }
