@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.10
+
+### EN
+
+**Bug fixes**
+- **Guest share: Nextcloud footer no longer overlaps images** (#62) — on public share pages NC renders an entity-name/legal/signup footer that on mobile could eat up to 1/3 of the viewport and on desktop pushed the grid up. The StarRate guest view now renders as a full-viewport overlay and hides NC's header/footer chrome (imprint/privacy remain reachable via the NC instance root). Big thanks to @matt-ek for the detailed repro and @lukegraphix for the independent reproduction on a fresh install.
+
+### DE
+
+**Bugfixes**
+- **Gast-Freigabe: Nextcloud-Footer überlagert keine Bilder mehr** (#62) — auf Public-Share-Seiten rendert NC einen Footer mit Entity-Name, Legal-Links und Signup-Promo, der auf Mobile bis zu 1/3 des Viewports fressen konnte und auf Desktop das Grid hochgedrückt hat. Die StarRate-Gast-Ansicht legt sich jetzt als Vollbild-Overlay über die Seite und blendet NC-Header und -Footer aus (Impressum/Datenschutz bleiben über den Root der NC-Instanz erreichbar). Großer Dank an @matt-ek für die detaillierte Repro und @lukegraphix für die unabhängige Reproduktion auf einer frischen Installation.
+
 ## 1.2.9
 
 ### EN
