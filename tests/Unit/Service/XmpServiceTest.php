@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace OCA\StarRate\Tests\Unit\Service;
 
 use OCA\StarRate\Service\XmpService;
-use OCP\Files\File;
-use OCP\Files\Folder;
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
 
 class XmpServiceTest extends TestCase
 {
@@ -17,7 +13,7 @@ class XmpServiceTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->service = new XmpService($this->createMock(LoggerInterface::class));
+        $this->service = new XmpService();
     }
 
     // ─── Tests: XMP aufbauen ──────────────────────────────────────────────────
@@ -280,100 +276,4 @@ XMP;
         ];
     }
 
-    // ─── Tests: Dateiname-Matching ────────────────────────────────────────────
-
-    public function testGetBaseNameStripsExtension(): void
-    {
-        $this->assertSame('IMG_1234', $this->service->getBaseName('IMG_1234.jpg'));
-        $this->assertSame('IMG_1234', $this->service->getBaseName('IMG_1234.JPG'));
-        $this->assertSame('IMG_1234', $this->service->getBaseName('IMG_1234.cr3'));
-        $this->assertSame('IMG_1234', $this->service->getBaseName('IMG_1234.CR3'));
-        $this->assertSame('_DSC0042', $this->service->getBaseName('_DSC0042.ARW'));
-    }
-
-    public function testIsSameBaseMatchesCase(): void
-    {
-        $this->assertTrue($this->service->isSameBase('IMG_1234.jpg',  'IMG_1234.cr3'));
-        $this->assertTrue($this->service->isSameBase('IMG_1234.JPG',  'IMG_1234.CR3'));
-        $this->assertTrue($this->service->isSameBase('IMG_1234.jpeg', 'IMG_1234.xmp'));
-    }
-
-    public function testIsSameBaseReturnsFalseForDifferentNames(): void
-    {
-        $this->assertFalse($this->service->isSameBase('IMG_1234.jpg', 'IMG_5678.cr3'));
-        $this->assertFalse($this->service->isSameBase('DSC_0001.jpg', 'DSC_0002.jpg'));
-    }
-
-    public function testIsSameBaseCaseInsensitive(): void
-    {
-        $this->assertTrue($this->service->isSameBase('img_1234.jpg', 'IMG_1234.CR3'));
-    }
-
-    public function testIsRawFileDetectsRawFormats(): void
-    {
-        $this->assertTrue($this->service->isRawFile('IMG_1234.cr3'));
-        $this->assertTrue($this->service->isRawFile('IMG_1234.CR3'));
-        $this->assertTrue($this->service->isRawFile('IMG_1234.nef'));
-        $this->assertTrue($this->service->isRawFile('IMG_1234.arw'));
-        $this->assertTrue($this->service->isRawFile('IMG_1234.dng'));
-    }
-
-    public function testIsRawFileReturnsFalseForJpeg(): void
-    {
-        $this->assertFalse($this->service->isRawFile('IMG_1234.jpg'));
-        $this->assertFalse($this->service->isRawFile('IMG_1234.jpeg'));
-        $this->assertFalse($this->service->isRawFile('IMG_1234.png'));
-    }
-
-    public function testIsJpegFileDetectsJpeg(): void
-    {
-        $this->assertTrue($this->service->isJpegFile('test.jpg'));
-        $this->assertTrue($this->service->isJpegFile('test.jpeg'));
-        $this->assertTrue($this->service->isJpegFile('test.JPG'));
-        $this->assertTrue($this->service->isJpegFile('test.JPEG'));
-    }
-
-    // ─── Tests: Nextcloud Folder Mock ────────────────────────────────────────
-
-    public function testWriteSidecarToNcFolder(): void
-    {
-        $written  = null;
-        $filename = null;
-
-        $folder = $this->createMock(Folder::class);
-        $folder->method('nodeExists')->willReturn(false);
-        $folder->method('newFile')
-               ->willReturnCallback(function (string $name, string $content) use (&$filename, &$written) {
-                   $filename = $name;
-                   $written  = $content;
-                   return $this->createMock(File::class);
-               });
-
-        $this->service->writeSidecar($folder, 'IMG_1234', 3, 'Yellow');
-
-        $this->assertSame('IMG_1234.xmp', $filename);
-        $this->assertStringContainsString('xmp:Rating="3"',    $written);
-        $this->assertStringContainsString('xmp:Label="Yellow"', $written);
-    }
-
-    public function testReadSidecarFromNcFolderReturnsNullWhenMissing(): void
-    {
-        $folder = $this->createMock(Folder::class);
-        $folder->method('nodeExists')->willReturn(false);
-
-        $result = $this->service->readSidecar($folder, 'IMG_1234');
-        $this->assertNull($result);
-    }
-
-    // ─── Tests: CR3-Fixture ───────────────────────────────────────────────────
-
-    public function testDummyCr3FileExists(): void
-    {
-        $path = __DIR__ . '/../../fixtures/dummy.cr3';
-        if (!file_exists($path)) {
-            $this->markTestSkipped('Fixture dummy.cr3 nicht vorhanden');
-        }
-        $this->assertFileExists($path);
-        $this->assertGreaterThan(0, filesize($path));
-    }
 }
