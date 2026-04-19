@@ -11,13 +11,15 @@ use OCP\Migration\SimpleMigrationStep;
 /**
  * StarRate – Installation migration.
  *
- * StarRate stores all persistent data in:
+ * StarRate stores persistent data in:
  *   - oc_preferences  (IConfig user values for sync mappings, share tokens, settings)
  *   - Nextcloud Collaborative Tags (ISystemTagManager / ISystemTagObjectMapper)
+ *   - starrate_comments table (added by Version020000Date20260414)
  *
- * No custom database tables are required. This migration step exists solely to
- * satisfy the <migrations> requirement in appinfo/info.xml and to pre-create
- * the system tags category namespace used by TagService.
+ * This initial install step does not create any tables itself — the comments
+ * table is introduced by the versioned migration, and the original 1.x schema
+ * used only preferences + system tags. This step exists to satisfy the
+ * <migrations> requirement in appinfo/info.xml.
  */
 class InstallStep extends SimpleMigrationStep
 {
