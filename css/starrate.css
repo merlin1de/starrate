@@ -56,6 +56,35 @@
   overflow: hidden;
 }
 
+/* ── Guest Mode Layout Fix (Issue #62) ──────────────────────────────────── */
+/* NC 33 PublicTemplateResponse rendert um #content herum einen NC-Header
+   (<header id="header"> mit Apps-Menü/Entity-Name) und einen NC-Footer
+   (<footer class="guest-box"> mit Legal-Links + "Get your own Nextcloud"-
+   Signup-Promo). Auf Mobile frisst der Footer bis zu 1/3 des Viewports,
+   der Header verschluckt weitere 50px – das bricht das Full-Screen-Culling-
+   UX. Lösung: App-Root als Full-Viewport-Overlay, NC-Header/-Footer
+   komplett ausblenden (Impressum bleibt anderweitig auf der NC-Instanz
+   erreichbar, Apps-Menü/Signup-Promo sind im Guest-Culling-Kontext
+   irrelevant – analog zum Vollbild-Viewer von NC Photos/Files). */
+
+body#body-public {
+  overflow: hidden;
+}
+
+body#body-public #starrate-guest-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100;
+  background: var(--sr-bg);
+}
+
+body#body-public #header,
+body#body-public .guest-box {
+  display: none;
+}
+
 /* ── Kritische Layout-Regeln (FOUC-Schutz) ────────────────────────────────── */
 /* Diese Regeln liegen sonst in den async geladenen Gallery/FilterBar-Chunks.
    Ohne sie kollabieren Nav-Row + FilterBar beim ersten Loupe-Einstieg auf 0px,
