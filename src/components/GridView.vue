@@ -154,7 +154,8 @@ const emit = defineEmits([
   'clear-filter',     // ()
 ])
 
-const THUMB_SIZE = 280
+// 256 trifft den NC-Preview-Size-Bucket exakt → kein Re-Crop aus dem 1024er-Cache.
+const THUMB_SIZE = 256
 
 const gridStyle = computed(() => {
   // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
@@ -163,7 +164,7 @@ const gridStyle = computed(() => {
     return { gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
   }
   // min() stellt sicher dass auf Mobile mindestens 2 Spalten passen:
-  // min(280px, calc(50vw - 16px)) → Desktop: 280px, Mobile 390px: ~179px → 2 Spalten
+  // min(256px, calc(50vw - 16px)) → Desktop: 256px, Mobile 390px: ~179px → 2 Spalten
   return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
 })
 
