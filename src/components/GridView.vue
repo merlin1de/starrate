@@ -184,7 +184,11 @@ const thumbCache = ref({})
 const THUMB_CONCURRENCY = 5
 let thumbObserver = null
 let activeLoads   = 0
-const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
+// Zwei getrennte Queues: Viewport-Items werden immer zuerst gedraint, intern
+// aber in DOM-Reihenfolge (push). So bleibt Viewport-Priorität erhalten, ohne
+// dass unshift den initialen Batch top-down verkehrt herum lädt.
+const priorityQueue = []
+const normalQueue   = []
 const pendingLoads = new Set()  // hält Image-Objekte am Leben (verhindert GC auf Mobile)
 
 function setupThumbObserver() {
@@ -221,15 +225,18 @@ function observeAllItems() {
 }
 
 function enqueueThumb(image, priority = false) {
-  if (image.thumbLoading || loadQueue.some(i => i.id === image.id)) return
-  if (priority) loadQueue.unshift(image)
-  else loadQueue.push(image)
+  if (image.thumbLoading) return
+  if (priorityQueue.some(i => i.id === image.id)) return
+  if (normalQueue.some(i => i.id === image.id)) return
+  if (priority) priorityQueue.push(image)
+  else normalQueue.push(image)
   drainQueue()
 }
 
 function drainQueue() {
-  while (activeLoads < THUMB_CONCURRENCY && loadQueue.length > 0) {
-    const image = loadQueue.shift()
+  while (activeLoads < THUMB_CONCURRENCY) {
+    const image = priorityQueue.shift() ?? normalQueue.shift()
+    if (!image) return
     if (image.thumbLoaded) continue
     activeLoads++
     loadThumb(image)
@@ -276,7 +283,8 @@ function loadThumb(image) {
 
 // Bilder-Array wechselt (Filter / Ordner): Observer + Queue neu aufsetzen
 watch(() => props.images, () => {
-  loadQueue.length = 0
+  priorityQueue.length = 0
+  normalQueue.length   = 0
   thumbObserver?.disconnect()
   observeAllItems()
 })
