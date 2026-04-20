@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.11
+
+### EN
+
+**Performance**
+- **Faster thumbnail loading** — the grid now requests previews at 256 px (hits NC's native preview size bucket exactly, no re-crop from the 1024 cache) and falls back to NC's core `/core/preview` endpoint for logged-in users instead of going through the StarRate controller. Less PHP overhead per request, more cache hits.
+
+### DE
+
+**Performance**
+- **Schnelleres Thumbnail-Laden** — das Grid fordert Previews jetzt mit 256 px an (trifft NCs nativen Preview-Size-Bucket exakt, kein Re-Crop aus dem 1024er-Cache) und fällt für eingeloggte User auf NCs `/core/preview`-Endpunkt zurück statt über den StarRate-Controller. Weniger PHP-Overhead pro Request, mehr Cache-Treffer.
+
 ## 1.2.10
 
 ### EN
