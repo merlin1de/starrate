@@ -239,9 +239,12 @@ function drainQueue() {
 function loadThumb(image) {
   image.thumbLoading = true
   const sz  = THUMB_SIZE
+  // Logged-in: /core/preview nutzt NCs nativen Preview-Cache (schneller als App-Endpunkt,
+  // der bei jedem Request erneut durch PreviewManager läuft). Guest-Modus setzt eigene URL
+  // via thumbnailUrlFn, weil /core/preview eine NC-Session braucht.
   const url = props.thumbnailUrlFn
     ? props.thumbnailUrlFn(image.id, sz)
-    : generateUrl(`/apps/starrate/api/thumbnail/${image.id}?width=${sz}&height=${sz}`)
+    : generateUrl(`/core/preview?fileId=${image.id}&x=${sz}&y=${sz}&a=1&forceIcon=0&mode=cover`)
   const imgEl = new Image()
   pendingLoads.add(imgEl)  // GC-Schutz: Image-Objekt am Leben halten bis Request abgeschlossen
   imgEl.onload = () => {
