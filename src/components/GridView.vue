@@ -184,59 +184,78 @@ const thumbCache = ref({})
 const THUMB_CONCURRENCY = 5
 let thumbObserver = null
 let activeLoads   = 0
-// Zwei getrennte Queues: Viewport-Items werden immer zuerst gedraint, intern
-// aber in DOM-Reihenfolge (push). So bleibt Viewport-Priorität erhalten, ohne
-// dass unshift den initialen Batch top-down verkehrt herum lädt.
-const priorityQueue = []
-const normalQueue   = []
+const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
 const pendingLoads = new Set()  // hält Image-Objekte am Leben (verhindert GC auf Mobile)
 
 function setupThumbObserver() {
   thumbObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return
+    // Reverse-Iteration: Ein Batch kommt in DOM-Reihenfolge (top→bottom).
+    // enqueueThumb mit priority=true unshift't vorne in die Queue. Würden wir
+    // vorwärts iterieren, wäre das Ergebnis bottom→top. Indem wir rückwärts
+    // durchgehen, landet innerhalb einer Batch DOM-Reihenfolge korrekt in der
+    // Queue (top wird zuletzt unshift'd und liegt ganz vorne).
+    // Zwischen verschiedenen Batches gewinnt die neueste Batch (z. B. nach
+    // schnellem Scrollen) vor älteren, noch wartenden Items.
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i]
+      if (!entry.isIntersecting) continue
       const idx   = parseInt(entry.target.dataset.index, 10)
       const image = props.images[idx]
-      if (!image || image.thumbLoaded || image.thumbLoading) return
+      if (!image || image.thumbLoaded || image.thumbLoading) { thumbObserver.unobserve(entry.target); continue }
       if (thumbCache.value[image.id]) {
         image.thumbUrl    = thumbCache.value[image.id]
         image.thumbLoaded = true
       } else {
-        // Tatsächlich sichtbare Bilder (im echten Viewport) bekommen Priorität
         const inViewport = entry.boundingClientRect.bottom > 0
           && entry.boundingClientRect.top < (window.innerHeight || document.documentElement.clientHeight)
         enqueueThumb(image, inViewport)
       }
       thumbObserver.unobserve(entry.target)
-    })
-  }, { rootMargin: '400px 0px' })  // einzelner Threshold 0 → kein Doppel-Firing
+    }
+  }, { rootMargin: '400px 0px' })
 }
 
 function observeAllItems() {
   nextTick(() => {
     if (!gridEl.value || !thumbObserver) return
     const items = gridEl.value.querySelectorAll('.sr-grid__item[data-index]')
+    const vh = window.innerHeight || document.documentElement.clientHeight
     items.forEach(el => {
       const idx = parseInt(el.dataset.index, 10)
       const img = props.images[idx]
-      if (img && !img.thumbLoaded) thumbObserver.observe(el)
+      if (!img || img.thumbLoaded) return
+      thumbObserver.observe(el)
+      // Safety-Net: IntersectionObserver feuert sein initiales Callback manchmal
+      // nicht zuverlässig (Layout noch nicht stabil, Ordner-Wechsel, etc.).
+      // Sichtbare Items sofort manuell enqueuen; bereits-queued-Check läuft in
+      // enqueueThumb.
+      const rect = el.getBoundingClientRect()
+      if (rect.bottom > 0 && rect.top < vh + 400) {
+        const inViewport = rect.bottom > 0 && rect.top < vh
+        if (thumbCache.value[img.id]) {
+          img.thumbUrl    = thumbCache.value[img.id]
+          img.thumbLoaded = true
+          thumbObserver.unobserve(el)
+        } else {
+          enqueueThumb(img, inViewport)
+        }
+      }
     })
   })
 }
 
 function enqueueThumb(image, priority = false) {
-  if (image.thumbLoading) return
-  if (priorityQueue.some(i => i.id === image.id)) return
-  if (normalQueue.some(i => i.id === image.id)) return
-  if (priority) priorityQueue.push(image)
-  else normalQueue.push(image)
+  if (image.thumbLoading || loadQueue.some(i => i.id === image.id)) return
+  // Priority = aktuell im Viewport → vorne in die Queue. Nach schnellem Scrollen
+  // überholt der neue Viewport automatisch ältere, noch wartende Items.
+  if (priority) loadQueue.unshift(image)
+  else loadQueue.push(image)
   drainQueue()
 }
 
 function drainQueue() {
-  while (activeLoads < THUMB_CONCURRENCY) {
-    const image = priorityQueue.shift() ?? normalQueue.shift()
-    if (!image) return
+  while (activeLoads < THUMB_CONCURRENCY && loadQueue.length > 0) {
+    const image = loadQueue.shift()
     if (image.thumbLoaded) continue
     activeLoads++
     loadThumb(image)
@@ -283,8 +302,7 @@ function loadThumb(image) {
 
 // Bilder-Array wechselt (Filter / Ordner): Observer + Queue neu aufsetzen
 watch(() => props.images, () => {
-  priorityQueue.length = 0
-  normalQueue.length   = 0
+  loadQueue.length = 0
   thumbObserver?.disconnect()
   observeAllItems()
 })
