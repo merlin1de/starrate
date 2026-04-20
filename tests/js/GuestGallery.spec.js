@@ -235,10 +235,10 @@ describe('GuestGallery', () => {
     expect(url).toContain('height=320')
   })
 
-  it('thumbnailUrlFn verwendet 280px als Standard-Größe', () => {
+  it('thumbnailUrlFn verwendet 256px als Standard-Größe', () => {
     const w = factory()
     const url = galleryProps(w).thumbnailUrlFn(7)
-    expect(url).toContain('width=280')
+    expect(url).toContain('width=256')
   })
 
   it('previewUrlFn gibt korrekte URL zurück', () => {
