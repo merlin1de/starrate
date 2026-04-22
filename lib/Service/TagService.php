@@ -8,7 +8,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\SystemTag\ISystemTagManager;
 use OCP\SystemTag\ISystemTagObjectMapper;
-use OCP\SystemTag\TagAlreadyExistsException;
 use OCP\SystemTag\TagNotFoundException;
 use Psr\Log\LoggerInterface;
 
@@ -39,117 +38,7 @@ class TagService
         private readonly LoggerInterface        $logger,
     ) {}
 
-    /** Per-Request-Cache: tagName → ISystemTag (vermeidet doppelte DB-Lookups innerhalb eines Requests) */
-    private array $tagCache = [];
-
-    // ─── Bewertung (Sterne) ───────────────────────────────────────────────────
-
-    /**
-     * Setzt die Sternebewertung für eine Datei.
-     * Entfernt zuerst alle vorhandenen Rating-Tags, dann setzt den neuen.
-     */
-    public function setRating(string $fileId, int $rating): void
-    {
-        if (!in_array($rating, self::VALID_RATINGS, true)) {
-            throw new \InvalidArgumentException("Invalid rating: {$rating}. Allowed: 0–5.");
-        }
-
-        $this->removeTagsByPrefix($fileId, self::TAG_PREFIX_RATING);
-
-        // Rating 0 = keine Bewertung → kein Tag setzen
-        if ($rating > 0) {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_RATING . $rating);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
-        }
-
-        $this->logger->debug("StarRate: set rating {$rating} for file {$fileId}.");
-    }
-
-    /**
-     * Liest die aktuelle Sternebewertung einer Datei (0 = keine).
-     */
-    public function getRating(string $fileId): int
-    {
-        for ($i = 5; $i >= 1; $i--) {
-            $tagName = self::TAG_PREFIX_RATING . $i;
-            if ($this->fileHasTag($fileId, $tagName)) {
-                return $i;
-            }
-        }
-        return 0;
-    }
-
-    // ─── Farbmarkierung ───────────────────────────────────────────────────────
-
-    /**
-     * Setzt die Farbmarkierung für eine Datei.
-     * null = Farbmarkierung entfernen.
-     */
-    public function setColor(string $fileId, ?string $color): void
-    {
-        if ($color !== null && !in_array($color, self::VALID_COLORS, true)) {
-            throw new \InvalidArgumentException(
-                "Invalid color: {$color}. Allowed: " . implode(', ', self::VALID_COLORS)
-            );
-        }
-
-        $this->removeTagsByPrefix($fileId, self::TAG_PREFIX_COLOR);
-
-        if ($color !== null) {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_COLOR . $color);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
-        }
-
-        $this->logger->debug("StarRate: set color " . ($color ?? 'none') . " for file {$fileId}.");
-    }
-
-    /**
-     * Liest die aktuelle Farbmarkierung einer Datei (null = keine).
-     */
-    public function getColor(string $fileId): ?string
-    {
-        foreach (self::VALID_COLORS as $color) {
-            if ($this->fileHasTag($fileId, self::TAG_PREFIX_COLOR . $color)) {
-                return $color;
-            }
-        }
-        return null;
-    }
-
-    // ─── Pick / Reject ────────────────────────────────────────────────────────
-
-    /**
-     * Setzt den Pick-Status: 'pick', 'reject' oder 'none'.
-     */
-    public function setPick(string $fileId, string $pick): void
-    {
-        if (!in_array($pick, self::VALID_PICKS, true)) {
-            throw new \InvalidArgumentException("Invalid pick status: {$pick}.");
-        }
-
-        $this->removeTagsByPrefix($fileId, self::TAG_PREFIX_PICK);
-
-        if ($pick !== 'none') {
-            $tag = $this->getOrCreateTag(self::TAG_PREFIX_PICK . $pick);
-            $this->tagMapper->assignTags($fileId, self::OBJECT_TYPE, [$tag->getId()]);
-        }
-    }
-
-    /**
-     * Liest den Pick-Status einer Datei ('pick', 'reject' oder 'none').
-     */
-    public function getPick(string $fileId): string
-    {
-        if ($this->fileHasTag($fileId, self::TAG_PREFIX_PICK . 'pick')) {
-            return 'pick';
-        }
-        if ($this->fileHasTag($fileId, self::TAG_PREFIX_PICK . 'reject')) {
-            return 'reject';
-        }
-        return 'none';
-    }
-
-    // ─── Kombiniert: alle Metadaten auf einmal ────────────────────────────────
+    // ─── Metadaten (Rating + Color + Pick) ────────────────────────────────────
 
     /**
      * Setzt Rating + Color + Pick in einem Aufruf.
@@ -244,11 +133,6 @@ class TagService
      */
     private function getOrCreateTagDirect(string $name): string
     {
-        // Erst im Request-Cache nachschauen
-        if (isset($this->tagCache[$name])) {
-            return $this->tagCache[$name]->getId();
-        }
-
         // Suche in der systemtag-Tabelle
         $qb     = $this->db->getQueryBuilder();
         $result = $qb->select('id')
@@ -385,112 +269,6 @@ class TagService
     public function clearAll(string $fileId): void
     {
         $this->removeTagsByPrefix($fileId, 'starrate:');
-    }
-
-    // ─── Filter-Hilfsmethoden ─────────────────────────────────────────────────
-
-    /**
-     * Gibt alle fileIds zurück, die eine Bewertung ≥ $minRating haben.
-     *
-     * @param  string[] $fileIds  Menge der zu prüfenden Dateien
-     * @return string[]
-     */
-    public function filterByMinRating(array $fileIds, int $minRating): array
-    {
-        if (empty($fileIds) || $minRating <= 0) {
-            return $fileIds;
-        }
-
-        $batch = $this->getMetadataBatch($fileIds);
-        return array_values(array_filter(
-            $fileIds,
-            fn($id) => ($batch[$id]['rating'] ?? 0) >= $minRating
-        ));
-    }
-
-    /**
-     * Gibt alle fileIds zurück, die exakt $rating Sterne haben.
-     *
-     * @param  string[] $fileIds
-     * @return string[]
-     */
-    public function filterByRating(array $fileIds, int $rating): array
-    {
-        $batch = $this->getMetadataBatch($fileIds);
-        return array_values(array_filter(
-            $fileIds,
-            fn($id) => ($batch[$id]['rating'] ?? 0) === $rating
-        ));
-    }
-
-    /**
-     * Gibt alle fileIds zurück, die die gegebene Farbe haben.
-     *
-     * @param  string[] $fileIds
-     * @return string[]
-     */
-    public function filterByColor(array $fileIds, string $color): array
-    {
-        $batch = $this->getMetadataBatch($fileIds);
-        return array_values(array_filter(
-            $fileIds,
-            fn($id) => ($batch[$id]['color'] ?? null) === $color
-        ));
-    }
-
-    // ─── Private Hilfsmethoden ────────────────────────────────────────────────
-
-    /**
-     * Gibt einen existierenden Tag zurück oder erstellt ihn (nicht sichtbar, nicht zuweisbar).
-     * Cached das Ergebnis im Request-Scope (vermeidet doppelte DB-Lookups z. B. bei setBatch).
-     */
-    private function getOrCreateTag(string $name): \OCP\SystemTag\ISystemTag
-    {
-        if (isset($this->tagCache[$name])) {
-            return $this->tagCache[$name];
-        }
-
-        try {
-            $tags = $this->tagManager->getAllTags(null, $name);
-            foreach ($tags as $tag) {
-                if ($tag->getName() === $name) {
-                    return $this->tagCache[$name] = $tag;
-                }
-            }
-        } catch (\Exception) {
-            // Tag nicht gefunden → neu anlegen
-        }
-
-        try {
-            return $this->tagCache[$name] = $this->tagManager->createTag($name, false, false);
-        } catch (TagAlreadyExistsException) {
-            // Race condition: another request created the tag concurrently — fetch it
-            $tags = $this->tagManager->getAllTags(null, $name);
-            foreach ($tags as $tag) {
-                if ($tag->getName() === $name) {
-                    return $this->tagCache[$name] = $tag;
-                }
-            }
-            throw new \RuntimeException("Tag '{$name}' reported as existing but could not be fetched");
-        }
-    }
-
-    /**
-     * Prüft ob eine Datei einen bestimmten Tag (nach Name) hat.
-     */
-    private function fileHasTag(string $fileId, string $tagName): bool
-    {
-        try {
-            $tags = $this->tagManager->getAllTags(null, $tagName);
-            foreach ($tags as $tag) {
-                if ($tag->getName() === $tagName) {
-                    return $this->tagMapper->haveTag([$fileId], self::OBJECT_TYPE, $tag->getId());
-                }
-            }
-        } catch (\Exception) {
-            // ignore
-        }
-        return false;
     }
 
     /**

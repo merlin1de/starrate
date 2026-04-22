@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.11
+
+### EN
+
+**Performance**
+- **Faster thumbnail loading** — the grid now fetches previews via NC's core `/core/preview` endpoint for logged-in users instead of going through the StarRate controller. Less PHP overhead per request, more cache hits.
+
+**Bug fixes**
+- **Thumbnails sometimes invisible until window re-shown** — fixed a paint-suppression bug where loaded grid thumbnails wouldn't appear until the browser window was occluded and re-exposed. Two interacting causes: the native `loading="lazy"` attribute fought against StarRate's own intersection-based preload queue, and `decoding="async"` let the browser defer image decoding so `<img>` elements landed in the DOM but didn't paint until a window-visibility change forced a full repaint. Removed the redundant `loading` attribute and now pre-decode preloaded images via `HTMLImageElement.decode()` before flipping `thumbLoaded` — the `<img>` is added to the DOM only once the bitmap is decode-ready and paints in the same frame.
+
+### DE
+
+**Performance**
+- **Schnelleres Thumbnail-Laden** — das Grid lädt Previews jetzt für eingeloggte User über NCs `/core/preview`-Endpunkt statt über den StarRate-Controller. Weniger PHP-Overhead pro Request, mehr Cache-Treffer.
+
+**Bugfixes**
+- **Thumbnails manchmal unsichtbar bis Fenster neu aufgebaut** — Paint-Suppression-Bug behoben, bei dem geladene Grid-Thumbnails erst sichtbar wurden, nachdem das Browserfenster verdeckt und wieder aufgedeckt wurde. Zwei zusammenwirkende Ursachen: das native `loading="lazy"`-Attribut hat gegen StarRates eigenen Preload-Queue gearbeitet, und `decoding="async"` ließ den Browser den Decode aufschieben — `<img>`-Elemente landeten zwar im DOM, paintet wurden sie aber erst nach einem Force-Repaint via Fenster-Visibility-Wechsel. Das redundante `loading`-Attribut ist raus, und vorgeladene Bilder werden jetzt via `HTMLImageElement.decode()` pre-decoded, bevor `thumbLoaded` auf true geht — das `<img>` wandert erst dann ins DOM, wenn die Bitmap decode-ready ist, und paintet im selben Frame.
+
 ## 1.2.10
 
 ### EN
