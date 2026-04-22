@@ -129,7 +129,7 @@ async function batchRateFn(ids, payload) {
 }
 
 function thumbnailUrlFn(fileId, sz) {
-  const s = sz ?? 256
+  const s = sz ?? 280
   const base = generateUrl(`/apps/starrate/api/guest/${props.token}/thumbnail/${fileId}?width=${s}&height=${s}`)
   return appendPwToken(base)
 }
