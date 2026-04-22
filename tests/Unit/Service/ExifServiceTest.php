@@ -20,7 +20,7 @@ class ExifServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->logger     = $this->createMock(LoggerInterface::class);
-        $xmpService       = new XmpService($this->logger);
+        $xmpService       = new XmpService();
         $this->service    = new ExifService($xmpService, $this->logger);
     }
 
