@@ -32,15 +32,31 @@
       >
         <!-- Thumbnail -->
         <div class="sr-grid__thumb-wrap">
-          <img
-            v-if="image.thumbLoaded"
-            class="sr-grid__thumb"
-            :src="image.thumbUrl"
-            :alt="image.name"
-            loading="lazy"
-            draggable="false"
+          <!-- Placeholder + <img> bleiben BEIDE permanent im DOM. Kein v-if.
+               Grund: DOM-Inserts/Removes während Image-Loads haben Paint-Suppression
+               ausgelöst (Browser verwirft den Paint des frisch eingefügten/geänderten
+               Nachbarn, Thumbs bleiben schwarz bis Window-Redraw).
+               Mechanik: <img> hat permanent opacity:1. Solange src=BLANK_PIXEL
+               (transparentes 1×1-GIF) ist, schimmert der dahinter liegende
+               Placeholder durch. Sobald das opake JPEG lädt, überdeckt es den
+               Placeholder. Kein Opacity-Fade, kein DOM-Umbau — deshalb auch keine
+               Paint-Suppression. -->
+          <div
+            class="sr-grid__thumb-placeholder"
+            :class="{
+              'sr-grid__thumb-placeholder--hidden': image.thumbLoaded,
+              'sr-grid__thumb-placeholder--error':  image.thumbError,
+            }"
           />
-          <div v-else class="sr-grid__thumb-placeholder" :class="{ 'sr-grid__thumb-placeholder--error': image.thumbError }" />
+          <img
+            class="sr-grid__thumb"
+            :src="image.thumbUrl || BLANK_PIXEL"
+            :alt="image.name"
+            decoding="sync"
+            draggable="false"
+            @load="onImgLoad(image)"
+            @error="onImgError(image)"
+          />
 
           <!-- Pick-Badge -->
           <div v-if="enablePickUi && image.pick === 'pick'" class="sr-grid__pick-badge" aria-label="Picked">
@@ -154,8 +170,11 @@ const emit = defineEmits([
   'clear-filter',     // ()
 ])
 
-// 256 trifft den NC-Preview-Size-Bucket exakt → kein Re-Crop aus dem 1024er-Cache.
-const THUMB_SIZE = 256
+// 1×1 transparenter PNG als initialer src für das immer-vorhandene <img>.
+// Verhindert Broken-Image-Icon, ohne HTTP-Request auszulösen (data: URI).
+const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+
+const THUMB_SIZE = 280
 
 const gridStyle = computed(() => {
   // gridTemplateColumns direkt als Inline-Style – CSS-custom-properties mit repeat()
@@ -185,7 +204,6 @@ const THUMB_CONCURRENCY = 5
 let thumbObserver = null
 let activeLoads   = 0
 const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
-const pendingLoads = new Set()  // hält Image-Objekte am Leben (verhindert GC auf Mobile)
 
 function setupThumbObserver() {
   thumbObserver = new IntersectionObserver((entries) => {
@@ -271,38 +289,51 @@ function loadThumb(image) {
   const url = props.thumbnailUrlFn
     ? props.thumbnailUrlFn(image.id, sz)
     : generateUrl(`/core/preview?fileId=${image.id}&x=${sz}&y=${sz}&a=1&forceIcon=0&mode=cover`)
-  const imgEl = new Image()
-  pendingLoads.add(imgEl)  // GC-Schutz: Image-Objekt am Leben halten bis Request abgeschlossen
-  imgEl.onload = () => {
-    pendingLoads.delete(imgEl)
-    thumbCache.value[image.id] = url
-    const found = props.images.find(i => i.id === image.id)
-    if (found) { found.thumbUrl = url; found.thumbLoaded = true; found.thumbLoading = false }
-    activeLoads--
-    drainQueue()
-  }
-  imgEl.onerror = () => {
-    pendingLoads.delete(imgEl)
-    const found = props.images.find(i => i.id === image.id)
-    if (found) {
-      found.thumbLoading = false
-      found.thumbRetries = (found.thumbRetries ?? 0) + 1
-      if (found.thumbRetries < 3) {
-        // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen
-        setTimeout(() => enqueueThumb(found), found.thumbRetries * 3000)
-      } else {
-        found.thumbError = true
-      }
-    }
-    activeLoads--
-    drainQueue()
-  }
-  imgEl.src = url
+  // KEIN separater `new Image()`-Preload mehr. Vor 1.2.11 wurde die URL erst via
+  // versteckter Image-Instanz vorgeladen, dann `image.thumbUrl` gesetzt → das DOM-<img>
+  // hat dadurch einen ZWEITEN Request abgesetzt (Cache-Hit, aber trotzdem eigener Slot
+  // im Browser-Pipelining). Bei 600er Ordnern führte das zu 1200 queued Requests und
+  // verstopfte HTTP/2-Streams + PHP-FPM-Worker. Jetzt: URL direkt setzen, DOM-<img>
+  // lädt nativ, `@load`/`@error` steuern die Queue.
+  image.thumbUrl = url
 }
 
-// Bilder-Array wechselt (Filter / Ordner): Observer + Queue neu aufsetzen
+function onImgLoad(image) {
+  // Initialer Render mit BLANK_PIXEL feuert auch `load` — ignorieren.
+  if (!image.thumbLoading) return
+  thumbCache.value[image.id] = image.thumbUrl
+  image.thumbLoaded  = true
+  image.thumbLoading = false
+  activeLoads--
+  drainQueue()
+}
+
+function onImgError(image) {
+  if (!image.thumbLoading) return
+  image.thumbLoading = false
+  image.thumbRetries = (image.thumbRetries ?? 0) + 1
+  if (image.thumbRetries < 3) {
+    // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen.
+    // src zurücksetzen, damit beim Retry das <img> wirklich erneut lädt.
+    image.thumbUrl = ''
+    setTimeout(() => enqueueThumb(image), image.thumbRetries * 3000)
+  } else {
+    image.thumbError = true
+  }
+  activeLoads--
+  drainQueue()
+}
+
+// Bilder-Array wechselt (Filter / Ordner / Shape-Change bei Upload): Observer + Queue neu aufsetzen.
+// Visibility-Reload und Background-Sync triggern das normalerweise NICHT, weil Gallery.vue
+// den Fast-Path (sameShape) nutzt und das Array in-place merged.
+// WICHTIG: activeLoads muss ebenfalls zurückgesetzt werden. Sonst driftet der Counter
+// bei jedem Array-Wechsel nach oben (in-flight-Loads dekrementieren nicht mehr, weil
+// ihre Image-Objekte aus dem neuen Array verschwunden sind) → Queue verstopft, sichtbare
+// Items bleiben schwarz.
 watch(() => props.images, () => {
   loadQueue.length = 0
+  activeLoads = 0
   thumbObserver?.disconnect()
   observeAllItems()
 })
@@ -634,12 +665,18 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 200ms ease;
+  /* Kein opacity-Toggle — <img> bleibt permanent opacity:1. Paint-Suppression-Quelle
+     war das Fade von 0→1: Chromium recycelt den compositor layer des <img>, neuer
+     frame wird manchmal nicht geflushed (pitchblack Items bis Window-Redraw).
+     Stattdessen: solange src=BLANK_PIXEL ist, schimmert der darunterliegende
+     Placeholder durch das transparente 1×1. Sobald ein opakes JPEG lädt, überdeckt
+     es den Placeholder ohne Opacity-Gefrickel. */
 }
 
 @media (pointer: fine) {
   .sr-grid__item:hover .sr-grid__thumb {
     transform: scale(1.02);
+    transition: transform 200ms ease;
   }
 }
 
@@ -649,6 +686,13 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   background: linear-gradient(135deg, #1e1e2e 25%, #2a2a3e 50%, #1e1e2e 75%);
   background-size: 400% 400%;
   animation: shimmer 1.5s infinite;
+  pointer-events: none;
+}
+
+/* Loaded: Animation aus (CPU sparen). Opacity bleibt 1 — das opake <img> liegt
+   drüber und verdeckt den Placeholder komplett, kein Fade nötig, kein DOM-Umbau. */
+.sr-grid__thumb-placeholder--hidden {
+  animation: none;
 }
 
 @keyframes shimmer {
