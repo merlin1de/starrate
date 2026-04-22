@@ -183,7 +183,7 @@ const gridStyle = computed(() => {
     return { gridTemplateColumns: `repeat(${props.gridColumns}, 1fr)` }
   }
   // min() stellt sicher dass auf Mobile mindestens 2 Spalten passen:
-  // min(256px, calc(50vw - 16px)) → Desktop: 256px, Mobile 390px: ~179px → 2 Spalten
+  // min(280px, calc(50vw - 16px)) → Desktop: 280px, Mobile 390px: ~179px → 2 Spalten
   return { gridTemplateColumns: `repeat(auto-fill, minmax(min(${THUMB_SIZE}px, calc(50vw - 16px)), 1fr))` }
 })
 
