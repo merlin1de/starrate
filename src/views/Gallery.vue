@@ -382,9 +382,13 @@ const hasActiveFilter = computed(() =>
 
 let loadSeq = 0  // Sequenzzähler: verhindert dass alte Requests neuere überschreiben
 
-async function loadImages() {
+async function loadImages({ silent = false } = {}) {
   const seq = ++loadSeq
-  loading.value = true
+  // silent=true: keine Skeleton-Anzeige während des Requests. Für Background-Sync
+  // und Visibility-Revisit — dort ist das Grid bereits voll gefüllt, ein kurzer
+  // Flash auf Skeleton würde die Scroll-Position zerstören (DOM-Struktur wechselt
+  // komplett, scroll-anchoring kommt nur teilweise zurück).
+  if (!silent) loading.value = true
   try {
     let data
     if (props.loadImagesFn) {
@@ -398,14 +402,43 @@ async function loadImages() {
       data = res.data
     }
     if (seq !== loadSeq) return  // veralteter Request – ignorieren
-    allImages.value = (data.images || []).map(img => ({
-      ...img,
-      thumbLoaded: false,
-      thumbLoading: false,
-      thumbUrl: null,
-      thumbRetries: 0,
-      thumbError: false,
-    }))
+    const incoming = data.images || []
+    const current  = allImages.value
+
+    // Fast-path: Wenn Ordner-Inhalt sich semantisch NICHT geändert hat (gleiche IDs
+    // in gleicher Reihenfolge), nur Metadata (rating/color/pick) in-place mergen.
+    // Kein Array-Swap → kein GridView-Watch-Trigger → keine Scroll-Position-Verloren,
+    // keine Thumb-Queue-Reset, kein <img>-Rebinding (Paint-Suppression-Risiko).
+    // Das ist der Normalfall bei visibilitychange und Background-Sync.
+    const sameShape = current.length === incoming.length
+      && current.every((cur, i) => cur.id === incoming[i].id)
+
+    if (sameShape) {
+      incoming.forEach((inc, i) => {
+        const cur = current[i]
+        if (cur.rating !== inc.rating) cur.rating = inc.rating
+        if (cur.color  !== inc.color)  cur.color  = inc.color
+        if (cur.pick   !== inc.pick)   cur.pick   = inc.pick
+        if (cur.name   !== inc.name)   cur.name   = inc.name
+      })
+    } else {
+      // Shape hat sich geändert (neuer Ordner, neue Datei, Umsortierung): neu aufbauen.
+      // Thumb-State für bereits bekannte IDs mergen, damit z. B. nach Upload nicht
+      // alle anderen Thumbs neu geladen werden.
+      const existing = new Map(current.map(i => [i.id, i]))
+      allImages.value = incoming.map(img => {
+        const prev = existing.get(img.id)
+        const done = prev?.thumbLoaded === true && prev?.thumbUrl
+        return {
+          ...img,
+          thumbLoaded:  done,
+          thumbLoading: false,
+          thumbUrl:     done ? prev.thumbUrl : null,
+          thumbRetries: 0,
+          thumbError:   false,
+        }
+      })
+    }
     subFolders.value = data.folders || []
   } catch {
     if (seq !== loadSeq) return
@@ -736,7 +769,7 @@ let syncTimer = null
 function startBackgroundSync() {
   clearInterval(syncTimer)
   syncTimer = setInterval(() => {
-    if (!document.hidden && !loading.value) loadImages()
+    if (!document.hidden && !loading.value) loadImages({ silent: true })
   }, SYNC_INTERVAL_MS)
 }
 
@@ -748,7 +781,7 @@ function stopBackgroundSync() {
 // ─── Visibility-Refresh: Tab kommt in Vordergrund → Ordner neu laden ──────────
 
 function onVisibilityChange() {
-  if (!document.hidden && !loading.value) loadImages()
+  if (!document.hidden && !loading.value) loadImages({ silent: true })
 }
 
 onMounted(async () => {
