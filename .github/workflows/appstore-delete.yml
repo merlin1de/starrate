@@ -1,0 +1,51 @@
+name: App Store Delete
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (z.B. 1.2.11) — ohne v-Prefix'
+        required: true
+        type: string
+      nightly:
+        description: 'Nightly-Release löschen? (sonst Stable)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  appstore-delete:
+    name: Nextcloud App Store Delete
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete release from Nextcloud App Store
+        env:
+          NC_APP_STORE_TOKEN: ${{ secrets.NC_APP_STORE_TOKEN }}
+        run: |
+          if [ -z "$NC_APP_STORE_TOKEN" ]; then
+            echo "NC_APP_STORE_TOKEN not set — cannot delete."
+            exit 1
+          fi
+          VERSION="${{ github.event.inputs.version }}"
+          NIGHTLY="${{ github.event.inputs.nightly }}"
+          if [ "$NIGHTLY" = "true" ]; then
+            URL="https://apps.nextcloud.com/api/v1/apps/starrate/releases/nightly/${VERSION}/"
+            CHANNEL="nightly"
+          else
+            URL="https://apps.nextcloud.com/api/v1/apps/starrate/releases/${VERSION}/"
+            CHANNEL="stable"
+          fi
+          echo "Deleting ${CHANNEL} release ${VERSION}: $URL"
+          HTTP_STATUS=$(curl -s -o /tmp/delete_response.txt -w "%{http_code}" \
+            -X DELETE "$URL" \
+            -H "Authorization: Token $NC_APP_STORE_TOKEN")
+          echo "HTTP Status: $HTTP_STATUS"
+          cat /tmp/delete_response.txt || true
+          echo
+          if [ "$HTTP_STATUS" = "204" ] || [ "$HTTP_STATUS" = "200" ]; then
+            echo "App Store delete successful ✓"
+          else
+            echo "App Store delete failed with status $HTTP_STATUS"
+            exit 1
+          fi
