@@ -227,7 +227,10 @@ async function autosave() {
 .sr-settings__select {
   padding: 5px 8px;
   border-radius: 5px;
-  border: 1px solid var(--color-border, #ccc);
+  /* var(--color-border) ist im aktuellen NC-Theme sehr blass — fast unsichtbar.
+     --color-border-dark gibt sichtbare Konturen, fällt auf #aaa zurück wenn
+     die Custom-Property nicht definiert ist. */
+  border: 1px solid var(--color-border-dark, #aaa);
   background: var(--color-main-background, #fff);
   color: var(--color-main-text, #222);
   font-size: 13px;
