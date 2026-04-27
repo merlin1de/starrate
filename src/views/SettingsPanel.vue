@@ -81,6 +81,34 @@
       </div>
     </div>
 
+    <div class="sr-settings__group">
+      <h3 class="sr-settings__heading">{{ t('starrate', 'Rekursive Ansicht') }}</h3>
+
+      <div class="sr-settings__row">
+        <label class="sr-settings__label sr-settings__label--check">
+          <input type="checkbox" v-model="form.recursive_default" @change="autosave" />
+          {{ t('starrate', 'Standardmäßig rekursiv') }}
+        </label>
+      </div>
+
+      <div class="sr-settings__row">
+        <label class="sr-settings__label">{{ t('starrate', 'Gruppen-Tiefe') }}</label>
+        <div class="sr-settings__control">
+          <select v-model.number="form.recursive_default_depth" class="sr-settings__select" @change="autosave">
+            <option :value="0">{{ t('starrate', 'Flach (keine Gruppierung)') }}</option>
+            <option :value="1">1</option>
+            <option :value="2">2</option>
+            <option :value="3">3</option>
+            <option :value="4">4</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="sr-settings__hint">
+        {{ t('starrate', 'Rekursiv: zeigt Bilder aus allen Unterordnern. Tiefe: sortiert Items mit gleichem Pfad-Präfix nebeneinander, ohne sichtbare Gruppen-Header.') }}
+      </p>
+    </div>
+
     <!-- Status -->
     <Transition name="sr-fade">
       <span v-if="status" class="sr-settings__status" :class="`sr-settings__status--${status}`">
@@ -102,15 +130,17 @@ const props = defineProps({
 })
 
 const DEFAULTS = {
-  default_sort:        'name',
-  default_sort_order:  'asc',
-  show_filename:        true,
-  show_rating_overlay:  true,
-  show_color_overlay:   true,
-  grid_columns:        'auto',
-  enable_pick_ui:       false,
-  write_xmp:            true,
-  comments_enabled:     false,
+  default_sort:             'name',
+  default_sort_order:       'asc',
+  show_filename:             true,
+  show_rating_overlay:       true,
+  show_color_overlay:        true,
+  grid_columns:             'auto',
+  enable_pick_ui:            false,
+  write_xmp:                 true,
+  comments_enabled:          false,
+  recursive_default:         false,
+  recursive_default_depth:   0,
 }
 
 const form   = reactive({ ...DEFAULTS, ...props.initial })
@@ -211,6 +241,13 @@ async function autosave() {
 
 .sr-settings__status--ok    { color: var(--color-success, #46ba61); }
 .sr-settings__status--error { color: var(--color-error,   #e9322d); }
+
+.sr-settings__hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-maxcontrast, #888);
+  line-height: 1.4;
+}
 
 .sr-fade-enter-active, .sr-fade-leave-active { transition: opacity 300ms; }
 .sr-fade-enter-from, .sr-fade-leave-to       { opacity: 0; }

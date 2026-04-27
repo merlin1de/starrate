@@ -46,28 +46,23 @@ class UserSettings implements ISettings
 
     /**
      * Gibt alle Benutzereinstellungen zurück.
-     *
-     * @return array{
-     *   default_sort: string,
-     *   default_sort_order: string,
-     *   show_filename: bool,
-     *   show_rating_overlay: bool,
-     *   show_color_overlay: bool,
-     *   grid_columns: string,
-     * }
      */
     public function getSettings(string $userId): array
     {
         return [
-            'default_sort'          => $this->get($userId, 'default_sort', 'name'),
-            'default_sort_order'    => $this->get($userId, 'default_sort_order', 'asc'),
-            'show_filename'         => $this->getBool($userId, 'show_filename', true),
-            'show_rating_overlay'   => $this->getBool($userId, 'show_rating_overlay', true),
-            'show_color_overlay'    => $this->getBool($userId, 'show_color_overlay', true),
-            'grid_columns'          => $this->get($userId, 'grid_columns', 'auto'),
-            'enable_pick_ui'        => $this->getBool($userId, 'enable_pick_ui', false),
-            'write_xmp'             => $this->getBool($userId, 'write_xmp', true),
-            'comments_enabled'      => $this->getBool($userId, 'comments_enabled', false),
+            'default_sort'             => $this->get($userId, 'default_sort', 'name'),
+            'default_sort_order'       => $this->get($userId, 'default_sort_order', 'asc'),
+            'show_filename'            => $this->getBool($userId, 'show_filename', true),
+            'show_rating_overlay'      => $this->getBool($userId, 'show_rating_overlay', true),
+            'show_color_overlay'       => $this->getBool($userId, 'show_color_overlay', true),
+            'grid_columns'             => $this->get($userId, 'grid_columns', 'auto'),
+            'enable_pick_ui'           => $this->getBool($userId, 'enable_pick_ui', false),
+            'write_xmp'                => $this->getBool($userId, 'write_xmp', true),
+            'comments_enabled'         => $this->getBool($userId, 'comments_enabled', false),
+            // Recursive-View Defaults — werden beim Folder-Open als initiale
+            // Werte verwendet; URL-Params können sie pro View überschreiben.
+            'recursive_default'        => $this->getBool($userId, 'recursive_default', false),
+            'recursive_default_depth'  => $this->getInt($userId, 'recursive_default_depth', 0),
         ];
     }
 
@@ -83,6 +78,7 @@ class UserSettings implements ISettings
             'default_sort', 'default_sort_order',
             'show_filename', 'show_rating_overlay',
             'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp', 'comments_enabled',
+            'recursive_default', 'recursive_default_depth',
         ];
 
         foreach ($data as $key => $value) {
@@ -114,15 +110,32 @@ class UserSettings implements ISettings
         return in_array($val, ['1', 'true', 'yes'], true);
     }
 
+    private function getInt(string $userId, string $key, int $default): int
+    {
+        $val = $this->config->getUserValue($userId, self::APP_ID, $key, null);
+        return $val === null ? $default : (int) $val;
+    }
+
     private function validate(string $key, mixed $value): void
     {
         match ($key) {
             'default_sort' => $this->assertIn($key, $value, ['name', 'mtime', 'size']),
             'default_sort_order' => $this->assertIn($key, $value, ['asc', 'desc']),
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
+            'recursive_default_depth' => $this->assertIntRange($key, $value, 0, 4),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
-            'enable_pick_ui', 'write_xmp', 'comments_enabled' => null,
+            'enable_pick_ui', 'write_xmp', 'comments_enabled', 'recursive_default' => null,
         };
+    }
+
+    private function assertIntRange(string $key, mixed $value, int $min, int $max): void
+    {
+        $intVal = filter_var($value, FILTER_VALIDATE_INT);
+        if ($intVal === false || $intVal < $min || $intVal > $max) {
+            throw new \InvalidArgumentException(
+                "{$key} muss eine ganze Zahl zwischen {$min} und {$max} sein."
+            );
+        }
     }
 
     private function assertIn(string $key, mixed $value, array $allowed): void
