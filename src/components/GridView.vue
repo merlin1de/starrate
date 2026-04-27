@@ -799,8 +799,16 @@ watch(() => props.active, isActive => {
 
 function measureContainer() {
   if (!gridEl.value) return
-  containerWidth.value = gridEl.value.clientWidth
-  viewportHeight.value = gridEl.value.clientHeight
+  const w = gridEl.value.clientWidth
+  const h = gridEl.value.clientHeight
+  // Wenn das Grid via v-show ausgeblendet ist (display:none), liefert
+  // clientWidth/Height = 0. Ohne diesen Guard würde virtualEnabled false,
+  // renderedImages auf das komplette Array zurückfallen und Vue tausende
+  // versteckter Items mounten — bei 25k Bildern hat das 6s Lag beim Loupe-
+  // Öffnen und 4s beim Schließen verursacht. Letzten validen Wert behalten.
+  if (w === 0 && h === 0) return
+  containerWidth.value = w
+  viewportHeight.value = h
 }
 
 onMounted(() => {
