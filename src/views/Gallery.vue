@@ -96,9 +96,14 @@
       :allow-share="!guestMode"
       :allow-export="!guestMode || allowExport"
       :can-export="filteredImages.length > 0"
+      :allow-recursive="!guestMode"
+      :recursive="recursive"
+      :depth="depth"
       @toggle-mode="toggleMode"
       @open-share-list="showShareList = true"
       @open-export-modal="showExportModal = true"
+      @update:recursive="setRecursive"
+      @update:depth="setDepth"
     />
 
     <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
@@ -392,6 +397,18 @@ function exitRecursionInto(segmentIndex) {
   const subPath = hoveredFolderSegments.value.slice(0, segmentIndex + 1).join('/')
   const target = currentPath.value === '/' ? `/${subPath}` : `${currentPath.value}/${subPath}`
   router.push({ path: `/folder${target}`, query: { recursive: '0' } })
+}
+
+// FilterBar-Toggle/Stepper schreiben in URL-Query — die Computed-Werte oben
+// reagieren darauf und triggern via Watch das Reload. Wir mergen in die
+// existierende Query, damit andere URL-Params (Filter etc.) erhalten bleiben.
+function setRecursive(value) {
+  const q = { ...route.query, recursive: value ? '1' : '0' }
+  router.replace({ path: route.path, query: q })
+}
+function setDepth(value) {
+  const q = { ...route.query, depth: String(value) }
+  router.replace({ path: route.path, query: q })
 }
 
 const pathSegments = computed(() =>
