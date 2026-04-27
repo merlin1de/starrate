@@ -61,6 +61,12 @@ class UserSettings implements ISettings
             'comments_enabled'         => $this->getBool($userId, 'comments_enabled', false),
             // Recursive-View Defaults — werden beim Folder-Open als initiale
             // Werte verwendet; URL-Params können sie pro View überschreiben.
+            // Master-Schalter: deaktiviert das gesamte Recursive-Feature inkl.
+            // FilterBar-Toggle, Tiefe-Selector und URL-Param-Auswertung. Default
+            // false — Nutzer muss Feature bewusst freischalten. Macht Rollout
+            // und Testing kontrollierbarer (Tester wissen, dass sie es aktivieren
+            // müssen) und entlastet Solo-Workflows ohne tiefe Ordnerstruktur.
+            'recursion_enabled'        => $this->getBool($userId, 'recursion_enabled', false),
             'recursive_default'        => $this->getBool($userId, 'recursive_default', false),
             'recursive_default_depth'  => $this->getInt($userId, 'recursive_default_depth', 0),
         ];
@@ -78,7 +84,7 @@ class UserSettings implements ISettings
             'default_sort', 'default_sort_order',
             'show_filename', 'show_rating_overlay',
             'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp', 'comments_enabled',
-            'recursive_default', 'recursive_default_depth',
+            'recursion_enabled', 'recursive_default', 'recursive_default_depth',
         ];
 
         foreach ($data as $key => $value) {
@@ -124,7 +130,8 @@ class UserSettings implements ISettings
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
             'recursive_default_depth' => $this->assertIntRange($key, $value, 0, 4),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
-            'enable_pick_ui', 'write_xmp', 'comments_enabled', 'recursive_default' => null,
+            'enable_pick_ui', 'write_xmp', 'comments_enabled',
+            'recursion_enabled', 'recursive_default' => null,
         };
     }
 

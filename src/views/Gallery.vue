@@ -96,7 +96,7 @@
       :allow-share="!guestMode"
       :allow-export="!guestMode || allowExport"
       :can-export="filteredImages.length > 0"
-      :allow-recursive="!guestMode"
+      :allow-recursive="recursionAvailable"
       :recursive="recursive"
       :depth="depth"
       @toggle-mode="toggleMode"
@@ -314,6 +314,7 @@ const settings = ref({
   enable_pick_ui:            false,
   write_xmp:                 true,
   comments_enabled:          false,
+  recursion_enabled:         false,
   recursive_default:         false,
   recursive_default_depth:   0,
 })
@@ -350,21 +351,28 @@ const currentPath = computed(() => {
 
 // ─── Recursive-View State (URL überschreibt Settings-Default) ─────────────────
 //
+// Master-Schalter recursion_enabled (User-Setting, Default false): wenn aus,
+// wird das gesamte Feature inkl. URL-Param-Auswertung neutralisiert. Damit
+// können Nutzer das Feature vollständig ausblenden, und ein versehentlicher
+// Share-Link mit ?recursive=1 hat keinen Effekt.
+//
 // recursive: ?recursive=1 (oder true) in der URL aktiviert; sonst Settings-
 // Default. depth: ?depth=N (0-4) in der URL gewinnt; sonst Settings-Default.
 // Pro Folder, weil Vue-Router den ganzen URL-State per Folder hält. Browser-
 // Back navigiert zurück inkl. der Recursive-Settings.
 //
 // Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
+const recursionAvailable = computed(() => !props.guestMode && !!settings.value.recursion_enabled)
+
 const recursive = computed(() => {
-  if (props.guestMode) return false
+  if (!recursionAvailable.value) return false
   const q = route.query.recursive
   if (q !== undefined) return q === '1' || q === 'true'
   return settings.value.recursive_default
 })
 
 const depth = computed(() => {
-  if (props.guestMode) return 0
+  if (!recursionAvailable.value) return 0
   const q = route.query.depth
   if (q !== undefined) {
     const d = parseInt(q, 10)

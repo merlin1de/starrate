@@ -86,26 +86,39 @@
 
       <div class="sr-settings__row">
         <label class="sr-settings__label sr-settings__label--check">
-          <input type="checkbox" v-model="form.recursive_default" @change="autosave" />
-          {{ t('starrate', 'Standardmäßig rekursiv') }}
+          <input type="checkbox" v-model="form.recursion_enabled" @change="autosave" />
+          {{ t('starrate', 'Rekursive Ansicht aktivieren') }}
         </label>
       </div>
 
-      <div class="sr-settings__row">
-        <label class="sr-settings__label">{{ t('starrate', 'Gruppen-Tiefe') }}</label>
-        <div class="sr-settings__control">
-          <select v-model.number="form.recursive_default_depth" class="sr-settings__select" @change="autosave">
-            <option :value="0">{{ t('starrate', 'Flach (keine Gruppierung)') }}</option>
-            <option :value="1">1</option>
-            <option :value="2">2</option>
-            <option :value="3">3</option>
-            <option :value="4">4</option>
-          </select>
+      <template v-if="form.recursion_enabled">
+        <div class="sr-settings__row">
+          <label class="sr-settings__label sr-settings__label--check">
+            <input type="checkbox" v-model="form.recursive_default" @change="autosave" />
+            {{ t('starrate', 'Standardmäßig rekursiv') }}
+          </label>
         </div>
-      </div>
 
-      <p class="sr-settings__hint">
-        {{ t('starrate', 'Rekursiv: zeigt Bilder aus allen Unterordnern. Tiefe: sortiert Items mit gleichem Pfad-Präfix nebeneinander, ohne sichtbare Gruppen-Header.') }}
+        <div class="sr-settings__row">
+          <label class="sr-settings__label">{{ t('starrate', 'Gruppen-Tiefe') }}</label>
+          <div class="sr-settings__control">
+            <select v-model.number="form.recursive_default_depth" class="sr-settings__select" @change="autosave">
+              <option :value="0">{{ t('starrate', 'Flach (keine Gruppierung)') }}</option>
+              <option :value="1">1</option>
+              <option :value="2">2</option>
+              <option :value="3">3</option>
+              <option :value="4">4</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="sr-settings__hint">
+          {{ t('starrate', 'Rekursiv: zeigt Bilder aus allen Unterordnern. Tiefe: sortiert Items mit gleichem Pfad-Präfix nebeneinander, ohne sichtbare Gruppen-Header.') }}
+        </p>
+      </template>
+
+      <p v-else class="sr-settings__hint">
+        {{ t('starrate', 'Wenn aktiviert: zusätzlicher Toggle in der Filterleiste, mit dem ihr alle Bilder aus Unterordnern in einer Ansicht anzeigen lasst.') }}
       </p>
     </div>
 
@@ -139,6 +152,7 @@ const DEFAULTS = {
   enable_pick_ui:            false,
   write_xmp:                 true,
   comments_enabled:          false,
+  recursion_enabled:         false,
   recursive_default:         false,
   recursive_default_depth:   0,
 }
