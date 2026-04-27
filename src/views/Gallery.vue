@@ -10,6 +10,18 @@
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
 
+        <!-- Dynamischer Tail im Recursive-Modus: Subfolder des aktuell
+             gehoverten/fokussierten Tiles. Klick → Recursion verlassen, in
+             den jeweiligen Subfolder navigieren. -->
+        <template v-for="(seg, i) in hoveredFolderSegments" :key="`hov-${i}`">
+          <span class="sr-breadcrumb__sep sr-breadcrumb__sep--dynamic">/</span>
+          <button
+            class="sr-breadcrumb__seg sr-breadcrumb__seg--dynamic"
+            :title="t('starrate', 'In diesen Unterordner wechseln')"
+            @click="exitRecursionInto(i)"
+          >{{ seg }}</button>
+        </template>
+
         <!-- Mobile-only: Unterordner-Popover am Ende des Pfads -->
         <FolderPopover
           v-if="subFolders.length && mode !== 'loupe'"
@@ -109,6 +121,7 @@
         @open-loupe="openLoupe"
         @selection-change="onSelectionChange"
         @clear-filter="resetFilter"
+        @focus-preview="onFocusPreview"
       />
 
       <!-- Lupenansicht -->
@@ -353,6 +366,33 @@ const depth = computed(() => {
   }
   return settings.value.recursive_default_depth
 })
+
+// ─── Dynamischer Breadcrumb-Tail (nur Recursive-Modus) ────────────────────────
+//
+// Beim Hover/Focus über ein Tile wird dessen Subfolder-Pfad als Breadcrumb-
+// Erweiterung sichtbar. Visualisiert dem User „woher kommt dieses Bild" ohne
+// Per-Tile-Klutter. Hover-out behält letzten Wert (per Design).
+
+const hoveredImage = ref(null)
+
+function onFocusPreview(image) {
+  if (image) hoveredImage.value = image
+}
+
+const hoveredFolderSegments = computed(() => {
+  if (!recursive.value || !hoveredImage.value?.relPath) return []
+  const segments = hoveredImage.value.relPath.split('/')
+  segments.pop()  // Dateiname raus, nur Folder-Anteile
+  return segments
+})
+
+// Klick auf dynamischen Segment → in den entsprechenden Subfolder navigieren,
+// Recursion verlassen (über Query-Override).
+function exitRecursionInto(segmentIndex) {
+  const subPath = hoveredFolderSegments.value.slice(0, segmentIndex + 1).join('/')
+  const target = currentPath.value === '/' ? `/${subPath}` : `${currentPath.value}/${subPath}`
+  router.push({ path: `/folder${target}`, query: { recursive: '0' } })
+}
 
 const pathSegments = computed(() =>
   currentPath.value.split('/').filter(Boolean)
@@ -970,6 +1010,15 @@ watch(() => route.query, q => {
   align-items: center;
   width: 100%;
 }
+
+/* Dynamischer Tail im Recursive-Modus: optisch zurückgenommen, damit man auf
+   einen Blick sieht „das ist der Hover-Kontext, nicht meine Position". */
+.sr-breadcrumb__seg--dynamic,
+.sr-breadcrumb__sep--dynamic {
+  opacity: 0.6;
+  font-weight: 400;
+}
+.sr-breadcrumb__seg--dynamic:hover { opacity: 1; }
 
 .sr-view-wrap {
   flex: 1;

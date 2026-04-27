@@ -36,8 +36,10 @@
           'sr-grid__item--reject':   enablePickUi && image.pick === 'reject',
         }"
         :data-index="renderStartIdx + index"
+        :title="image.relPath && image.relPath !== image.name ? image.relPath : image.name"
         @click="onItemClick($event, image, renderStartIdx + index)"
         @dblclick="$emit('open-loupe', image, renderStartIdx + index)"
+        @mouseover="$emit('focus-preview', image)"
       >
         <!-- Thumbnail -->
         <div class="sr-grid__thumb-wrap">
@@ -185,6 +187,7 @@ const emit = defineEmits([
   'open-loupe',       // (image, index)
   'selection-change', // (selectedIds: Set)
   'clear-filter',     // ()
+  'focus-preview',    // (image) — Hover oder Keyboard-Focus, für dynamischen Breadcrumb-Tail im Recursive-Modus
 ])
 
 // 1×1 transparenter PNG als initialer src für das immer-vorhandene <img>.
@@ -767,6 +770,15 @@ watch(() => props.currentIndex, idx => {
     firstScrollSync = false
   }
 }, { immediate: true })   // immediate: focusedIndex beim Mount sofort setzen
+
+// Keyboard-Navigation und Click ändern focusedIndex — Parent über das Bild
+// informieren, damit der dynamische Breadcrumb-Tail mitläuft. Hover wird
+// separat im Template via @mouseover gefeuert.
+watch(focusedIndex, idx => {
+  if (idx >= 0 && idx < props.images.length) {
+    emit('focus-preview', props.images[idx])
+  }
+})
 
 // ─── Autofocus beim Mount ─────────────────────────────────────────────────────
 
