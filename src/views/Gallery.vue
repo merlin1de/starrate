@@ -482,8 +482,14 @@ async function loadImages({ silent = false } = {}) {
 }
 
 // Pfadwechsel ODER Recursive-Toggle/Depth-Änderung → Bilder neu laden.
-// kein immediate: erster Load passiert in onMounted nach Settings.
-watch([currentPath, recursive, depth], loadImages)
+// loadGate verhindert doppelten Load beim Initial-Mount: ohne den Gate würde
+// die Watch sofort feuern, sobald loadSettings() recursive_default in den
+// settings-ref schreibt (computed `recursive` ändert sich von Default→Wert).
+// Erst NACH dem manuellen loadImages() in onMounted öffnen wir das Tor.
+let loadGate = false
+watch([currentPath, recursive, depth], () => {
+  if (loadGate) loadImages()
+})
 
 // Pick-Filter zurücksetzen wenn Pick-UI deaktiviert wird
 watch(() => settings.value.enable_pick_ui, enabled => {
@@ -841,8 +847,9 @@ onMounted(async () => {
     }
   }
 
-  // Erster Bildladevorgang nach Settings & Filter
+  // Erster Bildladevorgang nach Settings & Filter; danach Watch aktivieren.
   loadImages()
+  loadGate = true
 })
 
 onUnmounted(() => {

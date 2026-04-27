@@ -19,6 +19,7 @@ use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\ICache;
 use OCP\ICacheFactory;
+use OCP\IDBConnection;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -45,6 +46,11 @@ class GalleryController extends Controller
     // Daten in normalen Workflows.
     private const LIST_CACHE_TTL = 300;
 
+    // Hartgrenze für rekursive Such-Ergebnisse — schützt vor OOM bei Megaordnern
+    // ohne Verlust für realistische Foto-Workflows. Bei Erreichen: Liste wird auf
+    // dieses Limit getrimmt; Frontend kann später eine Truncation-Warnung zeigen.
+    private const RECURSIVE_HARD_LIMIT = 25000;
+
     private ?ICache $listCache = null;
 
     public function __construct(
@@ -57,6 +63,7 @@ class GalleryController extends Controller
         private readonly IURLGenerator   $urlGenerator,
         private readonly LoggerInterface $logger,
         private readonly ICacheFactory   $cacheFactory,
+        private readonly IDBConnection   $db,
     ) {
         parent::__construct($appName, $request);
     }
@@ -281,8 +288,10 @@ class GalleryController extends Controller
         Folder $folder, Folder $userFolder, string $sort, string $order,
         bool $recursive, int $depth,
     ): array {
+        // v2: Cache-Format-Bump — neue Felder (relPath/groupKey) und neuer
+        // Recursive-DB-Pfad (anderes path-Format als v1).
         $key = sprintf(
-            'list:%d:%s:%s:r%d:d%d',
+            'list-v2:%d:%s:%s:r%d:d%d',
             $folder->getId(), $sort, $order, $recursive ? 1 : 0, $depth,
         );
 
@@ -322,20 +331,15 @@ class GalleryController extends Controller
         $userBase = $userFolder->getPath();
 
         $images = [];
-        $seen   = [];   // Deduplizierung über File-ID (searchByMime kann Duplikate liefern)
 
         if ($recursive) {
-            // searchByMime() pro MIME-Type — eine native NC-API, schneller als
-            // manuelle Rekursion über getDirectoryListing.
-            foreach (self::SUPPORTED_MIME as $mime) {
-                foreach ($folder->searchByMime($mime) as $node) {
-                    if (!($node instanceof File)) continue;
-                    $id = $node->getId();
-                    if (isset($seen[$id])) continue;
-                    $seen[$id] = true;
-                    $images[]  = $this->buildImageEntry($node, $rootPath, $userBase, $depth);
-                }
-            }
+            // Direct DB statt Folder::searchByMime: searchByMime allokiert für
+            // jede Treffer-Datei ein vollwertiges Node-Objekt, was bei großen
+            // Trees (10k+ Bilder) den PHP-Memory sprengt (gesehen mit 506 MB
+            // bei /). Die direkte oc_filecache-Query liefert nur Roh-Rows und
+            // baut daraus unsere kompakten Image-Arrays — Faktor ~10× weniger
+            // Speicher.
+            $images = $this->listImagesRecursiveFromDb($folder, $userBase, $depth);
         } else {
             foreach ($folder->getDirectoryListing() as $node) {
                 if (!($node instanceof File)) continue;
@@ -361,6 +365,67 @@ class GalleryController extends Controller
         });
 
         return array_values($images);
+    }
+
+    /**
+     * Direct-DB-Pfad für rekursive Suche: vermeidet Node-Allocation und damit
+     * den OOM-Killer bei großen User-Roots. Liefert dieselbe Strukturform wie
+     * buildImageEntry(), aber aus Roh-Rows von oc_filecache + oc_mimetypes.
+     *
+     * Scope: nur Dateien aus der Storage des angeforderten Folders. Geteilte
+     * Mounts und externe Storages bleiben außen vor — entspricht dem typischen
+     * 'meine eigenen Fotos rekursiv'-Use-Case und vermeidet permission-
+     * Komplexität.
+     */
+    private function listImagesRecursiveFromDb(Folder $folder, string $userBase, int $depth): array
+    {
+        $storageId    = $folder->getStorage()->getCache()->getNumericStorageId();
+        $internalPath = $folder->getInternalPath();
+        $pathPrefix   = ($internalPath === '' ? '' : $internalPath . '/') . '%';
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('fc.fileid', 'fc.name', 'fc.path', 'fc.size', 'fc.mtime', 'mt.mimetype')
+            ->from('filecache', 'fc')
+            ->innerJoin('fc', 'mimetypes', 'mt', $qb->expr()->eq('mt.id', 'fc.mimetype'))
+            ->where($qb->expr()->eq('fc.storage', $qb->createNamedParameter($storageId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->like('fc.path', $qb->createNamedParameter($pathPrefix)))
+            ->andWhere($qb->expr()->in('mt.mimetype', $qb->createNamedParameter(self::SUPPORTED_MIME, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+            // Hidden-Ordner ausschließen: NC-interne Preview-Caches (.@__thumb,
+            // .nc-trash, etc.) liegen im selben Storage, gehören aber nicht in
+            // die Galerie. searchByMime hatte das implizit über Permissions,
+            // direct SQL muss explizit filtern.
+            ->andWhere($qb->expr()->notLike('fc.path', $qb->createNamedParameter('%/.%')))
+            ->setMaxResults(self::RECURSIVE_HARD_LIMIT);
+
+        $result = $qb->executeQuery();
+        $rows = $result->fetchAll();
+        $result->closeCursor();
+
+        // userBase + 'files' als Trim-Basis: oc_filecache.path startet mit
+        // 'files/...' für die Home-Storage; absoluter Display-Pfad braucht das
+        // userBase-Präfix. relPath wird relativ zum Recursion-Root gebildet.
+        $rootInternalPrefix = $internalPath === '' ? 'files' : $internalPath;
+
+        $images = [];
+        foreach ($rows as $row) {
+            $internalRelative = ltrim(substr($row['path'], strlen($rootInternalPrefix)), '/');
+
+            $images[] = [
+                'id'       => (int) $row['fileid'],
+                'name'     => $row['name'],
+                // User-folder-relativer Pfad mit führendem Slash, wie
+                // buildImageEntry(): '/Photos/IMG.jpg' statt absolut.
+                'path'     => '/' . substr($row['path'], strlen('files/')),
+                'relPath'  => $internalRelative,
+                'size'     => (int) $row['size'],
+                'mtime'    => (int) $row['mtime'],
+                'mimetype' => $row['mimetype'],
+                'groupKey' => $depth > 0 ? self::pathPrefix($internalRelative, $depth) : '',
+                'width'    => null,
+                'height'   => null,
+            ];
+        }
+        return $images;
     }
 
     /**
