@@ -190,7 +190,10 @@
           :title="t('starrate', 'Gruppen-Tiefe für die Sortierung')"
           @change="$emit('update:depth', parseInt($event.target.value, 10))"
         >
-          <option :value="0">{{ t('starrate', 'flach') }}</option>
+          <!-- Single-Char-Labels: passt durchgängig in einen kompakten Select.
+               '—' für 0 statt 'flach' — der Tooltip auf dem Select erklärt
+               weiterhin die Bedeutung. -->
+          <option :value="0">—</option>
           <option :value="1">1</option>
           <option :value="2">2</option>
           <option :value="3">3</option>
@@ -873,5 +876,16 @@ function updateFilter(newFilter) {
   .sr-filterbar__sep                { display: none; }
   .sr-filterbar__status             { display: none; }
   .sr-filterbar__reset--mobile      { display: inline-flex; }
+
+  /* Recursive-Cluster minimal-kompakt: Inhalt ist nur 1 Zeichen, also auf
+     Native-Select-Pflichtbreite minimieren. Padding reduziert, Schriftgröße
+     einen Hauch kleiner — spart ca. die Hälfte gegenüber dem Desktop-Stil. */
+  .sr-filterbar__recursive          { padding-right: 2px; gap: 2px; }
+  .sr-filterbar__depth {
+    height: 22px;
+    padding: 0 1px;
+    font-size: 11px;
+    text-align: center;
+  }
 }
 </style>
