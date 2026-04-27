@@ -16,19 +16,28 @@
 
     <!-- Bilder -->
     <template v-else>
+      <!-- Virtualisierungs-Spacer oben: konsumiert eine volle Grid-Reihe via grid-column 1/-1.
+           Damit fließen die folgenden Items dank Grid-Auto-Flow korrekt in die nächste Reihe. -->
       <div
-        v-for="(image, index) in images"
+        v-if="topSpacerHeight > 0"
+        class="sr-grid__spacer"
+        :style="{ height: topSpacerHeight + 'px' }"
+        aria-hidden="true"
+      />
+
+      <div
+        v-for="(image, index) in renderedImages"
         :key="image.id"
         class="sr-grid__item"
         :class="{
           'sr-grid__item--selected': isSelected(image.id),
-          'sr-grid__item--focused':  focusedIndex === index,
+          'sr-grid__item--focused':  focusedIndex === (renderStartIdx + index),
           'sr-grid__item--pick':     enablePickUi && image.pick === 'pick',
           'sr-grid__item--reject':   enablePickUi && image.pick === 'reject',
         }"
-        :data-index="index"
-        @click="onItemClick($event, image, index)"
-        @dblclick="$emit('open-loupe', image, index)"
+        :data-index="renderStartIdx + index"
+        @click="onItemClick($event, image, renderStartIdx + index)"
+        @dblclick="$emit('open-loupe', image, renderStartIdx + index)"
       >
         <!-- Thumbnail -->
         <div class="sr-grid__thumb-wrap">
@@ -99,6 +108,14 @@
           />
         </div>
       </div>
+
+      <!-- Virtualisierungs-Spacer unten -->
+      <div
+        v-if="bottomSpacerHeight > 0"
+        class="sr-grid__spacer"
+        :style="{ height: bottomSpacerHeight + 'px' }"
+        aria-hidden="true"
+      />
 
       <!-- Leer-Zustand -->
       <div v-if="!loading && images.length === 0" class="sr-grid__empty">
@@ -198,11 +215,145 @@ const skeletonCount = 16
 // Thumbnail-Cache: überlebt Filter-Wechsel
 const thumbCache = ref({})
 
+// ─── Virtualisierung ─────────────────────────────────────────────────────────
+//
+// Strategie: Das CSS-Grid bleibt unverändert. Vor und hinter dem sichtbaren
+// Bereich liegen zwei Spacer-Divs mit grid-column: 1/-1, die jeweils die Höhe
+// der nicht-gerenderten Reihen einnehmen. Items dazwischen fließen via
+// Grid-Auto-Flow in die korrekten Spalten. Vorteile: Selektion, Keyboard-Nav,
+// Hover, Info-Bar, Thumbnail-Loading bleiben unangetastet — wir reduzieren
+// nur die Anzahl der gleichzeitig im DOM lebenden Items.
+//
+// data-index bleibt der absolute Index — Thumbnail-Observer und Focus-Logik
+// arbeiten weiter mit Original-Indizes.
+
+const VIRTUAL_BUFFER_ROWS = 2     // extra Reihen oberhalb/unterhalb des Viewports
+const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
+const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
+const GRID_GAP            = 6     // gap: 6px aus CSS
+
+const scrollTop      = ref(0)
+const containerWidth = ref(0)
+const viewportHeight = ref(0)
+
+let scrollRafId = 0
+let scrollEndTimer = null
+let resizeObserver = null
+
+function onScroll() {
+  if (!scrollRafId) {
+    scrollRafId = requestAnimationFrame(() => {
+      scrollRafId = 0
+      if (gridEl.value) scrollTop.value = gridEl.value.scrollTop
+    })
+  }
+  // Scroll-End-Hook: 200ms nach letztem Scroll-Event ein finales Re-Sync
+  // anstoßen. Hintergrund: bei extrem schnellem Touch-Flick auf Mobile
+  // können Watch-Firings durch das rAF-Throttling Items überspringen, die
+  // beim Stop noch im sichtbaren Bereich liegen aber deren Load durch ein
+  // zwischenzeitliches Unmount gecancelt wurde. Der Watch feuert dann nicht
+  // erneut (Range stabil), die Items bleiben leer. Diese Funktion ersetzt
+  // das manuelle "Wachküssen" durch hoch/runter scrollen.
+  if (scrollEndTimer) clearTimeout(scrollEndTimer)
+  scrollEndTimer = setTimeout(resyncRenderedThumbs, 200)
+}
+
+function resyncRenderedThumbs() {
+  scrollEndTimer = null
+  if (!virtualEnabled.value) return
+  pruneCancelledLoads()
+  for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+    const img = props.images[i]
+    if (!img || img.thumbLoaded || img.thumbLoading) continue
+    if (thumbCache.value[img.id]) {
+      img.thumbUrl    = thumbCache.value[img.id]
+      img.thumbLoaded = true
+    } else {
+      enqueueThumb(img, true)
+    }
+  }
+  drainQueue()
+}
+
+// Spaltenanzahl: bei expliziter gridColumns-Prop direkt; sonst aus computed
+// gridTemplateColumns ableiten (zählt die Anzahl der Track-Definitionen).
+const columnsCount = computed(() => {
+  if (props.gridColumns !== 'auto') {
+    return parseInt(props.gridColumns, 10) || 1
+  }
+  if (containerWidth.value === 0) return 0  // noch nicht gemessen
+  // Replikation der CSS-Logik: minmax(min(THUMB_SIZE, 50vw-16px), 1fr)
+  const minTile = Math.min(THUMB_SIZE, (window.innerWidth || 1024) / 2 - 16)
+  const usable  = containerWidth.value - 16  // 8px padding × 2
+  // CSS Grid auto-fill: floor((usable + gap) / (minTile + gap))
+  return Math.max(1, Math.floor((usable + GRID_GAP) / (minTile + GRID_GAP)))
+})
+
+const tileWidth = computed(() => {
+  if (columnsCount.value === 0 || containerWidth.value === 0) return 0
+  const usable = containerWidth.value - 16
+  return (usable - (columnsCount.value - 1) * GRID_GAP) / columnsCount.value
+})
+
+const rowHeight = computed(() => {
+  if (tileWidth.value === 0) return 0
+  return tileWidth.value * TILE_ASPECT + INFO_BAR_HEIGHT
+})
+
+const rowStride = computed(() => rowHeight.value + GRID_GAP)
+
+const totalRows = computed(() => {
+  if (columnsCount.value === 0) return 0
+  return Math.ceil(props.images.length / columnsCount.value)
+})
+
+// Virtualisierung greift nur, wenn Layout gemessen werden konnte.
+// Sonst (jsdom-Tests, initial vor Mount): alles rendern, Fallback-Verhalten.
+const virtualEnabled = computed(() => rowStride.value > 0 && viewportHeight.value > 0)
+
+const visibleStartRow = computed(() => {
+  if (!virtualEnabled.value) return 0
+  return Math.max(0, Math.floor(scrollTop.value / rowStride.value) - VIRTUAL_BUFFER_ROWS)
+})
+
+const visibleEndRow = computed(() => {
+  if (!virtualEnabled.value) return totalRows.value
+  return Math.min(
+    totalRows.value,
+    Math.ceil((scrollTop.value + viewportHeight.value) / rowStride.value) + VIRTUAL_BUFFER_ROWS,
+  )
+})
+
+const renderStartIdx = computed(() => visibleStartRow.value * columnsCount.value)
+const renderEndIdx   = computed(() => Math.min(props.images.length, visibleEndRow.value * columnsCount.value))
+
+const renderedImages = computed(() => {
+  if (!virtualEnabled.value) return props.images
+  return props.images.slice(renderStartIdx.value, renderEndIdx.value)
+})
+
+// Spacer-Höhen: N Reihen brauchen N*tileHeight + (N-1)*gap.
+// Plus den Gap-Abstand zur folgenden/vorherigen Reihe stellt das CSS-Grid
+// selbst über sein normales gap-Setting her.
+function spacerHeightForRows(n) {
+  if (n <= 0) return 0
+  return n * rowHeight.value + (n - 1) * GRID_GAP
+}
+
+const topSpacerHeight = computed(() => spacerHeightForRows(visibleStartRow.value))
+const bottomSpacerHeight = computed(() => spacerHeightForRows(totalRows.value - visibleEndRow.value))
+
 // ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
 const THUMB_CONCURRENCY = 5
 let thumbObserver = null
-let activeLoads   = 0
+// Set der aktuell ladenden Image-Objekte. Wir tracken die echte In-Flight-
+// Menge statt eines Zählers, weil Virtualisierung Items mid-load unmounten
+// kann — der Browser cancelt dann die Image-Requests, aber @load/@error
+// feuert nicht mehr. Ein reiner Counter würde driften und den Concurrency-
+// Pool dauerhaft blockieren. Per Set können wir gezielt die abgehängten
+// Items rauswerfen (siehe pruneCancelledLoads).
+const loadingItems = new Set()
 const loadQueue   = []   // kein ref – wir brauchen keine Reaktivität
 
 function setupThumbObserver() {
@@ -272,16 +423,16 @@ function enqueueThumb(image, priority = false) {
 }
 
 function drainQueue() {
-  while (activeLoads < THUMB_CONCURRENCY && loadQueue.length > 0) {
+  while (loadingItems.size < THUMB_CONCURRENCY && loadQueue.length > 0) {
     const image = loadQueue.shift()
     if (image.thumbLoaded) continue
-    activeLoads++
     loadThumb(image)
   }
 }
 
 function loadThumb(image) {
   image.thumbLoading = true
+  loadingItems.add(image)
   const sz  = THUMB_SIZE
   // Logged-in: /core/preview nutzt NCs nativen Preview-Cache (schneller als App-Endpunkt,
   // der bei jedem Request erneut durch PreviewManager läuft). Guest-Modus setzt eigene URL
@@ -304,13 +455,14 @@ function onImgLoad(image) {
   thumbCache.value[image.id] = image.thumbUrl
   image.thumbLoaded  = true
   image.thumbLoading = false
-  activeLoads--
+  loadingItems.delete(image)
   drainQueue()
 }
 
 function onImgError(image) {
   if (!image.thumbLoading) return
   image.thumbLoading = false
+  loadingItems.delete(image)
   image.thumbRetries = (image.thumbRetries ?? 0) + 1
   if (image.thumbRetries < 3) {
     // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen.
@@ -320,20 +472,38 @@ function onImgError(image) {
   } else {
     image.thumbError = true
   }
-  activeLoads--
   drainQueue()
+}
+
+// Items, deren Loading durch ein Virtualisierungs-Unmount abgebrochen wurde,
+// aus dem aktiven Set entfernen. Browser cancelt Image-Requests beim DOM-
+// Detach ohne @load/@error zu feuern; ohne diesen Cleanup driftet der
+// Concurrency-Pool und neue Items kommen nicht mehr durch die Queue.
+function pruneCancelledLoads() {
+  if (!virtualEnabled.value || loadingItems.size === 0) return
+  const renderedIds = new Set()
+  for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+    const img = props.images[i]
+    if (img) renderedIds.add(img.id)
+  }
+  for (const img of Array.from(loadingItems)) {
+    if (!renderedIds.has(img.id)) {
+      // Item nicht mehr im DOM → Browser hat den Request gecancelt. Flags
+      // resetten, damit er beim nächsten Auftauchen neu enqueued werden kann.
+      img.thumbLoading = false
+      loadingItems.delete(img)
+    }
+  }
 }
 
 // Bilder-Array wechselt (Filter / Ordner / Shape-Change bei Upload): Observer + Queue neu aufsetzen.
 // Visibility-Reload und Background-Sync triggern das normalerweise NICHT, weil Gallery.vue
 // den Fast-Path (sameShape) nutzt und das Array in-place merged.
-// WICHTIG: activeLoads muss ebenfalls zurückgesetzt werden. Sonst driftet der Counter
-// bei jedem Array-Wechsel nach oben (in-flight-Loads dekrementieren nicht mehr, weil
-// ihre Image-Objekte aus dem neuen Array verschwunden sind) → Queue verstopft, sichtbare
-// Items bleiben schwarz.
+// WICHTIG: loadingItems muss ebenfalls geleert werden — die alten Image-Objekte sind
+// nicht mehr Teil des neuen Arrays und ihre Loads sind effektiv verloren.
 watch(() => props.images, () => {
   loadQueue.length = 0
-  activeLoads = 0
+  loadingItems.clear()
   thumbObserver?.disconnect()
   observeAllItems()
 })
@@ -564,7 +734,25 @@ function columnsEstimate() {
 function scrollItemIntoView(index, behavior = 'smooth') {
   nextTick(() => {
     const el = gridEl.value?.querySelector(`[data-index="${index}"]`)
-    el?.scrollIntoView?.({ block: 'nearest', behavior })
+    if (el) {
+      el.scrollIntoView?.({ block: 'nearest', behavior })
+      return
+    }
+    // Item nicht gerendert (außerhalb des Virtual-Range): direkt zu seiner
+    // berechneten Reihe scrollen. Nach dem Scroll rerendert sich der visible
+    // Range automatisch.
+    if (!virtualEnabled.value || !gridEl.value) return
+    const targetRow = Math.floor(index / columnsCount.value)
+    const targetTop = targetRow * rowStride.value
+    const containerH = gridEl.value.clientHeight
+    const currentTop = gridEl.value.scrollTop
+    // Nur scrollen, wenn das Item nicht ohnehin im Viewport-Range liegen würde.
+    if (targetTop < currentTop || targetTop + rowHeight.value > currentTop + containerH) {
+      gridEl.value.scrollTo({
+        top: Math.max(0, targetTop - containerH / 2 + rowHeight.value / 2),
+        behavior,
+      })
+    }
   })
 }
 
@@ -582,15 +770,68 @@ watch(() => props.currentIndex, idx => {
 
 // ─── Autofocus beim Mount ─────────────────────────────────────────────────────
 
+function measureContainer() {
+  if (!gridEl.value) return
+  containerWidth.value = gridEl.value.clientWidth
+  viewportHeight.value = gridEl.value.clientHeight
+}
+
 onMounted(() => {
   setupThumbObserver()
+  measureContainer()
+  // Erste Messung: Scroll-Position + Container-Maße. ResizeObserver übernimmt
+  // danach automatisch alle Layout-Änderungen (Window-Resize, NC-Sidebar
+  // toggle, Filter-Bar wachsend, etc.).
+  if (gridEl.value) {
+    gridEl.value.addEventListener('scroll', onScroll, { passive: true })
+    resizeObserver = new ResizeObserver(measureContainer)
+    resizeObserver.observe(gridEl.value)
+  }
   observeAllItems()
   nextTick(() => gridEl.value?.focus({ preventScroll: true }))
 })
 
 onUnmounted(() => {
   thumbObserver?.disconnect()
+  resizeObserver?.disconnect()
+  if (scrollRafId) cancelAnimationFrame(scrollRafId)
+  if (scrollEndTimer) clearTimeout(scrollEndTimer)
+  gridEl.value?.removeEventListener('scroll', onScroll)
 })
+
+// Wenn der Virtual-Range neue Items in den DOM bringt: Thumbnail-Loading
+// direkt anstoßen, statt auf den IntersectionObserver zu warten.
+//
+// Hintergrund: Bei schnellem Mobile-Scroll (Touch-Flick mit Momentum) feuert
+// der IO unzuverlässig — wir haben Fälle gesehen, wo Tiles nach einem
+// Sprung-Scroll nie luden, bis der Nutzer den Viewport durch erneutes
+// hoch/runter scrollen "anstößt". Bei aktiver Virtualisierung wissen wir
+// deterministisch, welche Items im sichtbaren Bereich (plus Buffer) sind —
+// alles dort kann sofort enqueued werden, keine IO-Wartezeit nötig.
+//
+// observeAllItems() läuft trotzdem: hält die Cache-Pfade konsistent und
+// dient als Backup für den Fallback-Modus ohne Virtualisierung.
+watch([renderStartIdx, renderEndIdx], () => {
+  if (!virtualEnabled.value) return
+  pruneCancelledLoads()  // Slot-Freigabe für aus dem DOM verschwundene Items
+  observeAllItems()
+  nextTick(() => {
+    for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+      const img = props.images[i]
+      if (!img || img.thumbLoaded || img.thumbLoading) continue
+      if (thumbCache.value[img.id]) {
+        img.thumbUrl    = thumbCache.value[img.id]
+        img.thumbLoaded = true
+      } else {
+        // Alle gerenderten Items sind per Buffer-Definition im sichtbaren
+        // Bereich oder direkt davor/dahinter — als Priority enqueuen, damit
+        // sie vor älteren, bereits gescrollten Resten in der Queue stehen.
+        enqueueThumb(img, true)
+      }
+    }
+    drainQueue()  // Queue treiben, falls pruneCancelledLoads Slots freigegeben hat
+  })
+}, { immediate: true })
 
 // ─── Expose für SelectionBar ─────────────────────────────────────────────────
 
@@ -616,6 +857,12 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   .sr-grid {
     padding-bottom: max(72px, env(safe-area-inset-bottom, 72px));
   }
+}
+
+/* ── Virtualisierungs-Spacer ─────────────────────────────────────────────── */
+.sr-grid__spacer {
+  grid-column: 1 / -1;
+  pointer-events: none;
 }
 
 /* ── Item ─────────────────────────────────────────────────────────────────── */
