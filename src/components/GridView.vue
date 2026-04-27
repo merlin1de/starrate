@@ -179,6 +179,9 @@ const props = defineProps({
   showColorInfo:     { type: Boolean, default: true },
   /** Pick/Reject-UI anzeigen */
   enablePickUi:      { type: Boolean, default: false },
+  /** Sichtbar (v-show vom Parent). Wird false wenn Loupe aktiv ist —
+   *  dann re-syncen wir beim Re-Aktivieren die Scroll-Position. */
+  active:            { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
@@ -777,6 +780,18 @@ watch(() => props.currentIndex, idx => {
 watch(focusedIndex, idx => {
   if (idx >= 0 && idx < props.images.length) {
     emit('focus-preview', props.images[idx])
+  }
+})
+
+// Re-Aktivierung nach Loupe-Schließen: aktuell fokussiertes Tile in den
+// Viewport scrollen, damit der User dort weitermacht, wo er die Loupe
+// verlassen hat. Ohne das landet er an der alten Scroll-Position vom Grid,
+// während sich der Selection-Marker auf einem unsichtbaren Tile befindet.
+watch(() => props.active, isActive => {
+  if (!isActive) return
+  const idx = focusedIndex.value >= 0 ? focusedIndex.value : props.currentIndex
+  if (idx >= 0) {
+    scrollItemIntoView(idx, 'auto')
   }
 })
 

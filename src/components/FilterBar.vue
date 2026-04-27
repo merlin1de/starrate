@@ -191,10 +191,10 @@
           @change="$emit('update:depth', parseInt($event.target.value, 10))"
         >
           <option :value="0">{{ t('starrate', 'flach') }}</option>
-          <option :value="1">{{ t('starrate', 'Tiefe 1') }}</option>
-          <option :value="2">{{ t('starrate', 'Tiefe 2') }}</option>
-          <option :value="3">{{ t('starrate', 'Tiefe 3') }}</option>
-          <option :value="4">{{ t('starrate', 'Tiefe 4') }}</option>
+          <option :value="1">1</option>
+          <option :value="2">2</option>
+          <option :value="3">3</option>
+          <option :value="4">4</option>
         </select>
       </div>
 
