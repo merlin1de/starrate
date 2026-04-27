@@ -286,15 +286,17 @@ const loading      = ref(false)
 const allImages    = ref([])
 
 const settings = ref({
-  default_sort:        'name',
-  default_sort_order:  'asc',
-  show_filename:        true,
-  show_rating_overlay:  true,
-  show_color_overlay:   true,
-  grid_columns:        'auto',
-  enable_pick_ui:       false,
-  write_xmp:            true,
-  comments_enabled:     false,
+  default_sort:             'name',
+  default_sort_order:       'asc',
+  show_filename:             true,
+  show_rating_overlay:       true,
+  show_color_overlay:        true,
+  grid_columns:             'auto',
+  enable_pick_ui:            false,
+  write_xmp:                 true,
+  comments_enabled:          false,
+  recursive_default:         false,
+  recursive_default_depth:   0,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
@@ -325,6 +327,31 @@ const activeFilter = ref({
 const currentPath = computed(() => {
   const p = route.params.path
   return p ? `/${Array.isArray(p) ? p.join('/') : p}` : '/'
+})
+
+// ─── Recursive-View State (URL überschreibt Settings-Default) ─────────────────
+//
+// recursive: ?recursive=1 (oder true) in der URL aktiviert; sonst Settings-
+// Default. depth: ?depth=N (0-4) in der URL gewinnt; sonst Settings-Default.
+// Pro Folder, weil Vue-Router den ganzen URL-State per Folder hält. Browser-
+// Back navigiert zurück inkl. der Recursive-Settings.
+//
+// Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
+const recursive = computed(() => {
+  if (props.guestMode) return false
+  const q = route.query.recursive
+  if (q !== undefined) return q === '1' || q === 'true'
+  return settings.value.recursive_default
+})
+
+const depth = computed(() => {
+  if (props.guestMode) return 0
+  const q = route.query.depth
+  if (q !== undefined) {
+    const d = parseInt(q, 10)
+    if (Number.isFinite(d) && d >= 0 && d <= 4) return d
+  }
+  return settings.value.recursive_default_depth
 })
 
 const pathSegments = computed(() =>
@@ -396,7 +423,13 @@ async function loadImages({ silent = false } = {}) {
     } else {
       const url = generateUrl('/apps/starrate/api/images')
       const res = await axios.get(url, {
-        params: { path: currentPath.value, sort: settings.value.default_sort, order: settings.value.default_sort_order },
+        params: {
+          path:      currentPath.value,
+          sort:      settings.value.default_sort,
+          order:     settings.value.default_sort_order,
+          recursive: recursive.value ? 1 : 0,
+          depth:     depth.value,
+        },
         timeout: 15000,
       })
       data = res.data
@@ -448,8 +481,9 @@ async function loadImages({ silent = false } = {}) {
   }
 }
 
-// Pfadwechsel → Bilder neu laden (kein immediate: erster Load passiert in onMounted nach Settings)
-watch(currentPath, loadImages)
+// Pfadwechsel ODER Recursive-Toggle/Depth-Änderung → Bilder neu laden.
+// kein immediate: erster Load passiert in onMounted nach Settings.
+watch([currentPath, recursive, depth], loadImages)
 
 // Pick-Filter zurücksetzen wenn Pick-UI deaktiviert wird
 watch(() => settings.value.enable_pick_ui, enabled => {
