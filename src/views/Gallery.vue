@@ -109,8 +109,9 @@
     <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
     <div class="sr-view-wrap">
       <GridView
-        v-if="mode === 'grid'"
+        v-show="mode === 'grid'"
         ref="gridRef"
+        :active="mode === 'grid'"
         :images="filteredImages"
         :loading="loading"
         :has-active-filter="hasActiveFilter"
@@ -131,7 +132,7 @@
 
       <!-- Lupenansicht -->
       <LoupeView
-        v-else
+        v-if="mode === 'loupe'"
         :images="filteredImages"
         :initial-index="currentIndex"
         :on-refresh-rating="guestMode ? null : refreshImageRating"
