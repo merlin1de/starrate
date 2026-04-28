@@ -165,16 +165,16 @@ describe('Guest Gallery', () => {
 
       before(() => {
         login()
-        createShare({ permissions: 'rate', guest_name: 'Abgelaufen' }).then(share => {
+        // expires_at 2s in die Zukunft + 3s warten = real abgelaufener Share.
+        // Backend lehnt PUT mit expires_at in der Vergangenheit ab (Validation),
+        // daher der Future-then-wait-Ansatz statt Backdating.
+        createShare({
+          permissions: 'rate',
+          guest_name: 'Abgelaufen',
+          expires_at: Math.floor(Date.now() / 1000) + 2,
+        }).then(share => {
           token = share.token
-          // Ablaufdatum in die Vergangenheit setzen
-          cy.request({
-            method: 'PUT',
-            url: `${NC_URL}/index.php/apps/starrate/api/share/${share.token}`,
-            body: { expires_at: Math.floor(Date.now() / 1000) - 3600 },
-            headers: { 'Content-Type': 'application/json', 'OCS-APIREQUEST': 'true' },
-            auth: { user: NC_USER, pass: NC_PASS },
-          })
+          cy.wait(3000)
         })
       })
 
