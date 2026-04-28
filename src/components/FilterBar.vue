@@ -900,12 +900,19 @@ function updateFilter(newFilter) {
      Das „Tiefe"-Label auf Desktop entfällt hier — Pixel sind teurer. */
   .sr-filterbar__recursive          { padding-right: 2px; gap: 2px; }
   .sr-filterbar__depth-label        { display: none; }
+  /* Native <select>+appearance:none ist auf Android-WebViews zickig: Text
+     kann unsichtbar, falsch zentriert oder vom System überschrieben werden.
+     Daher explizit: hinreichend Höhe + line-height (kein Vertical-Clip),
+     bissel mehr Font + Padding (lesbar), color !important (gegen NC-/System-
+     Overrides). 30px Breite gibt einer einzelnen Ziffer + Visual-Cushion. */
   .sr-filterbar__depth {
-    height: 22px;
-    width: 26px;
-    padding: 0 2px;
-    font-size: 11px;
+    height: 24px;
+    width: 30px;
+    padding: 0 6px;
+    font-size: 13px;
+    line-height: 24px;
     text-align: center;
+    color: #ddd !important;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
