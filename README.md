@@ -8,6 +8,8 @@
 [![Nextcloud 29–33](https://img.shields.io/badge/Nextcloud-29–33-0082c9?logo=nextcloud)](https://apps.nextcloud.com/apps/starrate)
 [![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php)](https://php.net)
 
+> 🌳 **New in v1.3** — Recursive folder view: browse a whole folder tree as one stream, optionally grouped by folder depth. → [How it works](docs/recursive-folders.en.md)
+
 > **The missing photo rating tool for Nextcloud photographers.**  
 > Stop switching apps. Rate your shots, share a guest link with your client, and open them in Lightroom — the stars are already there.
 
@@ -51,6 +53,7 @@ Rate in Nextcloud → open in Lightroom → stars are already there.
 | 💬 Comments | Per-photo notes in loupe view — owner and guests can comment |
 | 📤 Export | CSV download or clipboard copy of ratings and metadata |
 | 🔍 Filter bar | Combinable filters: stars, color, Pick/Reject, unrated |
+| 🌳 Recursive view | Browse a whole folder tree as one stream — flat or grouped by folder depth ([details](docs/recursive-folders.en.md)) |
 | 🔎 Loupe view | Zoom 25–400 %, pan, pinch-to-zoom, keyboard navigation |
 | 🖱️ Batch rating | `Shift+click` / `Ctrl+click`, `Ctrl+A`, floating selection bar |
 | 🔗 Guest sharing | Public gallery links — clients rate without a Nextcloud account |
