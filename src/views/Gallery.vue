@@ -393,6 +393,12 @@ function onFocusPreview(image) {
   if (image) hoveredImage.value = image
 }
 
+// Folder-Wechsel resettet hoveredImage — sonst zeigt der dynamische
+// Breadcrumb-Tail im neuen Folder die Pfad-Segmente des zuletzt im alten
+// Folder gehoverten Bildes (z.B. '... / 2025 / Wedding' obwohl der neue
+// Folder gar nicht /Vacation/2025/Wedding/ enthält).
+watch(currentPath, () => { hoveredImage.value = null })
+
 const hoveredFolderSegments = computed(() => {
   if (!recursive.value || !hoveredImage.value?.relPath) return []
   const segments = hoveredImage.value.relPath.split('/')
