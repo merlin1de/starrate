@@ -34,8 +34,13 @@
             <!-- Share-Zeile -->
             <div class="sr-share-list__row">
               <div class="sr-share-list__info">
-                <span class="sr-share-list__path">{{ share.nc_path || '/' }}</span>
-                <span v-if="share.guest_name" class="sr-share-list__guest-name">{{ share.guest_name }}</span>
+                <div class="sr-share-list__title-row">
+                  <span class="sr-share-list__path">{{ share.nc_path || '/' }}</span>
+                  <template v-if="share.guest_name">
+                    <span class="sr-share-list__guest-sep">—</span>
+                    <span class="sr-share-list__guest-name">{{ share.guest_name }}</span>
+                  </template>
+                </div>
                 <div class="sr-share-list__meta">
                   <span class="sr-share-list__badge" :class="share.permissions === 'rate' ? 'sr-share-list__badge--rate' : 'sr-share-list__badge--view'">
                     {{ share.permissions === 'rate' ? t('starrate', 'Bewerten') : t('starrate', 'Ansehen') }}
@@ -444,16 +449,28 @@ defineExpose({ loadShares })
   gap: 0.35rem;
 }
 
+.sr-share-list__title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .sr-share-list__path {
   color: #fff;
   font-size: 0.875rem;
   font-weight: 500;
   word-break: break-all;
 }
-.sr-share-list__guest-name {
-  color: #d4d4d8;
+.sr-share-list__guest-sep {
+  color: #52525b;
   font-size: 0.875rem;
-  font-weight: 500;
+}
+.sr-share-list__guest-name {
+  /* Heller Grauton, weniger Aufmerksamkeit als der Pfad — der Pfad ist die
+     primäre Identität des Shares, der Empfängername sekundär. */
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .sr-share-list__meta {
