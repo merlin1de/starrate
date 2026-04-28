@@ -3,7 +3,9 @@
     <div class="sr-share-modal__overlay" @click.self="$emit('close')">
       <div class="sr-share-modal">
         <header class="sr-share-modal__header">
-          <h2 class="sr-share-modal__title">{{ t('starrate', 'Neuen Freigabe-Link erstellen') }}</h2>
+          <h2 class="sr-share-modal__title">
+            {{ isEditMode ? t('starrate', 'Freigabe bearbeiten') : t('starrate', 'Neuen Freigabe-Link erstellen') }}
+          </h2>
           <button class="sr-share-modal__close" @click="$emit('close')">✕</button>
         </header>
 
@@ -40,7 +42,22 @@
 
           <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">{{ t('starrate', 'Ordner') }}</label>
-            <input class="sr-share-modal__input sr-share-modal__input--readonly" readonly :value="ncPath" />
+            <!-- Im Edit-Mode editierbar: User kann den Pfad eines Shares ändern.
+                 Im Create-Mode readonly: vorbefüllt mit dem aktuellen Gallery-Pfad. -->
+            <input
+              v-if="isEditMode"
+              v-model="form.ncPath"
+              class="sr-share-modal__input"
+              type="text"
+              :placeholder="t('starrate', '/Pfad/zum/Ordner')"
+              @blur="onPathBlur"
+            />
+            <input
+              v-else
+              class="sr-share-modal__input sr-share-modal__input--readonly"
+              readonly
+              :value="form.ncPath"
+            />
           </div>
 
           <div class="sr-share-modal__field">
@@ -101,6 +118,26 @@
             </span>
           </div>
 
+          <!-- Rekursive Ansicht: nur sichtbar wenn Master-Schalter in den
+               persönlichen Settings aktiv ist. -->
+          <div v-if="recursionEnabled" class="sr-share-modal__field">
+            <label class="sr-share-modal__checkbox-label">
+              <input type="checkbox" v-model="form.recursive" class="sr-share-modal__checkbox" data-testid="recursive" />
+              {{ t('starrate', 'Rekursive Ansicht (alle Bilder aus Unterordnern)') }}
+            </label>
+          </div>
+
+          <div v-if="recursionEnabled && form.recursive" class="sr-share-modal__field">
+            <label class="sr-share-modal__label">{{ t('starrate', 'Gruppen-Tiefe') }}</label>
+            <select class="sr-share-modal__select" v-model.number="form.depth">
+              <option :value="0">{{ t('starrate', 'Flach (keine Gruppierung)') }}</option>
+              <option :value="1">1</option>
+              <option :value="2">2</option>
+              <option :value="3">3</option>
+              <option :value="4">4</option>
+            </select>
+          </div>
+
           <div class="sr-share-modal__field">
             <label class="sr-share-modal__label">{{ t('starrate', 'Vorfilter (Mindest-Bewertung)') }}</label>
             <select class="sr-share-modal__select" v-model="form.minRating">
@@ -114,13 +151,21 @@
           </div>
 
           <div class="sr-share-modal__field">
-            <label class="sr-share-modal__label">{{ t('starrate', 'Passwort') }} <span class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span></label>
+            <label class="sr-share-modal__label">
+              {{ t('starrate', 'Passwort') }}
+              <span v-if="!isEditMode" class="sr-share-modal__optional">({{ t('starrate', 'optional') }})</span>
+              <span v-else-if="editShare?.has_password" class="sr-share-modal__optional">({{ t('starrate', 'gesetzt — leer lassen zum Beibehalten') }})</span>
+              <span v-else class="sr-share-modal__optional">({{ t('starrate', 'optional, leer lassen = kein Passwort') }})</span>
+            </label>
             <div class="sr-share-modal__pw-wrap">
               <input
                 v-model="form.password"
                 class="sr-share-modal__input sr-share-modal__input--pw"
                 :type="showPassword ? 'text' : 'password'"
-                :placeholder="t('starrate', 'Leer lassen = kein Passwort')"
+                :placeholder="isEditMode && editShare?.has_password
+                  ? t('starrate', '••••••••  (leer lassen zum Beibehalten)')
+                  : t('starrate', 'Leer lassen = kein Passwort')"
+                :disabled="form.removePassword"
                 autocomplete="new-password"
               />
               <button type="button" class="sr-share-modal__pw-eye" @click="showPassword = !showPassword" :title="showPassword ? t('starrate', 'Passwort verbergen') : t('starrate', 'Passwort anzeigen')">
@@ -128,6 +173,11 @@
                 <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               </button>
             </div>
+            <!-- Nur sichtbar im Edit-Mode wenn aktuell ein Passwort gesetzt ist -->
+            <label v-if="isEditMode && editShare?.has_password" class="sr-share-modal__checkbox-label sr-share-modal__pw-remove">
+              <input type="checkbox" v-model="form.removePassword" class="sr-share-modal__checkbox" />
+              {{ t('starrate', 'Passwort entfernen (Share öffentlich machen)') }}
+            </label>
           </div>
 
           <div class="sr-share-modal__field">
@@ -147,7 +197,7 @@
               {{ t('starrate', 'Abbrechen') }}
             </button>
             <button type="submit" class="sr-share-modal__btn sr-share-modal__btn--primary" :disabled="saving">
-              {{ saving ? t('starrate', 'Erstelle…') : t('starrate', 'Link erstellen') }}
+              {{ submitLabel }}
             </button>
           </div>
         </form>
@@ -162,34 +212,108 @@ import { ref, computed } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
+import { readFolderState } from '../utils/folderRecursiveState.js'
 
 const props = defineProps({
   ncPath:                  { type: String,  default: '/' },
   commentsGloballyEnabled: { type: Boolean, default: false },
+  // Recursive-View Settings — bestimmen ob die zwei neuen Felder gerendert werden,
+  // und liefern Defaults für neue Shares (zusammen mit folderRecursiveState).
+  recursionEnabled:        { type: Boolean, default: false },
+  recursiveDefault:        { type: Boolean, default: false },
+  recursiveDefaultDepth:   { type: Number,  default: 0 },
+  // Edit-Modus: wenn gesetzt, prefilled wir das Formular mit den Werten aus
+  // diesem Share und schicken PUT statt POST.
+  editShare:               { type: Object,  default: null },
 })
 
-const emit = defineEmits(['close', 'created'])
+const emit = defineEmits(['close', 'created', 'updated'])
+
+const isEditMode = computed(() => !!props.editShare)
+
+const submitLabel = computed(() => {
+  if (saving.value) return isEditMode.value ? t('starrate', 'Speichere…') : t('starrate', 'Erstelle…')
+  return isEditMode.value ? t('starrate', 'Speichern') : t('starrate', 'Link erstellen')
+})
 
 // ── Formular-State ────────────────────────────────────────────────────────────
+//
+// resolveRecursive: Hierarchie für die Recursive-Felder beim Anlegen oder bei
+// Pfad-Wechsel im Edit-Mode. Spiegelt die Logik aus Gallery.vue:
+//   localStorage[path] ?? settings-default
+//
+// Im Edit-Mode initial: NICHT diese Funktion verwenden, sondern die im Share
+// gespeicherten Werte. Nur bei expliziter Pfad-Änderung (onPathBlur) greift
+// sie wie bei einer Anlage.
 
-const form = ref({
-  guestName:    '',
-  permissions:  'rate',
-  allowPick:    false,
-  allowExport:  false,
-  allowComment: false,
-  minRating:    0,
-  password:     '',
-  expiresDate:  '',
-})
+function resolveRecursive(path) {
+  const stored = readFolderState(path)
+  if (stored) return { recursive: stored.recursive, depth: stored.depth }
+  return {
+    recursive: props.recursiveDefault,
+    depth: props.recursiveDefaultDepth,
+  }
+}
 
-const saving      = ref(false)
-const formError   = ref('')
+function buildInitialForm() {
+  const e = props.editShare
+  if (e) {
+    return {
+      ncPath:        e.nc_path || '/',
+      guestName:     e.guest_name || '',
+      permissions:   e.permissions || 'rate',
+      allowPick:     !!e.allow_pick,
+      allowExport:   !!e.allow_export,
+      allowComment:  !!e.allow_comment,
+      minRating:     e.min_rating ?? 0,
+      recursive:     !!e.recursive,
+      depth:         e.depth ?? 0,
+      password:      '',           // im Edit-Mode immer leer, Logik unten
+      removePassword: false,
+      expiresDate:   e.expires_at
+        ? new Date(e.expires_at * 1000).toISOString().split('T')[0]
+        : '',
+    }
+  }
+  // Anlage: Defaults (Pfad vom aktuellen Folder), recursive aus
+  // folderRecursiveState→Settings-Hierarchie
+  const rec = resolveRecursive(props.ncPath)
+  return {
+    ncPath:        props.ncPath,
+    guestName:     '',
+    permissions:   'rate',
+    allowPick:     false,
+    allowExport:   false,
+    allowComment:  false,
+    minRating:     0,
+    recursive:     rec.recursive,
+    depth:         rec.depth,
+    password:      '',
+    removePassword: false,
+    expiresDate:   '',
+  }
+}
+
+const form = ref(buildInitialForm())
+
+const saving       = ref(false)
+const formError    = ref('')
 const createdShare = ref(null)
-const copied      = ref(false)
+const copied       = ref(false)
 const showPassword = ref(false)
 
 const todayStr = computed(() => new Date().toISOString().split('T')[0])
+
+// Pfad-Blur: nur Edit-Mode + falls Recursion aktiviert. Pfad-Wechsel löst
+// die "wie bei Anlage"-Logik aus — User-Wunsch: "wenn ich Sarahs Share auf
+// einen anderen Folder umschreibe, soll der Default für den neuen Folder
+// greifen". Werte werden überschrieben, User kann danach manuell anpassen.
+function onPathBlur() {
+  if (!isEditMode.value || !props.recursionEnabled) return
+  const rec = resolveRecursive(form.value.ncPath)
+  form.value.recursive = rec.recursive
+  form.value.depth     = rec.depth
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -214,10 +338,10 @@ async function copyUrl() {
 function reset() {
   createdShare.value = null
   formError.value    = ''
-  form.value = { guestName: '', permissions: 'rate', allowPick: false, allowExport: false, allowComment: false, minRating: 0, password: '', expiresDate: '' }
+  form.value         = buildInitialForm()
 }
 
-// ── Create ────────────────────────────────────────────────────────────────────
+// ── Submit (Create oder Update) ──────────────────────────────────────────────
 
 async function create() {
   formError.value = ''
@@ -231,19 +355,34 @@ async function create() {
   }
 
   const body = {
-    nc_path:      props.ncPath,
+    nc_path:      form.value.ncPath,
     permissions:  form.value.permissions,
     allow_pick:    form.value.permissions === 'rate' && form.value.allowPick,
     allow_export:  form.value.allowExport,
     allow_comment: form.value.allowComment && props.commentsGloballyEnabled,
     min_rating:   form.value.minRating,
+    recursive:    !!form.value.recursive,
+    depth:        Number(form.value.depth) || 0,
   }
 
   if (form.value.guestName.trim()) {
     body.guest_name = form.value.guestName.trim()
   }
 
-  if (form.value.password) {
+  // Passwort-Logik:
+  // - Create: gefülltes Feld → Passwort setzen, leer → kein Passwort
+  // - Edit: removePassword=true → password=null senden (entfernt es), sonst
+  //   gefülltes Feld → ändern, leeres Feld + removePassword=false → key NICHT
+  //   senden (Backend lässt bestehenden Hash unangetastet via array_key_exists-
+  //   Check in updateShare).
+  if (isEditMode.value) {
+    if (form.value.removePassword) {
+      body.password = null
+    } else if (form.value.password) {
+      body.password = form.value.password
+    }
+    // sonst: kein password-Key im Body
+  } else if (form.value.password) {
     body.password = form.value.password
   }
 
@@ -251,15 +390,28 @@ async function create() {
     // Datum in Unix-Timestamp (End des Tages, lokale Zeit)
     const d = new Date(form.value.expiresDate + 'T23:59:59')
     body.expires_at = Math.floor(d.getTime() / 1000)
+  } else if (isEditMode.value && props.editShare?.expires_at) {
+    // Edit-Mode: User hat das Datum gelöscht → Backend ignoriert das aktuell
+    // (kein expires_at-Key reicht zum Beibehalten). Falls echte Entfernung
+    // gewünscht: extra Flag wie bei Passwort. Für V1.3.1 lassen wir das aus
+    // Scope — bisher kann man Datum nicht zurücksetzen.
   }
 
   try {
-    const url = generateUrl('/apps/starrate/api/share')
-    const { data } = await axios.post(url, body)
-    createdShare.value = data.share
-    emit('created', data.share)
+    if (isEditMode.value) {
+      const url = generateUrl(`/apps/starrate/api/share/${props.editShare.token}`)
+      const { data } = await axios.put(url, body)
+      emit('updated', data.share ?? data)
+      emit('close')
+    } else {
+      const url = generateUrl('/apps/starrate/api/share')
+      const { data } = await axios.post(url, body)
+      createdShare.value = data.share
+      emit('created', data.share)
+    }
   } catch (e) {
-    formError.value = e?.response?.data?.error ?? t('starrate', 'Fehler beim Erstellen des Links')
+    formError.value = e?.response?.data?.error
+      ?? t('starrate', isEditMode.value ? 'Fehler beim Speichern' : 'Fehler beim Erstellen des Links')
   } finally {
     saving.value = false
   }

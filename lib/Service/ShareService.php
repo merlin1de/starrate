@@ -65,6 +65,8 @@ class ShareService
         bool    $allowPick = false,
         bool    $allowExport = false,
         bool    $allowComment = false,
+        bool    $recursive = false,
+        int     $depth = 0,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -85,6 +87,8 @@ class ShareService
             'allow_pick'    => $allowPick,
             'allow_export'  => $allowExport,
             'allow_comment' => $allowComment,
+            'recursive'     => $recursive,
+            'depth'         => max(0, min(4, $depth)),
             'created_at'    => time(),
             'active'        => true,
         ];
@@ -180,6 +184,15 @@ class ShareService
         if (isset($data['allow_comment'])) {
             $all[$token]['allow_comment'] = (bool) $data['allow_comment'];
         }
+        if (isset($data['recursive'])) {
+            $all[$token]['recursive'] = (bool) $data['recursive'];
+        }
+        if (isset($data['depth'])) {
+            $all[$token]['depth'] = max(0, min(4, (int) $data['depth']));
+        }
+        if (isset($data['nc_path'])) {
+            $all[$token]['nc_path'] = rtrim((string) $data['nc_path'], '/');
+        }
 
         $this->saveShares($ownerId, $all);
 
@@ -245,45 +258,65 @@ class ShareService
         $ownerId   = $share['owner_id'];
         $ncPath    = rtrim($share['nc_path'], '/');
         $minRating = (int) ($share['min_rating'] ?? 0);
-
-        // Subpath bereinigen (Traversal-Schutz)
-        $subPath = $this->sanitizeSubPath($subPath);
+        $recursive = (bool) ($share['recursive'] ?? false);
+        $depth     = max(0, min(4, (int) ($share['depth'] ?? 0)));
 
         $userFolder = $this->rootFolder->getUserFolder($ownerId);
-        $fullPath   = $ncPath . $subPath;
-        $folder     = $fullPath === '' || $fullPath === '/'
-            ? $userFolder
-            : $userFolder->get(ltrim($fullPath, '/'));
 
-        if (!($folder instanceof Folder)) {
-            throw new \RuntimeException("Pfad ist kein Ordner: {$fullPath}");
-        }
+        if ($recursive) {
+            // Bei recursive=true ignorieren wir den subPath konsequent — der
+            // Gast bekommt immer den gesamten Subtree ab dem Share-Root, ohne
+            // Folder-Drill. Das verhindert unbeabsichtigtes Erschleichen von
+            // Subfolder-Listings durch URL-Manipulation.
+            $folder = $ncPath === '' || $ncPath === '/'
+                ? $userFolder
+                : $userFolder->get(ltrim($ncPath, '/'));
 
-        $images  = [];
-        $folders = [];
+            if (!($folder instanceof Folder)) {
+                throw new \RuntimeException("Pfad ist kein Ordner: {$ncPath}");
+            }
 
-        foreach ($folder->getDirectoryListing() as $node) {
-            if ($node instanceof Folder) {
-                if ($node->getName()[0] === '.') continue;
-                $relPath   = $subPath . '/' . $node->getName();
-                $folders[] = [
-                    'name' => $node->getName(),
-                    'path' => $relPath,
+            $images = $this->listImagesRecursiveForShare($folder, $depth);
+            // Bei recursive: kein Folder-Listing, der Gast hat keine Navigation
+            $folders = [];
+        } else {
+            // Subpath bereinigen (Traversal-Schutz) — gilt nur im Nicht-Recursive-Modus
+            $subPath = $this->sanitizeSubPath($subPath);
+            $fullPath = $ncPath . $subPath;
+            $folder = $fullPath === '' || $fullPath === '/'
+                ? $userFolder
+                : $userFolder->get(ltrim($fullPath, '/'));
+
+            if (!($folder instanceof Folder)) {
+                throw new \RuntimeException("Pfad ist kein Ordner: {$fullPath}");
+            }
+
+            $images  = [];
+            $folders = [];
+
+            foreach ($folder->getDirectoryListing() as $node) {
+                if ($node instanceof Folder) {
+                    if ($node->getName()[0] === '.') continue;
+                    $relPath   = $subPath . '/' . $node->getName();
+                    $folders[] = [
+                        'name' => $node->getName(),
+                        'path' => $relPath,
+                    ];
+                    continue;
+                }
+                if (!($node instanceof File)) {
+                    continue;
+                }
+                if (!in_array($node->getMimeType(), self::GUEST_MIME, true)) {
+                    continue;
+                }
+                $images[] = [
+                    'id'    => $node->getId(),
+                    'name'  => $node->getName(),
+                    'mtime' => $node->getMtime(),
+                    'size'  => $node->getSize(),
                 ];
-                continue;
             }
-            if (!($node instanceof File)) {
-                continue;
-            }
-            if (!in_array($node->getMimeType(), self::GUEST_MIME, true)) {
-                continue;
-            }
-            $images[] = [
-                'id'    => $node->getId(),
-                'name'  => $node->getName(),
-                'mtime' => $node->getMtime(),
-                'size'  => $node->getSize(),
-            ];
         }
 
         if (!empty($images)) {
@@ -343,7 +376,12 @@ class ShareService
         $response = new FileDisplayResponse($preview, 200, [
             'Content-Type' => $preview->getMimeType(),
         ]);
-        $response->cacheFor(3600);
+        // 7 Tage Browser-Cache. Hilft beim Wiederbesuch derselben Gast-Galerie
+        // (zweite Bewertungsrunde, andere Endgeräte vom selben Empfänger).
+        // FileDisplayResponse setzt ETag automatisch — Browser kann nach Ablauf
+        // per If-None-Match revalidieren, Server liefert 304 wenn unverändert.
+        // private (Default), nicht immutable → bei mtime-Änderung neu geladen.
+        $response->cacheFor(60 * 60 * 24 * 7);
         return $response;
     }
 
@@ -702,5 +740,88 @@ class ShareService
                 "Ungültige Berechtigung: {$permissions}. Erlaubt: view, rate"
             );
         }
+    }
+
+    /**
+     * !!! SECURITY-KRITISCHE DUPLIKATION mit GalleryController::listImagesRecursiveFromDb.
+     *
+     * Beide Methoden müssen exakt gleich filtern (Storage-Scope, Hidden-Folder,
+     * MIME-Whitelist, Hard-Limit). Wenn sie auseinanderdriften, riskieren wir,
+     * dass ein Gast mehr Dateien zu sehen bekommt als der Owner sich beim
+     * Anlegen des Shares vorstellt — z.B. Hidden-NC-Verzeichnisse oder
+     * Mounts aus anderen Storages.
+     *
+     * Bewusste Code-Doppelung statt Service-Extraction für V1.3.1: bei jeder
+     * Änderung an einer Stelle MUSS die andere mit angepasst werden, und der
+     * Diff fällt im Review auf. Ein versehentliches "nur am Owner-Pfad
+     * gefixt"-Refactor ist hier gefährlicher als die paar Zeilen Doppelung.
+     *
+     * Refactor-TODO: irgendwann nach 1.3.1 in einen ImageListingService
+     * extrahieren, mit Tests die beide Aufrufer gegen exakt gleiche
+     * Erwartungen prüfen.
+     *
+     * Limit für Guest 25k wie beim Owner — verhindert Memory-Explosion bei
+     * recursive=true auf großen Trees.
+     */
+    private function listImagesRecursiveForShare(Folder $folder, int $depth): array
+    {
+        $RECURSIVE_HARD_LIMIT = 25000;
+
+        $storageId    = $folder->getStorage()->getCache()->getNumericStorageId();
+        $internalPath = $folder->getInternalPath();
+        $pathPrefix   = ($internalPath === '' ? '' : $internalPath . '/') . '%';
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('fc.fileid', 'fc.name', 'fc.path', 'fc.size', 'fc.mtime', 'mt.mimetype')
+            ->from('filecache', 'fc')
+            ->innerJoin('fc', 'mimetypes', 'mt', $qb->expr()->eq('mt.id', 'fc.mimetype'))
+            ->where($qb->expr()->eq('fc.storage', $qb->createNamedParameter($storageId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+            ->andWhere($qb->expr()->like('fc.path', $qb->createNamedParameter($pathPrefix)))
+            ->andWhere($qb->expr()->in('mt.mimetype', $qb->createNamedParameter(self::GUEST_MIME, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+            // Hidden-Pfade ausschließen — sicherheitskritisch
+            ->andWhere($qb->expr()->notLike('fc.path', $qb->createNamedParameter('%/.%')))
+            ->setMaxResults($RECURSIVE_HARD_LIMIT);
+
+        $result = $qb->executeQuery();
+        $rows = $result->fetchAll();
+        $result->closeCursor();
+
+        $rootInternalPrefix = $internalPath === '' ? 'files' : $internalPath;
+
+        $images = [];
+        foreach ($rows as $row) {
+            $internalRelative = ltrim(substr($row['path'], strlen($rootInternalPrefix)), '/');
+            $images[] = [
+                'id'       => (int) $row['fileid'],
+                'name'     => $row['name'],
+                'relPath'  => $internalRelative,
+                'size'     => (int) $row['size'],
+                'mtime'    => (int) $row['mtime'],
+                'groupKey' => $depth > 0 ? self::pathPrefix($internalRelative, $depth) : '',
+            ];
+        }
+
+        // Sortierung: groupKey + name (analog Owner-Ansicht)
+        usort($images, function (array $a, array $b): int {
+            $cmp = $a['groupKey'] !== '' || $b['groupKey'] !== ''
+                ? strcasecmp($a['groupKey'], $b['groupKey'])
+                : 0;
+            if ($cmp !== 0) return $cmp;
+            return strcasecmp($a['name'], $b['name']);
+        });
+
+        return array_values($images);
+    }
+
+    /**
+     * Liefert die ersten N '/'-Segmente eines Pfads (ohne Dateiname).
+     * Spiegelt GalleryController::pathPrefix.
+     */
+    private static function pathPrefix(string $relPath, int $depth): string
+    {
+        $segments = explode('/', $relPath);
+        array_pop($segments);
+        if ($segments === []) return '';
+        return implode('/', array_slice($segments, 0, $depth));
     }
 }

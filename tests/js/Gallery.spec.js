@@ -630,4 +630,74 @@ describe('Gallery – Recursive View', () => {
     await flushPromises()
     expect(w.findAll('.sr-breadcrumb__seg--dynamic')).toHaveLength(0)
   })
+
+  // ── Per-Folder-Memory (localStorage) ──────────────────────────────────────
+
+  it('FilterBar-Toggle persistiert Recursive-State pro Folder im localStorage', async () => {
+    localStorage.clear()
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+
+    await w.findComponent({ name: 'FilterBar' }).vm.$emit('update:recursive', true)
+    await flushPromises()
+
+    // localStorage hat den Eintrag — anders als der reine URL-Pfad
+    const raw = localStorage.getItem('starrate_folder_recursive_v1')
+    expect(raw).toBeTruthy()
+    const map = JSON.parse(raw)
+    expect(map['/Photos']).toEqual({ recursive: true, depth: 0 })
+  })
+
+  it('Tiefe-Update persistiert Recursive+Depth zusammen', async () => {
+    localStorage.clear()
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: true },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+
+    await w.findComponent({ name: 'FilterBar' }).vm.$emit('update:depth', 3)
+    await flushPromises()
+
+    const map = JSON.parse(localStorage.getItem('starrate_folder_recursive_v1'))
+    expect(map['/Photos']).toEqual({ recursive: true, depth: 3 })
+  })
+
+  it('localStorage-State wird beim Folder-Open gelesen (vor Settings-Default)', async () => {
+    localStorage.clear()
+    localStorage.setItem('starrate_folder_recursive_v1', JSON.stringify({
+      '/Photos': { recursive: true, depth: 2 },
+    }))
+
+    // Settings-Default ist false/0, aber localStorage gewinnt
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: false, recursive_default_depth: 0 },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+
+    const fb = w.findComponent({ name: 'FilterBar' })
+    expect(fb.props('recursive')).toBe(true)
+    expect(fb.props('depth')).toBe(2)
+  })
+
+  it('URL-Query gewinnt vor localStorage', async () => {
+    localStorage.setItem('starrate_folder_recursive_v1', JSON.stringify({
+      '/Photos': { recursive: true, depth: 4 },
+    }))
+
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true },
+      path: '/folder/Photos',
+      query: { recursive: '0', depth: '1' },  // URL überschreibt
+    })
+    await flushPromises()
+
+    const fb = w.findComponent({ name: 'FilterBar' })
+    expect(fb.props('recursive')).toBe(false)
+    expect(fb.props('depth')).toBe(1)
+  })
 })
