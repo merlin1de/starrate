@@ -740,6 +740,8 @@ function updateFilter(newFilter) {
   display: flex;
   align-items: center;
   gap: 4px;
+  height: 30px;            /* match dem .sr-filterbar__mode-btn child */
+  align-self: center;      /* verhindert Stretch durch parent flex-line */
   background: #1a1a2e;
   border: 1px solid #2a2a4a;
   border-radius: 6px;
