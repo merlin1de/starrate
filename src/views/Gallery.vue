@@ -165,16 +165,22 @@
       ref="shareListRef"
       :nc-path="currentPath"
       @close="showShareList = false"
-      @create="showShareModal = true"
+      @create="openShareModalForCreate"
+      @edit="openShareModalForEdit"
     />
 
-    <!-- Share erstellen -->
+    <!-- Share anlegen oder bearbeiten — gleicher Modal, Modus per editingShare -->
     <ShareModal
       v-if="!guestMode && showShareModal"
       :nc-path="currentPath"
       :comments-globally-enabled="settings.comments_enabled"
-      @close="showShareModal = false"
+      :recursion-enabled="!!settings.recursion_enabled"
+      :recursive-default="!!settings.recursive_default"
+      :recursive-default-depth="settings.recursive_default_depth"
+      :edit-share="editingShare"
+      @close="closeShareModal"
       @created="onShareCreated"
+      @updated="onShareUpdated"
     />
 
     <!-- Export List Modal -->
@@ -823,9 +829,30 @@ function showToast(message, type = 'success', duration = 3000) {
 
 // ─── Share ────────────────────────────────────────────────────────────────────
 
-function onShareCreated() {
+const editingShare = ref(null)
+
+function openShareModalForCreate() {
+  editingShare.value = null
+  showShareModal.value = true
+}
+
+function openShareModalForEdit(share) {
+  editingShare.value = share
+  showShareModal.value = true
+}
+
+function closeShareModal() {
   showShareModal.value = false
-  // Liste neu laden damit der neue Share erscheint
+  editingShare.value   = null
+}
+
+function onShareCreated() {
+  closeShareModal()
+  shareListRef.value?.loadShares()
+}
+
+function onShareUpdated() {
+  closeShareModal()
   shareListRef.value?.loadShares()
 }
 
