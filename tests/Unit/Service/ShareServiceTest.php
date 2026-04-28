@@ -131,6 +131,61 @@ class ShareServiceTest extends TestCase
         $this->assertSame(5, $share['min_rating']); // auf 5 begrenzt
     }
 
+    // ─── Tests: Recursive + Depth ─────────────────────────────────────────────
+
+    public function testCreateShareWithRecursiveAndDepth(): void
+    {
+        $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $val) use (&$saved) {
+                $saved = $val;
+            });
+
+        $share = $this->service->createShare(
+            self::OWNER_ID, '/Fotos', null, null, 0, ShareService::PERM_VIEW,
+            null, false, false, false,
+            true, 2,  // recursive, depth
+        );
+
+        $this->assertTrue($share['recursive']);
+        $this->assertSame(2, $share['depth']);
+        // Im persistierten JSON müssen die Werte ebenfalls drin sein
+        $persisted = json_decode($saved, true)[self::SAMPLE_TOKEN];
+        $this->assertTrue($persisted['recursive']);
+        $this->assertSame(2, $persisted['depth']);
+    }
+
+    public function testCreateShareDepthClampedTo0to4(): void
+    {
+        $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue');
+
+        $share = $this->service->createShare(
+            self::OWNER_ID, '/Fotos', null, null, 0, ShareService::PERM_VIEW,
+            null, false, false, false, true, 99,
+        );
+
+        $this->assertSame(4, $share['depth']);
+    }
+
+    public function testCreateShareDefaultsRecursiveFalse(): void
+    {
+        $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue');
+
+        // Old-style call ohne recursive/depth-Args → recursive=false, depth=0
+        $share = $this->service->createShare(
+            self::OWNER_ID, '/Fotos', null, null, 0, ShareService::PERM_VIEW
+        );
+
+        $this->assertFalse($share['recursive']);
+        $this->assertSame(0, $share['depth']);
+    }
+
     // ─── Tests: Share validieren ──────────────────────────────────────────────
 
     public function testIsShareValidReturnsTrueForActiveShare(): void
