@@ -751,14 +751,23 @@ function updateFilter(newFilter) {
 
 .sr-filterbar__depth {
   height: 24px;
-  padding: 0 4px;
+  padding: 0 18px 0 6px;
   border: none;
   border-radius: 3px;
-  background: #2a2a4a;
+  background-color: #2a2a4a;
   color: #ddd;
   font-size: 11px;
   cursor: pointer;
   font-family: inherit;
+  /* Custom-Chevron — der native verschwindet durch border:none in den meisten
+     Engines, ohne den sieht das Feld nicht wie ein Dropdown aus. SVG zeichnet
+     einen kleinen Pfeil rechts. Mobile blendet das wieder aus (siehe Media). */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23bbbbbb' d='M0 0l5 6 5-6z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
 }
 .sr-filterbar__depth:focus { outline: 1px solid #4a4a6a; }
 
@@ -893,8 +902,8 @@ function updateFilter(newFilter) {
   .sr-filterbar__depth-label        { display: none; }
   .sr-filterbar__depth {
     height: 22px;
-    width: 24px;
-    padding: 0;
+    width: 26px;
+    padding: 0 2px;
     font-size: 11px;
     text-align: center;
     appearance: none;
