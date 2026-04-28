@@ -611,4 +611,23 @@ describe('Gallery – Recursive View', () => {
     expect(router.currentRoute.value.path).toBe('/folder/Photos/2025')
     expect(router.currentRoute.value.query.recursive).toBe('0')
   })
+
+  it('Folder-Wechsel resettet hoveredImage (kein stale Tail)', async () => {
+    const { w, router } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: true },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+    // Hover in Folder A → setzt segments
+    await w.findComponent(GridViewStub).vm.$emit('focus-preview', {
+      id: 1, name: 'A.jpg', relPath: '2025/Wedding/A.jpg',
+    })
+    await flushPromises()
+    expect(w.findAll('.sr-breadcrumb__seg--dynamic')).toHaveLength(2)
+
+    // Navigation in Folder B → Tail muss leer sein (kein stale '2025/Wedding')
+    await router.push('/folder/Vacation')
+    await flushPromises()
+    expect(w.findAll('.sr-breadcrumb__seg--dynamic')).toHaveLength(0)
+  })
 })
