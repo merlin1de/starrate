@@ -184,22 +184,26 @@
           </svg>
         </button>
         <span v-if="recursive" class="sr-filterbar__depth-label">{{ t('starrate', 'Tiefe') }}</span>
-        <select
-          v-if="recursive"
-          class="sr-filterbar__depth"
-          :value="depth"
-          :title="t('starrate', 'Gruppen-Tiefe für die Sortierung')"
-          @change="$emit('update:depth', parseInt($event.target.value, 10))"
-        >
-          <!-- Single-Char-Labels: passt durchgängig in einen kompakten Select.
-               Auf Desktop ergänzt das vorgelagerte Label „Tiefe" die Klarheit;
-               auf Mobile ist das Label per media query ausgeblendet. -->
-          <option :value="0">—</option>
-          <option :value="1">1</option>
-          <option :value="2">2</option>
-          <option :value="3">3</option>
-          <option :value="4">4</option>
-        </select>
+        <!-- Wrapper-Pattern: sichtbarer <span> rendert den aktuellen Wert,
+             darunterliegender opacity:0 <select> fängt Klick + öffnet den
+             nativen Picker. Hintergrund: native <select>+appearance:none
+             rendert den Text auf Android-WebView nicht zuverlässig — das
+             Pattern umgeht das, ohne den nativen Picker zu verlieren. -->
+        <div v-if="recursive" class="sr-filterbar__depth-wrap">
+          <span class="sr-filterbar__depth-value" aria-hidden="true">{{ depth === 0 ? '—' : depth }}</span>
+          <select
+            class="sr-filterbar__depth"
+            :value="depth"
+            :title="t('starrate', 'Gruppen-Tiefe für die Sortierung')"
+            @change="$emit('update:depth', parseInt($event.target.value, 10))"
+          >
+            <option :value="0">—</option>
+            <option :value="1">1</option>
+            <option :value="2">2</option>
+            <option :value="3">3</option>
+            <option :value="4">4</option>
+          </select>
+        </div>
       </div>
 
       <!-- Modus-Umschalter -->
@@ -749,27 +753,46 @@ function updateFilter(newFilter) {
   padding-left: 4px;
 }
 
-.sr-filterbar__depth {
+.sr-filterbar__depth-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 24px;
+  min-width: 36px;
   padding: 0 18px 0 6px;
-  border: none;
-  border-radius: 3px;
   background-color: #2a2a4a;
-  color: #ddd;
-  font-size: 11px;
+  border-radius: 3px;
   cursor: pointer;
-  font-family: inherit;
-  /* Custom-Chevron — der native verschwindet durch border:none in den meisten
-     Engines, ohne den sieht das Feld nicht wie ein Dropdown aus. SVG zeichnet
-     einen kleinen Pfeil rechts. Mobile blendet das wieder aus (siehe Media). */
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
+  /* Custom-Chevron als Wrapper-Background — der native Select-Pfeil ist durch
+     opacity:0 weg, also zeichnen wir einen eigenen rechts. Mobile blendet ihn
+     per Media-Query wieder aus + stellt Padding/Größe um. */
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23bbbbbb' d='M0 0l5 6 5-6z'/></svg>");
   background-repeat: no-repeat;
   background-position: right 5px center;
 }
-.sr-filterbar__depth:focus { outline: 1px solid #4a4a6a; }
+.sr-filterbar__depth-value {
+  font-size: 11px;
+  color: #ddd;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1;
+}
+.sr-filterbar__depth {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  font-family: inherit;
+  /* Native Select-Box bleibt für den Picker da, nur unsichtbar. Klick auf
+     den Wrapper trifft das Element und öffnet den nativen Picker. */
+}
+.sr-filterbar__depth:focus { outline: none; }
+.sr-filterbar__depth:focus + * { outline: 1px solid #4a4a6a; }
 
 .sr-filterbar__mode-btn {
   display: flex;
@@ -900,23 +923,15 @@ function updateFilter(newFilter) {
      Das „Tiefe"-Label auf Desktop entfällt hier — Pixel sind teurer. */
   .sr-filterbar__recursive          { padding-right: 2px; gap: 2px; }
   .sr-filterbar__depth-label        { display: none; }
-  /* Native <select>+appearance:none ist auf Android-WebViews zickig: Text
-     kann unsichtbar, falsch zentriert oder vom System überschrieben werden.
-     Daher explizit: hinreichend Höhe + line-height (kein Vertical-Clip),
-     bissel mehr Font + Padding (lesbar), color !important (gegen NC-/System-
-     Overrides). 30px Breite gibt einer einzelnen Ziffer + Visual-Cushion. */
-  .sr-filterbar__depth {
-    height: 24px;
-    width: 30px;
-    padding: 0 6px;
-    font-size: 13px;
-    line-height: 24px;
-    text-align: center;
-    color: #ddd !important;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
+  /* Mobile: Chevron raus, kompakter. Wert wird vom span gerendert (kein
+     Native-Select-Quirk), darunter liegt der opacity:0 select für den Picker. */
+  .sr-filterbar__depth-wrap {
+    min-width: 28px;
+    padding: 0 4px;
     background-image: none;
+  }
+  .sr-filterbar__depth-value {
+    font-size: 12px;
   }
 }
 </style>
