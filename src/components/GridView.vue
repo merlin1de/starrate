@@ -784,15 +784,16 @@ watch(focusedIndex, idx => {
 })
 
 // Re-Aktivierung nach Loupe-Schließen: aktuell fokussiertes Tile in den
-// Viewport scrollen, damit der User dort weitermacht, wo er die Loupe
-// verlassen hat. Ohne das landet er an der alten Scroll-Position vom Grid,
-// während sich der Selection-Marker auf einem unsichtbaren Tile befindet.
+// Viewport scrollen UND Keyboard-Fokus aufs Grid legen. Ohne den focus-Call
+// wandert der DOM-Fokus beim Loupe-Unmount zur document.body — Cursor-
+// Tasten scrollen dann den Body statt durchs Grid zu navigieren.
 watch(() => props.active, isActive => {
   if (!isActive) return
   const idx = focusedIndex.value >= 0 ? focusedIndex.value : props.currentIndex
   if (idx >= 0) {
     scrollItemIntoView(idx, 'auto')
   }
+  nextTick(() => gridEl.value?.focus({ preventScroll: true }))
 })
 
 // ─── Autofocus beim Mount ─────────────────────────────────────────────────────
