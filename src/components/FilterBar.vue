@@ -791,7 +791,15 @@ function updateFilter(newFilter) {
   cursor: pointer;
   font-family: inherit;
   /* Native Select-Box bleibt für den Picker da, nur unsichtbar. Klick auf
-     den Wrapper trifft das Element und öffnet den nativen Picker. */
+     den Wrapper trifft das Element und öffnet den nativen Picker.
+     color/background-color werden vom OS-Dropdown der Optionen geerbt —
+     ohne sie rendert Chrome die Options-Texte als nahezu schwarzen
+     Default auf unserem dunklen Theme. */
+  color: #ddd;
+}
+.sr-filterbar__depth option {
+  color: #ddd;
+  background-color: #1e1e2e;
 }
 .sr-filterbar__depth:focus { outline: none; }
 .sr-filterbar__depth:focus + * { outline: 1px solid #4a4a6a; }
