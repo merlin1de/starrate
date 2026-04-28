@@ -308,4 +308,58 @@ describe('FilterBar', () => {
     await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
     expect(w.emitted('open-export-modal')).toBeTruthy()
   })
+
+  // ── Recursive-View-Controls ───────────────────────────────────────────────
+
+  it('Recursive-Block ist nicht sichtbar wenn allowRecursive=false (default)', () => {
+    const w = factory()
+    expect(w.find('.sr-filterbar__recursive').exists()).toBe(false)
+  })
+
+  it('Recursive-Block ist sichtbar wenn allowRecursive=true', () => {
+    const w = factory({ allowRecursive: true })
+    expect(w.find('.sr-filterbar__recursive').exists()).toBe(true)
+  })
+
+  it('Tiefe-Dropdown ist nur sichtbar wenn recursive=true', () => {
+    const off = factory({ allowRecursive: true, recursive: false })
+    expect(off.find('.sr-filterbar__depth').exists()).toBe(false)
+
+    const on = factory({ allowRecursive: true, recursive: true })
+    expect(on.find('.sr-filterbar__depth').exists()).toBe(true)
+  })
+
+  it('Recursive-Toggle hat --active Klasse wenn recursive=true', () => {
+    const w = factory({ allowRecursive: true, recursive: true })
+    const btn = w.find('.sr-filterbar__recursive .sr-filterbar__mode-btn')
+    expect(btn.classes()).toContain('sr-filterbar__mode-btn--active')
+  })
+
+  it('Klick auf Recursive-Toggle (off → on) emittiert update:recursive=true', async () => {
+    const w = factory({ allowRecursive: true, recursive: false })
+    await w.find('.sr-filterbar__recursive .sr-filterbar__mode-btn').trigger('click')
+    expect(w.emitted('update:recursive')).toEqual([[true]])
+  })
+
+  it('Klick auf Recursive-Toggle (on → off) emittiert update:recursive=false', async () => {
+    const w = factory({ allowRecursive: true, recursive: true })
+    await w.find('.sr-filterbar__recursive .sr-filterbar__mode-btn').trigger('click')
+    expect(w.emitted('update:recursive')).toEqual([[false]])
+  })
+
+  it('Tiefe-Dropdown emittiert update:depth als Number (nicht String)', async () => {
+    const w = factory({ allowRecursive: true, recursive: true, depth: 0 })
+    const select = w.find('.sr-filterbar__depth')
+    await select.setValue('3')
+    const emitted = w.emitted('update:depth')
+    expect(emitted).toBeTruthy()
+    expect(emitted[0][0]).toBe(3)             // Number
+    expect(typeof emitted[0][0]).toBe('number')
+  })
+
+  it('Tiefe-Dropdown reflektiert prop-Wert über :value', () => {
+    const w = factory({ allowRecursive: true, recursive: true, depth: 2 })
+    const select = w.find('.sr-filterbar__depth')
+    expect(select.element.value).toBe('2')
+  })
 })
