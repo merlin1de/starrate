@@ -43,3 +43,11 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   unobserve:  vi.fn(),
   disconnect: vi.fn(),
 }))
+
+// Image mock: jsdom feuert keinen load-Event automatisch. Wir simulieren einen
+// erfolgreich geladenen Cache-Hit mit setTimeout(0). Komponenten, die
+// `new Image()` für Preloading nutzen (LoupeView), bekommen so nach
+// flushPromises ihren onload-Callback.
+global.Image = class {
+  constructor() { setTimeout(() => this.onload?.(), 0) }
+}

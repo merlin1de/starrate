@@ -183,6 +183,7 @@
             <polyline points="15 12 19 16 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
+        <span v-if="recursive" class="sr-filterbar__depth-label">{{ t('starrate', 'Tiefe') }}</span>
         <select
           v-if="recursive"
           class="sr-filterbar__depth"
@@ -191,8 +192,8 @@
           @change="$emit('update:depth', parseInt($event.target.value, 10))"
         >
           <!-- Single-Char-Labels: passt durchgängig in einen kompakten Select.
-               '—' für 0 statt 'flach' — der Tooltip auf dem Select erklärt
-               weiterhin die Bedeutung. -->
+               Auf Desktop ergänzt das vorgelagerte Label „Tiefe" die Klarheit;
+               auf Mobile ist das Label per media query ausgeblendet. -->
           <option :value="0">—</option>
           <option :value="1">1</option>
           <option :value="2">2</option>
@@ -742,6 +743,12 @@ function updateFilter(newFilter) {
   overflow: hidden;
 }
 
+.sr-filterbar__depth-label {
+  font-size: 11px;
+  color: #888;
+  padding-left: 4px;
+}
+
 .sr-filterbar__depth {
   height: 24px;
   padding: 0 4px;
@@ -877,15 +884,23 @@ function updateFilter(newFilter) {
   .sr-filterbar__status             { display: none; }
   .sr-filterbar__reset--mobile      { display: inline-flex; }
 
-  /* Recursive-Cluster minimal-kompakt: Inhalt ist nur 1 Zeichen, also auf
-     Native-Select-Pflichtbreite minimieren. Padding reduziert, Schriftgröße
-     einen Hauch kleiner — spart ca. die Hälfte gegenüber dem Desktop-Stil. */
+  /* Recursive-Cluster minimal-kompakt. Den Native-Chevron entfernen wir per
+     appearance:none + leerem background-image — er war auf Mobile der größte
+     Breitenfaktor (~18-22px). Damit schrumpft der Select bei single-char-
+     Content auf ~22-26px gesamt (etwa Hälfte der Desktop-Breite mit Chevron).
+     Das „Tiefe"-Label auf Desktop entfällt hier — Pixel sind teurer. */
   .sr-filterbar__recursive          { padding-right: 2px; gap: 2px; }
+  .sr-filterbar__depth-label        { display: none; }
   .sr-filterbar__depth {
     height: 22px;
-    padding: 0 1px;
+    width: 24px;
+    padding: 0;
     font-size: 11px;
     text-align: center;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: none;
   }
 }
 </style>
