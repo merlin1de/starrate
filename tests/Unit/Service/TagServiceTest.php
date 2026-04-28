@@ -161,6 +161,77 @@ class TagServiceTest extends TestCase
         $this->assertSame([], $this->service->getMetadataBatch([]));
     }
 
+    public function testGetMetadataBatchChunksLargeIdSetsToAvoidSqlInLimit(): void
+    {
+        // Schutz gegen Oracle / MS SQL Server 'More than 1000 expressions in
+        // a list'-Regression. Implementation chunked auf 500 IDs pro Query.
+        // 1500 IDs müssen also genau 3 executeQuery-Aufrufe ergeben.
+        $ids = array_map('strval', range(1, 1500));
+
+        $result = $this->createMock(\OCP\DB\IResult::class);
+        $result->method('fetchAll')->willReturn([]);
+        $result->method('closeCursor');
+
+        $expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1=1');
+        $expr->method('in')->willReturn('1=1');
+        $expr->method('like')->willReturn('1=1');
+
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('innerJoin')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturn('?');
+        $qb->method('expr')->willReturn($expr);
+        $qb->expects($this->exactly(3))->method('executeQuery')->willReturn($result);
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
+
+        $metadata = $this->service->getMetadataBatch($ids);
+
+        // Alle 1500 IDs müssen mit Defaults im Result sein, auch wenn der
+        // Mock keine Tag-Rows zurückliefert (Initialisierung happens before chunking).
+        $this->assertCount(1500, $metadata);
+        $this->assertSame(['rating' => 0, 'color' => null, 'pick' => 'none'], $metadata['1']);
+        $this->assertSame(['rating' => 0, 'color' => null, 'pick' => 'none'], $metadata['750']);
+        $this->assertSame(['rating' => 0, 'color' => null, 'pick' => 'none'], $metadata['1500']);
+    }
+
+    public function testGetMetadataBatchUsesSingleQueryAtChunkBoundary(): void
+    {
+        // 500 IDs sollten genau 1 Query ergeben (Grenze nicht überschreiten),
+        // 501 IDs entsprechend 2.
+        $boundary500 = array_map('strval', range(1, 500));
+        $boundary501 = array_map('strval', range(1, 501));
+
+        $expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+        $expr->method('eq')->willReturn('1=1');
+        $expr->method('in')->willReturn('1=1');
+        $expr->method('like')->willReturn('1=1');
+
+        $result = $this->createMock(\OCP\DB\IResult::class);
+        $result->method('fetchAll')->willReturn([]);
+        $result->method('closeCursor');
+
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('innerJoin')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('createNamedParameter')->willReturn('?');
+        $qb->method('expr')->willReturn($expr);
+        // Erwartung: 1 Query für 500 IDs + 2 Queries für 501 IDs = 3 gesamt.
+        $qb->expects($this->exactly(3))->method('executeQuery')->willReturn($result);
+
+        $this->db->method('getQueryBuilder')->willReturn($qb);
+
+        $this->service->getMetadataBatch($boundary500);
+        $this->service->getMetadataBatch($boundary501);
+    }
+
     public function testGetMetadataBatchMultipleFiles(): void
     {
         $this->mockQueryBuilder([
