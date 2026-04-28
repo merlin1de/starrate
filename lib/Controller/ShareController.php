@@ -136,9 +136,13 @@ class ShareController extends Controller
         if ($auth instanceof DataResponse) return $auth;
         $userId = $auth;
 
-        $body  = $this->getJsonBody();
-        $share = $this->shareService->getShare($token);
+        $body   = $this->getJsonBody();
+        $errors = $this->validateShareBody($body, false);  // false = update, nc_path optional
+        if (!empty($errors)) {
+            return new DataResponse(['error' => implode('; ', $errors)], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
 
+        $share = $this->shareService->getShare($token);
         if ($share === null || $share['owner_id'] !== $userId) {
             return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
         }
@@ -576,11 +580,18 @@ class ShareController extends Controller
         return false;
     }
 
-    private function validateShareBody(array $body): array
+    /**
+     * Validiert den Share-Body. Wird sowohl von create als auch update genutzt.
+     *
+     * @param bool $isCreate true beim Anlegen — nc_path ist Pflicht.
+     *                       false beim Update — nc_path ist optional (nur prüfen
+     *                       wenn vorhanden, weil Updates nur Teilfelder ändern).
+     */
+    private function validateShareBody(array $body, bool $isCreate = true): array
     {
         $errors = [];
 
-        if (empty($body['nc_path'])) {
+        if ($isCreate && empty($body['nc_path'])) {
             $errors[] = 'nc_path ist erforderlich';
         }
 
