@@ -22,7 +22,7 @@
           v-if="currentImage && !previewError"
           ref="imgEl"
           class="sr-loupe__img"
-          :src="actualSrc || BLANK_PIXEL"
+          :src="actualSrc"
           :alt="currentImage.name"
           :style="imgStyle"
           draggable="false"
@@ -278,11 +278,6 @@ const emit = defineEmits(['rate', 'close', 'index-change'])
 const loupeEl      = ref(null)
 const imgEl        = ref(null)
 const currentIndex = ref(props.initialIndex)
-// 1x1 transparenter PNG als Platzhalter solange das Preview noch lädt. Hält
-// das <img>-Element im DOM (kein v-if-Flackern) ohne dass ein invalider src
-// einen onerror-Loop triggert. Visuell unsichtbar — der Spinner zeigt sich.
-const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
-
 const loadingPreview  = ref(true)
 const previewError    = ref(false)
 const actualSrc       = ref('')
@@ -740,32 +735,38 @@ watch(previewUrl, (url) => {
     return
   }
 
-  // Preview noch nicht im preloadedUrls-Cache: src leer setzen (img wird nicht
-  // gemountet, der else-Placeholder + Spinner zeigen sich), dann im Hintergrund
-  // laden und beim Fertig-Werden das Preview-URL einsetzen.
-  //
-  // Früher haben wir hier den Grid-Thumbnail als Placeholder gezeigt; das war
-  // sofort sichtbar, erzeugte aber einen 2-5% Größensprung beim Swap, weil der
-  // Thumbnail cover-gecropt (280x280 quadratisch) ist und das Preview den
-  // originalen Aspect Ratio hat. Spinner ist ehrlich, kein Layout-Flicker.
-  actualSrc.value      = ''
-  loadingPreview.value = true
+  // Show thumbnail instantly as placeholder (already in browser cache from grid).
+  // Aspect-Mismatch zwischen cover-gecropptem Thumb und Preview erzeugt beim
+  // ersten Grid→Loupe-Wechsel einen 2-5% Größensprung — bewusst akzeptiert,
+  // weil sofort etwas Sichtbares auf dem Screen ist. Bei großen Bildern, wo
+  // die Preview-Generierung serverseitig dauern kann, ist das deutlich
+  // wertvoller als ein Spinner-leerer Stage.
+  const thumb = currentImage.value?.thumbUrl
+  if (thumb) {
+    actualSrc.value      = thumb
+    loadingPreview.value = true
+  } else {
+    actualSrc.value      = url
+    loadingPreview.value = true
+    return
+  }
 
+  // Load full preview in background, swap on load
   const img = new Image()
   img.onload = () => {
     preloadedUrls.add(url)
-    // Prüfen ob wir noch dieses URL anzeigen (User könnte zwischenzeitlich
-    // weiternavigiert haben).
     if (previewUrl.value === url) {
-      actualSrc.value      = url
-      loadingPreview.value = false
-      preloadAdjacent(currentIndex.value)
+      requestAnimationFrame(() => {
+        if (previewUrl.value === url) {
+          actualSrc.value      = url
+          loadingPreview.value = false
+          preloadAdjacent(currentIndex.value)
+        }
+      })
     }
   }
   img.onerror = () => {
     if (previewUrl.value === url) {
-      // Sichtbares <img> mit der URL aufrufen, damit der bestehende Retry-Pfad
-      // (onImgError → setTimeout retry) greifen kann.
       actualSrc.value = url
     }
   }
