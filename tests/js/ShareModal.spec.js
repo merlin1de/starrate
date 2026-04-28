@@ -286,4 +286,190 @@ describe('ShareModal', () => {
     await w.find('.sr-share-modal__overlay').trigger('click')
     expect(w.emitted('close')).toBeTruthy()
   })
+
+  // ── Recursive-Felder (V1.3.1) ─────────────────────────────────────────────
+
+  it('Recursive-Felder hidden wenn recursionEnabled=false (Default)', () => {
+    const w = factory()
+    expect(w.find('[data-testid="recursive"]').exists()).toBe(false)
+  })
+
+  it('Recursive-Checkbox sichtbar wenn recursionEnabled=true', () => {
+    const w = factory({ recursionEnabled: true })
+    expect(w.find('[data-testid="recursive"]').exists()).toBe(true)
+  })
+
+  it('Tiefe-Dropdown nur sichtbar wenn recursive UND recursionEnabled', async () => {
+    const w = factory({ recursionEnabled: true, recursiveDefault: false })
+    // Bei initial recursive=false → Tiefe versteckt
+    expect(w.find('.sr-share-modal__select').exists()).toBe(true)  // minRating-Select existiert
+    // Tiefe-Select ist nicht der einzige select; check ob "Gruppen-Tiefe"-Label da
+    expect(w.text()).not.toContain('Gruppen-Tiefe')
+
+    // Recursive an → Tiefe-Label sichtbar
+    await w.find('[data-testid="recursive"]').setValue(true)
+    expect(w.text()).toContain('Gruppen-Tiefe')
+  })
+
+  it('Recursive-Default (settings) wird beim Anlegen vorbefüllt', () => {
+    const w = factory({
+      recursionEnabled: true,
+      recursiveDefault: true,
+      recursiveDefaultDepth: 2,
+    })
+    expect(w.find('[data-testid="recursive"]').element.checked).toBe(true)
+  })
+
+  // ── Edit-Mode (V1.3.1) ────────────────────────────────────────────────────
+
+  const sampleShare = {
+    token: 'abc123',
+    nc_path: '/Fotos/Wedding',
+    permissions: 'rate',
+    allow_pick: true,
+    allow_export: false,
+    allow_comment: false,
+    min_rating: 3,
+    recursive: true,
+    depth: 2,
+    has_password: true,
+    expires_at: null,
+    guest_name: 'Sarah',
+    active: true,
+  }
+
+  it('Edit-Mode: Titel ändert sich auf "Freigabe bearbeiten"', () => {
+    const w = factory({ editShare: sampleShare })
+    expect(w.find('.sr-share-modal__title').text()).toContain('bearbeiten')
+  })
+
+  it('Edit-Mode: Submit-Button hat Label "Speichern"', () => {
+    const w = factory({ editShare: sampleShare })
+    expect(w.find('.sr-share-modal__btn--primary').text()).toContain('Speichern')
+  })
+
+  it('Edit-Mode: Pfad-Input ist editierbar (nicht readonly)', () => {
+    const w = factory({ editShare: sampleShare })
+    // Im Edit-Mode kein readonly-Input mehr, sondern editierbarer
+    expect(w.find('.sr-share-modal__input--readonly').exists()).toBe(false)
+    const inputs = w.findAll('input.sr-share-modal__input[type="text"]')
+    // Erstes Text-Input ist der Pfad
+    expect(inputs[0].element.value).toBe('/Fotos/Wedding')
+  })
+
+  it('Edit-Mode: Felder werden aus Share vorbefüllt', () => {
+    const w = factory({
+      editShare: sampleShare,
+      recursionEnabled: true,
+    })
+    // Permissions
+    const toggles = w.findAll('.sr-share-modal__toggle')
+    expect(toggles[1].classes()).toContain('sr-share-modal__toggle--active') // 'rate'
+    // Pick-Checkbox
+    expect(w.find('[data-testid="allow-pick"]').element.checked).toBe(true)
+    // Recursive
+    expect(w.find('[data-testid="recursive"]').element.checked).toBe(true)
+    // GuestName
+    expect(w.findAll('input[type="text"]')[1].element.value).toBe('Sarah')
+  })
+
+  it('Edit-Mode: Passwort-Feld leer, Remove-Checkbox bei has_password=true sichtbar', () => {
+    const w = factory({ editShare: sampleShare })
+    expect(w.find('.sr-share-modal__input--pw').element.value).toBe('')
+    expect(w.text()).toContain('Passwort entfernen')
+  })
+
+  it('Edit-Mode: Remove-Checkbox bei has_password=false NICHT sichtbar', () => {
+    const w = factory({ editShare: { ...sampleShare, has_password: false } })
+    expect(w.text()).not.toContain('Passwort entfernen')
+  })
+
+  it('Edit-Submit ruft PUT, nicht POST', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: { ...sampleShare } } })
+    const w = factory({ editShare: sampleShare })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(axios.put).toHaveBeenCalled()
+    expect(axios.post).not.toHaveBeenCalled()
+    // URL enthält den Token
+    expect(axios.put.mock.calls[0][0]).toContain(sampleShare.token)
+  })
+
+  it('Edit-Submit: leeres Passwort + removePassword=false → kein password-Key im Body', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const w = factory({ editShare: sampleShare })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    const body = axios.put.mock.calls[0][1]
+    expect(body).not.toHaveProperty('password')
+  })
+
+  it('Edit-Submit: removePassword=true → password=null im Body', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const w = factory({ editShare: sampleShare })
+    // Remove-Checkbox aktivieren
+    const checkboxes = w.findAll('.sr-share-modal__checkbox')
+    const removeCheckbox = checkboxes[checkboxes.length - 1] // letzte Checkbox = Remove
+    await removeCheckbox.setValue(true)
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    const body = axios.put.mock.calls[0][1]
+    expect(body.password).toBeNull()
+  })
+
+  it('Edit-Submit emittiert updated und close', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const w = factory({ editShare: sampleShare })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(w.emitted('updated')).toBeTruthy()
+    expect(w.emitted('close')).toBeTruthy()
+  })
+
+  it('Edit-Submit sendet recursive + depth', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const w = factory({ editShare: sampleShare, recursionEnabled: true })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    const body = axios.put.mock.calls[0][1]
+    expect(body.recursive).toBe(true)
+    expect(body.depth).toBe(2)
+  })
+
+  // ── Path-Blur Re-Resolve (Sarah-Use-Case) ────────────────────────────────
+
+  it('Edit-Mode: Path-Blur bei recursionEnabled löst Re-Resolve aus Settings aus', async () => {
+    // localStorage leer → Settings-Default greift
+    localStorage.clear()
+    const w = factory({
+      editShare: { ...sampleShare, recursive: true, depth: 2 },
+      recursionEnabled: true,
+      recursiveDefault: false,
+      recursiveDefaultDepth: 0,
+    })
+    // Initial: aus Share, recursive=true, depth=2
+    expect(w.find('[data-testid="recursive"]').element.checked).toBe(true)
+
+    // Pfad ändern + blur → Defaults aus Settings übernehmen (false, 0)
+    const pathInput = w.findAll('input.sr-share-modal__input[type="text"]')[0]
+    await pathInput.setValue('/AnderesFolder')
+    await pathInput.trigger('blur')
+    expect(w.find('[data-testid="recursive"]').element.checked).toBe(false)
+  })
+
+  it('Edit-Mode: Path-Blur ohne recursionEnabled hat keinen Effekt', async () => {
+    const w = factory({
+      editShare: { ...sampleShare, recursive: true, depth: 2 },
+      recursionEnabled: false,
+    })
+    const pathInput = w.findAll('input.sr-share-modal__input[type="text"]')[0]
+    await pathInput.setValue('/Anders')
+    await pathInput.trigger('blur')
+    // Recursive-Feld ist gar nicht gerendert, aber form.recursive bleibt true
+    // (kein Reset) — wird beim Submit weiterhin true sein
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    expect(axios.put.mock.calls[0][1].recursive).toBe(true)
+  })
 })

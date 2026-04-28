@@ -34,8 +34,13 @@
             <!-- Share-Zeile -->
             <div class="sr-share-list__row">
               <div class="sr-share-list__info">
-                <span class="sr-share-list__path">{{ share.nc_path || '/' }}</span>
-                <span v-if="share.guest_name" class="sr-share-list__guest-name">{{ share.guest_name }}</span>
+                <div class="sr-share-list__title-row">
+                  <span class="sr-share-list__path">{{ share.nc_path || '/' }}</span>
+                  <template v-if="share.guest_name">
+                    <span class="sr-share-list__guest-sep">—</span>
+                    <span class="sr-share-list__guest-name">{{ share.guest_name }}</span>
+                  </template>
+                </div>
                 <div class="sr-share-list__meta">
                   <span class="sr-share-list__badge" :class="share.permissions === 'rate' ? 'sr-share-list__badge--rate' : 'sr-share-list__badge--view'">
                     {{ share.permissions === 'rate' ? t('starrate', 'Bewerten') : t('starrate', 'Ansehen') }}
@@ -43,31 +48,33 @@
                   <span v-if="share.min_rating > 0" class="sr-share-list__badge sr-share-list__badge--filter">
                     ≥ {{ share.min_rating }} ★
                   </span>
+                  <!-- Read-only Status-Indikatoren — nur sichtbar wenn aktiv. Konfiguration
+                       erfolgt im Edit-Modal (Stift-Button rechts). -->
                   <span
                     v-if="share.has_password"
-                    class="sr-share-list__badge sr-share-list__badge--pw sr-share-list__badge--pw-click"
-                    :title="t('starrate', 'Passwort setzen / ändern')"
-                    @click="openPwEdit(share.token)"
+                    class="sr-share-list__badge sr-share-list__badge--pw"
+                    :title="t('starrate', 'Passwortgeschützt')"
                   >🔒</span>
                   <span
-                    v-if="share.permissions === 'rate'"
-                    class="sr-share-list__badge sr-share-list__badge--pick-click"
-                    :class="share.allow_pick ? 'sr-share-list__badge--pick-on' : 'sr-share-list__badge--pick-off'"
-                    :title="share.allow_pick ? t('starrate', 'Pick/Reject deaktivieren') : t('starrate', 'Pick/Reject aktivieren')"
-                    @click="togglePick(share)"
-                  >{{ share.allow_pick ? '✓' : '✗' }} Pick</span>
+                    v-if="share.permissions === 'rate' && share.allow_pick"
+                    class="sr-share-list__badge sr-share-list__badge--pick-on"
+                    :title="t('starrate', 'Pick/Reject erlaubt')"
+                  >✓ Pick</span>
                   <span
-                    class="sr-share-list__badge sr-share-list__badge--pick-click"
-                    :class="share.allow_export ? 'sr-share-list__badge--pick-on' : 'sr-share-list__badge--pick-off'"
-                    :title="share.allow_export ? t('starrate', 'Export deaktivieren') : t('starrate', 'Export aktivieren')"
-                    @click="toggleExport(share)"
-                  >{{ share.allow_export ? '✓' : '✗' }} Export</span>
+                    v-if="share.allow_export"
+                    class="sr-share-list__badge sr-share-list__badge--pick-on"
+                    :title="t('starrate', 'Export erlaubt')"
+                  >✓ Export</span>
                   <span
-                    class="sr-share-list__badge sr-share-list__badge--pick-click"
-                    :class="share.allow_comment ? 'sr-share-list__badge--pick-on' : 'sr-share-list__badge--pick-off'"
-                    :title="share.allow_comment ? t('starrate', 'Kommentare deaktivieren') : t('starrate', 'Kommentare aktivieren')"
-                    @click="toggleComment(share)"
-                  >{{ share.allow_comment ? '✓' : '✗' }} 💬</span>
+                    v-if="share.allow_comment"
+                    class="sr-share-list__badge sr-share-list__badge--pick-on"
+                    :title="t('starrate', 'Kommentare erlaubt')"
+                  >✓ 💬</span>
+                  <span
+                    v-if="share.recursive"
+                    class="sr-share-list__badge sr-share-list__badge--pick-on"
+                    :title="t('starrate', 'Rekursiv (alle Unterordner)') + (share.depth > 0 ? ` · ${t('starrate', 'Tiefe')} ${share.depth}` : '')"
+                  >↳<span v-if="share.depth > 0"> {{ share.depth }}</span></span>
                   <span v-if="share.expires_at" class="sr-share-list__badge" :class="isExpired(share) ? 'sr-share-list__badge--expired' : 'sr-share-list__badge--date'">
                     {{ isExpired(share) ? t('starrate', 'Abgelaufen') : formatDate(share.expires_at) }}
                   </span>
@@ -108,14 +115,13 @@
                   <button class="sr-share-list__confirm-no" @click="pendingClearToken = null">{{ t('starrate', 'Nein') }}</button>
                 </template>
                 <template v-else>
-                  <!-- Passwort-Button -->
+                  <!-- Bearbeiten — öffnet ShareModal im Edit-Mode -->
                   <button
                     class="sr-share-list__action-btn"
-                    :class="{ 'sr-share-list__action-btn--active': pwEditToken === share.token }"
-                    :title="t('starrate', 'Passwort setzen / ändern')"
-                    @click="openPwEdit(share.token)"
+                    :title="t('starrate', 'Bearbeiten')"
+                    @click="$emit('edit', share)"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 018 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
                   </button>
                   <!-- Log-Button -->
                   <button
@@ -135,39 +141,6 @@
                     <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                   </button>
                 </template>
-              </div>
-            </div>
-
-            <!-- Passwort-Panel (aufklappbar) -->
-            <div v-if="pwEditToken === share.token" class="sr-share-list__pw-panel">
-              <div class="sr-share-list__pw-wrap">
-                <input
-                  v-model="pwInput"
-                  :type="showPwInput ? 'text' : 'password'"
-                  class="sr-share-list__pw-input"
-                  :placeholder="t('starrate', 'Neues Passwort…')"
-                  autocomplete="new-password"
-                  @keydown.enter="savePassword(share)"
-                  @keydown.escape="closePwEdit"
-                />
-                <button type="button" class="sr-share-list__pw-eye" @click="showPwInput = !showPwInput" :title="showPwInput ? t('starrate', 'Passwort verbergen') : t('starrate', 'Passwort anzeigen')">
-                  <svg v-if="!showPwInput" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
-              </div>
-              <div class="sr-share-list__pw-actions">
-                <button
-                  class="sr-share-list__pw-save"
-                  :disabled="!pwInput || pwSaving"
-                  @click="savePassword(share)"
-                >{{ t('starrate', 'Setzen') }}</button>
-                <button
-                  v-if="share.has_password"
-                  class="sr-share-list__pw-remove"
-                  :disabled="pwSaving"
-                  @click="removePassword(share)"
-                >{{ t('starrate', 'Entfernen') }}</button>
-                <button class="sr-share-list__pw-cancel" @click="closePwEdit">{{ t('starrate', 'Abbrechen') }}</button>
               </div>
             </div>
 
@@ -258,7 +231,7 @@ defineProps({
   ncPath: { type: String, default: '/' },
 })
 
-defineEmits(['close', 'create'])
+defineEmits(['close', 'create', 'edit'])
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -271,11 +244,6 @@ const copiedToken = ref(null)
 
 const pendingDeleteToken = ref(null)
 const pendingClearToken  = ref(null)
-
-const pwEditToken = ref(null)
-const pwInput     = ref('')
-const pwSaving    = ref(false)
-const showPwInput = ref(false)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -318,39 +286,6 @@ async function loadShares() {
   }
 }
 
-async function togglePick(share) {
-  try {
-    const { data } = await axios.put(
-      generateUrl(`/apps/starrate/api/share/${share.token}`),
-      { allow_pick: !share.allow_pick }
-    )
-    const idx = shares.value.findIndex(s => s.token === share.token)
-    if (idx !== -1) shares.value[idx] = data.share
-  } catch { /* ignore */ }
-}
-
-async function toggleExport(share) {
-  try {
-    const { data } = await axios.put(
-      generateUrl(`/apps/starrate/api/share/${share.token}`),
-      { allow_export: !share.allow_export }
-    )
-    const idx = shares.value.findIndex(s => s.token === share.token)
-    if (idx !== -1) shares.value[idx] = data.share
-  } catch { /* ignore */ }
-}
-
-async function toggleComment(share) {
-  try {
-    const { data } = await axios.put(
-      generateUrl(`/apps/starrate/api/share/${share.token}`),
-      { allow_comment: !share.allow_comment }
-    )
-    const idx = shares.value.findIndex(s => s.token === share.token)
-    if (idx !== -1) shares.value[idx] = data.share
-  } catch { /* ignore */ }
-}
-
 async function toggleActive(share) {
   try {
     const { data } = await axios.put(
@@ -389,49 +324,6 @@ async function loadLog(token) {
     logs.value = { ...logs.value, [token]: data.log ?? [] }
   } finally {
     logsLoading.value = { ...logsLoading.value, [token]: false }
-  }
-}
-
-function openPwEdit(token) {
-  pwEditToken.value = pwEditToken.value === token ? null : token
-  pwInput.value = ''
-}
-
-function closePwEdit() {
-  pwEditToken.value = null
-  pwInput.value = ''
-  showPwInput.value = false
-}
-
-async function savePassword(share) {
-  if (!pwInput.value || pwSaving.value) return
-  pwSaving.value = true
-  try {
-    const { data } = await axios.put(
-      generateUrl(`/apps/starrate/api/share/${share.token}`),
-      { password: pwInput.value }
-    )
-    const idx = shares.value.findIndex(s => s.token === share.token)
-    if (idx !== -1) shares.value[idx] = data.share
-    closePwEdit()
-  } catch { /* ignore */ } finally {
-    pwSaving.value = false
-  }
-}
-
-async function removePassword(share) {
-  if (pwSaving.value) return
-  pwSaving.value = true
-  try {
-    const { data } = await axios.put(
-      generateUrl(`/apps/starrate/api/share/${share.token}`),
-      { password: null }
-    )
-    const idx = shares.value.findIndex(s => s.token === share.token)
-    if (idx !== -1) shares.value[idx] = data.share
-    closePwEdit()
-  } catch { /* ignore */ } finally {
-    pwSaving.value = false
   }
 }
 
@@ -557,16 +449,28 @@ defineExpose({ loadShares })
   gap: 0.35rem;
 }
 
+.sr-share-list__title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .sr-share-list__path {
   color: #fff;
   font-size: 0.875rem;
   font-weight: 500;
   word-break: break-all;
 }
-.sr-share-list__guest-name {
-  color: #d4d4d8;
+.sr-share-list__guest-sep {
+  color: #52525b;
   font-size: 0.875rem;
-  font-weight: 500;
+}
+.sr-share-list__guest-name {
+  /* Heller Grauton, weniger Aufmerksamkeit als der Pfad — der Pfad ist die
+     primäre Identität des Shares, der Empfängername sekundär. */
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .sr-share-list__meta {
@@ -586,10 +490,7 @@ defineExpose({ loadShares })
 .sr-share-list__badge--rate   { background: #2a1a1a; color: #e94560; }
 .sr-share-list__badge--filter { background: #2a2a1a; color: #f5c518; }
 .sr-share-list__badge--pw     { background: #2a2a3e; }
-.sr-share-list__badge--pick-click { cursor: pointer; transition: background 0.15s, color 0.15s; }
-.sr-share-list__badge--pick-click:hover { opacity: 0.85; }
 .sr-share-list__badge--pick-on  { background: #1a2a1a; color: #4caf50; }
-.sr-share-list__badge--pick-off { background: #2a2a3e; color: #52525b; }
 .sr-share-list__badge--date   { background: #1a2a1a; color: #7ecf7e; }
 .sr-share-list__badge--expired{ background: #3a1a1a; color: #e94560; }
 
@@ -772,81 +673,4 @@ defineExpose({ loadShares })
   flex-shrink: 0;
 }
 
-/* Passwort-Badge klickbar */
-.sr-share-list__badge--pw-click {
-  cursor: pointer;
-}
-.sr-share-list__badge--pw-click:hover { background: #3a2a4a; }
-
-/* Passwort-Panel */
-.sr-share-list__pw-panel {
-  background: #0f0f1a;
-  border-top: 1px solid #2a2a3e;
-  padding: 0.65rem 1.5rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.sr-share-list__pw-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1;
-}
-.sr-share-list__pw-input {
-  flex: 1;
-  min-width: 160px;
-  background: #16213e;
-  border: 1px solid #3f3f5a;
-  border-radius: 4px;
-  color: #d4d4d8;
-  font-size: 0.8rem;
-  padding: 0.3rem 2rem 0.3rem 0.6rem;
-}
-.sr-share-list__pw-input:focus { outline: none; border-color: #e94560; }
-.sr-share-list__pw-eye {
-  position: absolute;
-  right: 0.4rem;
-  background: none;
-  border: none;
-  color: #71717a;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-}
-.sr-share-list__pw-eye:hover { color: #d4d4d8; }
-.sr-share-list__pw-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.sr-share-list__pw-save {
-  background: #e94560;
-  border: none;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.65rem;
-}
-.sr-share-list__pw-save:disabled { opacity: 0.4; cursor: not-allowed; }
-.sr-share-list__pw-remove {
-  background: none;
-  border: 1px solid #3f3f5a;
-  border-radius: 4px;
-  color: #71717a;
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.65rem;
-}
-.sr-share-list__pw-remove:hover:not(:disabled) { color: #e94560; border-color: #e94560; }
-.sr-share-list__pw-remove:disabled { opacity: 0.4; cursor: not-allowed; }
-.sr-share-list__pw-cancel {
-  background: none;
-  border: 1px solid #2a2a3e;
-  border-radius: 4px;
-  color: #52525b;
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.65rem;
-}
-.sr-share-list__pw-cancel:hover { color: #71717a; }
 </style>

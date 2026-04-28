@@ -165,16 +165,22 @@
       ref="shareListRef"
       :nc-path="currentPath"
       @close="showShareList = false"
-      @create="showShareModal = true"
+      @create="openShareModalForCreate"
+      @edit="openShareModalForEdit"
     />
 
-    <!-- Share erstellen -->
+    <!-- Share anlegen oder bearbeiten — gleicher Modal, Modus per editingShare -->
     <ShareModal
       v-if="!guestMode && showShareModal"
       :nc-path="currentPath"
       :comments-globally-enabled="settings.comments_enabled"
-      @close="showShareModal = false"
+      :recursion-enabled="!!settings.recursion_enabled"
+      :recursive-default="!!settings.recursive_default"
+      :recursive-default-depth="settings.recursive_default_depth"
+      :edit-share="editingShare"
+      @close="closeShareModal"
       @created="onShareCreated"
+      @updated="onShareUpdated"
     />
 
     <!-- Export List Modal -->
@@ -267,6 +273,7 @@ import ShareModal from '../components/ShareModal.vue'
 import ShareList from '../components/ShareList.vue'
 import ExportModal from '../components/ExportModal.vue'
 import FolderPopover from '../components/FolderPopover.vue'
+import { readFolderState, writeFolderState } from '../utils/folderRecursiveState.js'
 
 // ─── Gast-Modus-Props (alle optional, Defaults = normales Verhalten) ───────────
 
@@ -349,17 +356,19 @@ const currentPath = computed(() => {
   return p ? `/${Array.isArray(p) ? p.join('/') : p}` : '/'
 })
 
-// ─── Recursive-View State (URL überschreibt Settings-Default) ─────────────────
+// ─── Recursive-View State (URL > localStorage > Settings-Default) ─────────────
 //
 // Master-Schalter recursion_enabled (User-Setting, Default false): wenn aus,
 // wird das gesamte Feature inkl. URL-Param-Auswertung neutralisiert. Damit
 // können Nutzer das Feature vollständig ausblenden, und ein versehentlicher
 // Share-Link mit ?recursive=1 hat keinen Effekt.
 //
-// recursive: ?recursive=1 (oder true) in der URL aktiviert; sonst Settings-
-// Default. depth: ?depth=N (0-4) in der URL gewinnt; sonst Settings-Default.
-// Pro Folder, weil Vue-Router den ganzen URL-State per Folder hält. Browser-
-// Back navigiert zurück inkl. der Recursive-Settings.
+// Hierarchie der Werte-Quellen (höchste Priorität zuerst):
+//   1. URL-Query (?recursive=… / ?depth=…) — Sharing/Bookmarking
+//   2. Per-Folder-Memory (localStorage via folderRecursiveState) — Convenience
+//      damit der User beim Wiederbesuch desselben Folders an seinem Toggle-
+//      Zustand andockt, ohne URL-Manipulation
+//   3. Personal Settings Default — globaler Fallback
 //
 // Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
 const recursionAvailable = computed(() => !props.guestMode && !!settings.value.recursion_enabled)
@@ -368,6 +377,8 @@ const recursive = computed(() => {
   if (!recursionAvailable.value) return false
   const q = route.query.recursive
   if (q !== undefined) return q === '1' || q === 'true'
+  const stored = readFolderState(currentPath.value)
+  if (stored) return stored.recursive
   return settings.value.recursive_default
 })
 
@@ -378,6 +389,8 @@ const depth = computed(() => {
     const d = parseInt(q, 10)
     if (Number.isFinite(d) && d >= 0 && d <= 4) return d
   }
+  const stored = readFolderState(currentPath.value)
+  if (stored) return stored.depth
   return settings.value.recursive_default_depth
 })
 
@@ -417,13 +430,20 @@ function exitRecursionInto(segmentIndex) {
 // FilterBar-Toggle/Stepper schreiben in URL-Query — die Computed-Werte oben
 // reagieren darauf und triggern via Watch das Reload. Wir mergen in die
 // existierende Query, damit andere URL-Params (Filter etc.) erhalten bleiben.
+//
+// Zusätzlich persistieren wir den neuen Zustand pro Folder in localStorage,
+// damit der User beim Wiederbesuch desselben Folders dort weiterarbeitet wo
+// er aufgehört hat — ohne URL-Manipulation. Bewusst NICHT bei reinen URL-
+// Aufrufen (z.B. von einem Share-Link), nur bei expliziter UI-Interaktion.
 function setRecursive(value) {
   const q = { ...route.query, recursive: value ? '1' : '0' }
   router.replace({ path: route.path, query: q })
+  writeFolderState(currentPath.value, value, depth.value)
 }
 function setDepth(value) {
   const q = { ...route.query, depth: String(value) }
   router.replace({ path: route.path, query: q })
+  writeFolderState(currentPath.value, recursive.value, value)
 }
 
 const pathSegments = computed(() =>
@@ -809,9 +829,30 @@ function showToast(message, type = 'success', duration = 3000) {
 
 // ─── Share ────────────────────────────────────────────────────────────────────
 
-function onShareCreated() {
+const editingShare = ref(null)
+
+function openShareModalForCreate() {
+  editingShare.value = null
+  showShareModal.value = true
+}
+
+function openShareModalForEdit(share) {
+  editingShare.value = share
+  showShareModal.value = true
+}
+
+function closeShareModal() {
   showShareModal.value = false
-  // Liste neu laden damit der neue Share erscheint
+  editingShare.value   = null
+}
+
+function onShareCreated() {
+  closeShareModal()
+  shareListRef.value?.loadShares()
+}
+
+function onShareUpdated() {
+  closeShareModal()
   shareListRef.value?.loadShares()
 }
 
