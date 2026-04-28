@@ -208,7 +208,12 @@ class TagService
     }
 
     /**
-     * Liest Metadaten für mehrere Dateien auf einmal (effizient, eine DB-Abfrage).
+     * Liest Metadaten für mehrere Dateien auf einmal (effizient, eine DB-Abfrage
+     * pro Chunk à 500 IDs).
+     *
+     * Chunking ist nötig wegen Oracle/SQL-Server-Limits ('More than 1000
+     * expressions in a list'). 500 lässt Spielraum für andere Bind-Params im
+     * gleichen Statement.
      *
      * @param  string[]  $fileIds
      * @return array<string, array{rating: int, color: string|null, pick: string}>
@@ -219,7 +224,30 @@ class TagService
             return [];
         }
 
-        // Alle StarRate-Tags für die angefragten Dateien laden (QueryBuilder für korrekten Tabellen-Prefix)
+        // Initialisiere alle Dateien mit Default-Werten
+        $metadata = [];
+        foreach ($fileIds as $id) {
+            $metadata[$id] = ['rating' => 0, 'color' => null, 'pick' => 'none'];
+        }
+
+        // Pro Chunk eine separate Query — Result-Rows werden alle in dieselbe
+        // $metadata-Map gemerged.
+        foreach (array_chunk($fileIds, 500) as $chunk) {
+            $rows = $this->fetchTagRowsForFiles($chunk);
+            foreach ($rows as $row) {
+                $this->applyTagRow($metadata, $row);
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param  string[]  $fileIds
+     * @return array<int, array{objectid: string, name: string}>
+     */
+    private function fetchTagRowsForFiles(array $fileIds): array
+    {
         $qb = $this->db->getQueryBuilder();
         $qb->select('stom.objectid', 'st.name')
             ->from('systemtag_object_mapping', 'stom')
@@ -231,36 +259,31 @@ class TagService
         $result = $qb->executeQuery();
         $rows = $result->fetchAll();
         $result->closeCursor();
+        return $rows;
+    }
 
-        // Initialisiere alle Dateien mit Default-Werten
-        $metadata = [];
-        foreach ($fileIds as $id) {
-            $metadata[$id] = ['rating' => 0, 'color' => null, 'pick' => 'none'];
-        }
+    private function applyTagRow(array &$metadata, array $row): void
+    {
+        $fileId  = (string) $row['objectid'];
+        $tagName = $row['name'];
+        if (!isset($metadata[$fileId])) return;
 
-        foreach ($rows as $row) {
-            $fileId  = (string) $row['objectid'];
-            $tagName = $row['name'];
-
-            if (str_starts_with($tagName, self::TAG_PREFIX_RATING)) {
-                $value = (int) substr($tagName, strlen(self::TAG_PREFIX_RATING));
-                if (in_array($value, self::VALID_RATINGS, true)) {
-                    $metadata[$fileId]['rating'] = $value;
-                }
-            } elseif (str_starts_with($tagName, self::TAG_PREFIX_COLOR)) {
-                $value = substr($tagName, strlen(self::TAG_PREFIX_COLOR));
-                if (in_array($value, self::VALID_COLORS, true)) {
-                    $metadata[$fileId]['color'] = $value;
-                }
-            } elseif (str_starts_with($tagName, self::TAG_PREFIX_PICK)) {
-                $value = substr($tagName, strlen(self::TAG_PREFIX_PICK));
-                if (in_array($value, self::VALID_PICKS, true)) {
-                    $metadata[$fileId]['pick'] = $value;
-                }
+        if (str_starts_with($tagName, self::TAG_PREFIX_RATING)) {
+            $value = (int) substr($tagName, strlen(self::TAG_PREFIX_RATING));
+            if (in_array($value, self::VALID_RATINGS, true)) {
+                $metadata[$fileId]['rating'] = $value;
+            }
+        } elseif (str_starts_with($tagName, self::TAG_PREFIX_COLOR)) {
+            $value = substr($tagName, strlen(self::TAG_PREFIX_COLOR));
+            if (in_array($value, self::VALID_COLORS, true)) {
+                $metadata[$fileId]['color'] = $value;
+            }
+        } elseif (str_starts_with($tagName, self::TAG_PREFIX_PICK)) {
+            $value = substr($tagName, strlen(self::TAG_PREFIX_PICK));
+            if (in_array($value, self::VALID_PICKS, true)) {
+                $metadata[$fileId]['pick'] = $value;
             }
         }
-
-        return $metadata;
     }
 
     /**
