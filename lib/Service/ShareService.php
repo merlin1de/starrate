@@ -372,7 +372,13 @@ class ShareService
         $height = min(max($height, 32), 2160);
 
         $crop     = ($width <= 800);  // Thumbnails: crop; Previews: kein Crop
-        $preview  = $this->previewManager->getPreview($file, $width, $height, $crop);
+        // Mode COVER bei Thumbs explizit setzen: das Owner-Frontend nutzt
+        // /core/preview?mode=cover, NC cached die Datei unter MODE_COVER.
+        // Ohne den expliziten Mode würde getPreview() auf MODE_FILL fallen
+        // → andere Cache-Datei → komplette Neugenerierung beim ersten
+        // Gast-Besuch. Für Previews (kein Crop) bleibt der Default.
+        $mode     = $crop ? IPreviewManager::MODE_COVER : IPreviewManager::MODE_FILL;
+        $preview  = $this->previewManager->getPreview($file, $width, $height, $crop, $mode);
         $response = new FileDisplayResponse($preview, 200, [
             'Content-Type' => $preview->getMimeType(),
         ]);
