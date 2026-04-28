@@ -226,6 +226,78 @@ class UserSettingsTest extends TestCase
         $this->settings->saveSettings(self::USER_ID, []);
     }
 
+    // ─── Recursive-View Defaults ─────────────────────────────────────────────
+
+    public function testGetSettingsReturnsRecursiveDefaults(): void
+    {
+        $this->config->method('getUserValue')
+            ->willReturnCallback(fn($uid, $app, $key, $default) => $default);
+
+        $result = $this->settings->getSettings(self::USER_ID);
+
+        $this->assertFalse($result['recursion_enabled']);
+        $this->assertFalse($result['recursive_default']);
+        $this->assertSame(0, $result['recursive_default_depth']);
+    }
+
+    public function testSaveSettingsStoresRecursionEnabled(): void
+    {
+        $saved = [];
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $val) use (&$saved) {
+                $saved[$key] = $val;
+            });
+
+        $this->settings->saveSettings(self::USER_ID, ['recursion_enabled' => true]);
+        $this->assertSame('1', $saved['recursion_enabled']);
+    }
+
+    public function testGetSettingsParsesRecursiveDepthAsInt(): void
+    {
+        $this->config->method('getUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $default) {
+                return $key === 'recursive_default_depth' ? '3' : $default;
+            });
+
+        $result = $this->settings->getSettings(self::USER_ID);
+        $this->assertSame(3, $result['recursive_default_depth']);
+    }
+
+    public function testSaveSettingsStoresRecursiveDefault(): void
+    {
+        $saved = [];
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $val) use (&$saved) {
+                $saved[$key] = $val;
+            });
+
+        $this->settings->saveSettings(self::USER_ID, [
+            'recursive_default'        => true,
+            'recursive_default_depth'  => 2,
+        ]);
+
+        $this->assertSame('1', $saved['recursive_default']);
+        $this->assertSame('2', $saved['recursive_default_depth']);
+    }
+
+    public function testSaveSettingsThrowsForDepthOutOfRange(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['recursive_default_depth' => 5]);
+    }
+
+    public function testSaveSettingsThrowsForNegativeDepth(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['recursive_default_depth' => -1]);
+    }
+
+    public function testSaveSettingsThrowsForNonIntDepth(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['recursive_default_depth' => 'flat']);
+    }
+
     /** @dataProvider validSortProvider */
     public function testSaveSettingsAcceptsAllValidSorts(string $sort): void
     {

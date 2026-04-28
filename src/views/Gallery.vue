@@ -10,6 +10,18 @@
           <button class="sr-breadcrumb__seg" @click="navigateTo(pathUpTo(i))">{{ seg }}</button>
         </template>
 
+        <!-- Dynamischer Tail im Recursive-Modus: Subfolder des aktuell
+             gehoverten/fokussierten Tiles. Klick → Recursion verlassen, in
+             den jeweiligen Subfolder navigieren. -->
+        <template v-for="(seg, i) in hoveredFolderSegments" :key="`hov-${i}`">
+          <span class="sr-breadcrumb__sep sr-breadcrumb__sep--dynamic">/</span>
+          <button
+            class="sr-breadcrumb__seg sr-breadcrumb__seg--dynamic"
+            :title="t('starrate', 'In diesen Unterordner wechseln')"
+            @click="exitRecursionInto(i)"
+          >{{ seg }}</button>
+        </template>
+
         <!-- Mobile-only: Unterordner-Popover am Ende des Pfads -->
         <FolderPopover
           v-if="subFolders.length && mode !== 'loupe'"
@@ -84,16 +96,22 @@
       :allow-share="!guestMode"
       :allow-export="!guestMode || allowExport"
       :can-export="filteredImages.length > 0"
+      :allow-recursive="recursionAvailable"
+      :recursive="recursive"
+      :depth="depth"
       @toggle-mode="toggleMode"
       @open-share-list="showShareList = true"
       @open-export-modal="showExportModal = true"
+      @update:recursive="setRecursive"
+      @update:depth="setDepth"
     />
 
     <!-- Ansichts-Wrapper: nimmt den restlichen Platz, gibt dem Grid eine definite Höhe -->
     <div class="sr-view-wrap">
       <GridView
-        v-if="mode === 'grid'"
+        v-show="mode === 'grid'"
         ref="gridRef"
+        :active="mode === 'grid'"
         :images="filteredImages"
         :loading="loading"
         :has-active-filter="hasActiveFilter"
@@ -109,11 +127,12 @@
         @open-loupe="openLoupe"
         @selection-change="onSelectionChange"
         @clear-filter="resetFilter"
+        @focus-preview="onFocusPreview"
       />
 
       <!-- Lupenansicht -->
       <LoupeView
-        v-else
+        v-if="mode === 'loupe'"
         :images="filteredImages"
         :initial-index="currentIndex"
         :on-refresh-rating="guestMode ? null : refreshImageRating"
@@ -286,15 +305,18 @@ const loading      = ref(false)
 const allImages    = ref([])
 
 const settings = ref({
-  default_sort:        'name',
-  default_sort_order:  'asc',
-  show_filename:        true,
-  show_rating_overlay:  true,
-  show_color_overlay:   true,
-  grid_columns:        'auto',
-  enable_pick_ui:       false,
-  write_xmp:            true,
-  comments_enabled:     false,
+  default_sort:             'name',
+  default_sort_order:       'asc',
+  show_filename:             true,
+  show_rating_overlay:       true,
+  show_color_overlay:        true,
+  grid_columns:             'auto',
+  enable_pick_ui:            false,
+  write_xmp:                 true,
+  comments_enabled:          false,
+  recursion_enabled:         false,
+  recursive_default:         false,
+  recursive_default_depth:   0,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
@@ -326,6 +348,77 @@ const currentPath = computed(() => {
   const p = route.params.path
   return p ? `/${Array.isArray(p) ? p.join('/') : p}` : '/'
 })
+
+// ─── Recursive-View State (URL überschreibt Settings-Default) ─────────────────
+//
+// Master-Schalter recursion_enabled (User-Setting, Default false): wenn aus,
+// wird das gesamte Feature inkl. URL-Param-Auswertung neutralisiert. Damit
+// können Nutzer das Feature vollständig ausblenden, und ein versehentlicher
+// Share-Link mit ?recursive=1 hat keinen Effekt.
+//
+// recursive: ?recursive=1 (oder true) in der URL aktiviert; sonst Settings-
+// Default. depth: ?depth=N (0-4) in der URL gewinnt; sonst Settings-Default.
+// Pro Folder, weil Vue-Router den ganzen URL-State per Folder hält. Browser-
+// Back navigiert zurück inkl. der Recursive-Settings.
+//
+// Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
+const recursionAvailable = computed(() => !props.guestMode && !!settings.value.recursion_enabled)
+
+const recursive = computed(() => {
+  if (!recursionAvailable.value) return false
+  const q = route.query.recursive
+  if (q !== undefined) return q === '1' || q === 'true'
+  return settings.value.recursive_default
+})
+
+const depth = computed(() => {
+  if (!recursionAvailable.value) return 0
+  const q = route.query.depth
+  if (q !== undefined) {
+    const d = parseInt(q, 10)
+    if (Number.isFinite(d) && d >= 0 && d <= 4) return d
+  }
+  return settings.value.recursive_default_depth
+})
+
+// ─── Dynamischer Breadcrumb-Tail (nur Recursive-Modus) ────────────────────────
+//
+// Beim Hover/Focus über ein Tile wird dessen Subfolder-Pfad als Breadcrumb-
+// Erweiterung sichtbar. Visualisiert dem User „woher kommt dieses Bild" ohne
+// Per-Tile-Klutter. Hover-out behält letzten Wert (per Design).
+
+const hoveredImage = ref(null)
+
+function onFocusPreview(image) {
+  if (image) hoveredImage.value = image
+}
+
+const hoveredFolderSegments = computed(() => {
+  if (!recursive.value || !hoveredImage.value?.relPath) return []
+  const segments = hoveredImage.value.relPath.split('/')
+  segments.pop()  // Dateiname raus, nur Folder-Anteile
+  return segments
+})
+
+// Klick auf dynamischen Segment → in den entsprechenden Subfolder navigieren,
+// Recursion verlassen (über Query-Override).
+function exitRecursionInto(segmentIndex) {
+  const subPath = hoveredFolderSegments.value.slice(0, segmentIndex + 1).join('/')
+  const target = currentPath.value === '/' ? `/${subPath}` : `${currentPath.value}/${subPath}`
+  router.push({ path: `/folder${target}`, query: { recursive: '0' } })
+}
+
+// FilterBar-Toggle/Stepper schreiben in URL-Query — die Computed-Werte oben
+// reagieren darauf und triggern via Watch das Reload. Wir mergen in die
+// existierende Query, damit andere URL-Params (Filter etc.) erhalten bleiben.
+function setRecursive(value) {
+  const q = { ...route.query, recursive: value ? '1' : '0' }
+  router.replace({ path: route.path, query: q })
+}
+function setDepth(value) {
+  const q = { ...route.query, depth: String(value) }
+  router.replace({ path: route.path, query: q })
+}
 
 const pathSegments = computed(() =>
   currentPath.value.split('/').filter(Boolean)
@@ -396,7 +489,13 @@ async function loadImages({ silent = false } = {}) {
     } else {
       const url = generateUrl('/apps/starrate/api/images')
       const res = await axios.get(url, {
-        params: { path: currentPath.value, sort: settings.value.default_sort, order: settings.value.default_sort_order },
+        params: {
+          path:      currentPath.value,
+          sort:      settings.value.default_sort,
+          order:     settings.value.default_sort_order,
+          recursive: recursive.value ? 1 : 0,
+          depth:     depth.value,
+        },
         timeout: 15000,
       })
       data = res.data
@@ -448,8 +547,15 @@ async function loadImages({ silent = false } = {}) {
   }
 }
 
-// Pfadwechsel → Bilder neu laden (kein immediate: erster Load passiert in onMounted nach Settings)
-watch(currentPath, loadImages)
+// Pfadwechsel ODER Recursive-Toggle/Depth-Änderung → Bilder neu laden.
+// loadGate verhindert doppelten Load beim Initial-Mount: ohne den Gate würde
+// die Watch sofort feuern, sobald loadSettings() recursive_default in den
+// settings-ref schreibt (computed `recursive` ändert sich von Default→Wert).
+// Erst NACH dem manuellen loadImages() in onMounted öffnen wir das Tor.
+let loadGate = false
+watch([currentPath, recursive, depth], () => {
+  if (loadGate) loadImages()
+})
 
 // Pick-Filter zurücksetzen wenn Pick-UI deaktiviert wird
 watch(() => settings.value.enable_pick_ui, enabled => {
@@ -807,8 +913,9 @@ onMounted(async () => {
     }
   }
 
-  // Erster Bildladevorgang nach Settings & Filter
+  // Erster Bildladevorgang nach Settings & Filter; danach Watch aktivieren.
   loadImages()
+  loadGate = true
 })
 
 onUnmounted(() => {
@@ -929,6 +1036,15 @@ watch(() => route.query, q => {
   align-items: center;
   width: 100%;
 }
+
+/* Dynamischer Tail im Recursive-Modus: optisch zurückgenommen, damit man auf
+   einen Blick sieht „das ist der Hover-Kontext, nicht meine Position". */
+.sr-breadcrumb__seg--dynamic,
+.sr-breadcrumb__sep--dynamic {
+  opacity: 0.6;
+  font-weight: 400;
+}
+.sr-breadcrumb__seg--dynamic:hover { opacity: 1; }
 
 .sr-view-wrap {
   flex: 1;

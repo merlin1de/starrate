@@ -159,6 +159,48 @@
         >{{ t('starrate', 'Export') }}</button>
       </div>
 
+      <!-- Recursive-Toggle + Tiefen-Selector. Nur wenn allowRecursive (= nicht
+           Gast-Modus). Toggle ist immer sichtbar; Tiefe nur wenn aktiv. -->
+      <div
+        v-if="allowRecursive"
+        class="sr-filterbar__recursive"
+        role="group"
+        :aria-label="t('starrate', 'Rekursive Ansicht')"
+      >
+        <button
+          class="sr-filterbar__mode-btn"
+          :class="{ 'sr-filterbar__mode-btn--active': recursive }"
+          type="button"
+          :aria-pressed="recursive"
+          :title="recursive
+            ? t('starrate', 'Rekursive Ansicht aktiv — Klick zum Deaktivieren')
+            : t('starrate', 'Rekursive Ansicht: zeigt Bilder aus allen Unterordnern')"
+          @click="$emit('update:recursive', !recursive)"
+        >
+          <!-- ↳-Icon (subtree-Pfeil) -->
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M5 4v9a3 3 0 003 3h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="15 12 19 16 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <select
+          v-if="recursive"
+          class="sr-filterbar__depth"
+          :value="depth"
+          :title="t('starrate', 'Gruppen-Tiefe für die Sortierung')"
+          @change="$emit('update:depth', parseInt($event.target.value, 10))"
+        >
+          <!-- Single-Char-Labels: passt durchgängig in einen kompakten Select.
+               '—' für 0 statt 'flach' — der Tooltip auf dem Select erklärt
+               weiterhin die Bedeutung. -->
+          <option :value="0">—</option>
+          <option :value="1">1</option>
+          <option :value="2">2</option>
+          <option :value="3">3</option>
+          <option :value="4">4</option>
+        </select>
+      </div>
+
       <!-- Modus-Umschalter -->
       <div class="sr-filterbar__mode" role="group" :aria-label="t('starrate', 'Ansicht')">
         <button
@@ -241,9 +283,16 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // Recursive-View-Controls (V1: aus, sobald Gallery sie reicht)
+  allowRecursive: { type: Boolean, default: false },
+  recursive:      { type: Boolean, default: false },
+  depth:          { type: Number,  default: 0 },
 })
 
-const emit = defineEmits(['update:filter', 'toggle-mode', 'open-share-list', 'open-export-modal'])
+const emit = defineEmits([
+  'update:filter', 'toggle-mode', 'open-share-list', 'open-export-modal',
+  'update:recursive', 'update:depth',
+])
 
 const colorOptions = COLOR_OPTIONS
 
@@ -680,6 +729,32 @@ function updateFilter(newFilter) {
   overflow: hidden;
 }
 
+/* Recursive-Toggle: gleicher visueller Stil wie Mode-Toggle, daneben optional
+   ein kompakter Tiefen-Selector. */
+.sr-filterbar__recursive {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding-right: 4px;
+  overflow: hidden;
+}
+
+.sr-filterbar__depth {
+  height: 24px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: #2a2a4a;
+  color: #ddd;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sr-filterbar__depth:focus { outline: 1px solid #4a4a6a; }
+
 .sr-filterbar__mode-btn {
   display: flex;
   align-items: center;
@@ -801,5 +876,16 @@ function updateFilter(newFilter) {
   .sr-filterbar__sep                { display: none; }
   .sr-filterbar__status             { display: none; }
   .sr-filterbar__reset--mobile      { display: inline-flex; }
+
+  /* Recursive-Cluster minimal-kompakt: Inhalt ist nur 1 Zeichen, also auf
+     Native-Select-Pflichtbreite minimieren. Padding reduziert, Schriftgröße
+     einen Hauch kleiner — spart ca. die Hälfte gegenüber dem Desktop-Stil. */
+  .sr-filterbar__recursive          { padding-right: 2px; gap: 2px; }
+  .sr-filterbar__depth {
+    height: 22px;
+    padding: 0 1px;
+    font-size: 11px;
+    text-align: center;
+  }
 }
 </style>
