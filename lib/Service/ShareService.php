@@ -376,7 +376,12 @@ class ShareService
         $response = new FileDisplayResponse($preview, 200, [
             'Content-Type' => $preview->getMimeType(),
         ]);
-        $response->cacheFor(3600);
+        // 7 Tage Browser-Cache. Hilft beim Wiederbesuch derselben Gast-Galerie
+        // (zweite Bewertungsrunde, andere Endgeräte vom selben Empfänger).
+        // FileDisplayResponse setzt ETag automatisch — Browser kann nach Ablauf
+        // per If-None-Match revalidieren, Server liefert 304 wenn unverändert.
+        // private (Default), nicht immutable → bei mtime-Änderung neu geladen.
+        $response->cacheFor(60 * 60 * 24 * 7);
         return $response;
     }
 
