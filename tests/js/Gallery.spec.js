@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { defineComponent } from 'vue'
+import axios from '@nextcloud/axios'
 import Gallery from '../../src/views/Gallery.vue'
 
 // ── Stubs ──────────────────────────────────────────────────────────────────────
@@ -390,5 +391,224 @@ describe('Gallery – Export Modal', () => {
     await w.find('[title="Bewertungsliste exportieren"]').trigger('click')
     await w.findComponent({ name: 'ExportModal' }).vm.$emit('close')
     expect(w.find('.export-modal-stub').exists()).toBe(false)
+  })
+})
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Recursive View
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Tests für die Recursive-View-Verkabelung: Settings-Master-Schalter,
+// URL-State-Verarbeitung, FilterBar-Toggle/Stepper und Hover-getriebener
+// Breadcrumb-Tail. Anders als die Tests oben braucht das hier den Non-Guest-
+// Modus (recursionAvailable wäre sonst zwangsweise false), darum mockt der
+// Helper unten den Settings-API-Call explizit.
+
+async function factoryNonGuest({ settings = {}, query = {}, path = '/' } = {}) {
+  const settingsResponse = {
+    default_sort: 'name', default_sort_order: 'asc',
+    show_filename: true, show_rating_overlay: true, show_color_overlay: true,
+    grid_columns: 'auto', enable_pick_ui: false, write_xmp: true, comments_enabled: false,
+    recursion_enabled: false, recursive_default: false, recursive_default_depth: 0,
+    ...settings,
+  }
+  axios.get.mockImplementation((url) => {
+    if (typeof url === 'string' && url.endsWith('/api/settings')) {
+      return Promise.resolve({ data: settingsResponse })
+    }
+    return Promise.resolve({ data: { images: [], folders: [] } })
+  })
+
+  // Spiegelt die Production-Route in src/main.js — wichtig damit
+  // route.params.path als String-Pfad ankommt (nicht undefined).
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: {} },
+      { path: '/folder/:path(.*)', component: {} },
+    ],
+  })
+  // WICHTIG: push und auf isReady warten — sonst hat das Component beim
+  // Mount noch keine korrekten route.params/route.query, und die recursive/
+  // depth Computeds würden auf den Default-Werten stehen bleiben.
+  await router.push({ path, query })
+  await router.isReady()
+
+  const w = mount(Gallery, {
+    props: {},
+    global: { plugins: [router], stubs },
+  })
+  return { w, router }
+}
+
+describe('Gallery – Recursive View', () => {
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  // ── Master-Schalter / recursionAvailable ─────────────────────────────────
+
+  it('FilterBar bekommt allow-recursive=false wenn Master-Schalter aus', async () => {
+    const { w } = await factoryNonGuest({ settings: { recursion_enabled: false } })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('allowRecursive')).toBe(false)
+  })
+
+  it('FilterBar bekommt allow-recursive=true wenn Master-Schalter an', async () => {
+    const { w } = await factoryNonGuest({ settings: { recursion_enabled: true } })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('allowRecursive')).toBe(true)
+  })
+
+  it('Im Gast-Modus ist Recursive immer unterdrückt', async () => {
+    const { w } = factory()  // guestMode=true
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('allowRecursive')).toBe(false)
+    expect(w.findComponent({ name: 'FilterBar' }).props('recursive')).toBe(false)
+  })
+
+  // ── recursive Computed: URL überschreibt Settings ────────────────────────
+
+  it('recursive aus Settings-Default wenn keine URL-Query', async () => {
+    const { w } = await factoryNonGuest({ settings: { recursion_enabled: true, recursive_default: true } })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('recursive')).toBe(true)
+  })
+
+  it('?recursive=1 in URL aktiviert auch ohne Settings-Default', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: false },
+      query: { recursive: '1' },
+    })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('recursive')).toBe(true)
+  })
+
+  it('?recursive=0 in URL überschreibt aktivierten Settings-Default', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: true },
+      query: { recursive: '0' },
+    })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('recursive')).toBe(false)
+  })
+
+  it('Master-Schalter aus überschreibt URL-Query', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: false },
+      query: { recursive: '1', depth: '3' },
+    })
+    await flushPromises()
+    const fb = w.findComponent({ name: 'FilterBar' })
+    expect(fb.props('recursive')).toBe(false)
+    expect(fb.props('depth')).toBe(0)
+  })
+
+  // ── depth Computed ────────────────────────────────────────────────────────
+
+  it('depth aus URL-Query (gültiger Bereich)', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true },
+      query: { depth: '2' },
+    })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('depth')).toBe(2)
+  })
+
+  it('depth außerhalb 0–4 fällt auf Settings-Default zurück', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default_depth: 1 },
+      query: { depth: '99' },
+    })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('depth')).toBe(1)
+  })
+
+  it('depth Default 0 wenn weder URL noch Settings setzen', async () => {
+    const { w } = await factoryNonGuest({ settings: { recursion_enabled: true } })
+    await flushPromises()
+    expect(w.findComponent({ name: 'FilterBar' }).props('depth')).toBe(0)
+  })
+
+  // ── FilterBar-Toggle/Stepper schreiben URL ────────────────────────────────
+
+  it('update:recursive Event schreibt recursive=1 in die URL', async () => {
+    const { w, router } = await factoryNonGuest({ settings: { recursion_enabled: true } })
+    await flushPromises()
+    await w.findComponent({ name: 'FilterBar' }).vm.$emit('update:recursive', true)
+    await flushPromises()
+    expect(router.currentRoute.value.query.recursive).toBe('1')
+  })
+
+  it('update:depth Event schreibt depth in die URL', async () => {
+    const { w, router } = await factoryNonGuest({ settings: { recursion_enabled: true } })
+    await flushPromises()
+    await w.findComponent({ name: 'FilterBar' }).vm.$emit('update:depth', 3)
+    await flushPromises()
+    expect(router.currentRoute.value.query.depth).toBe('3')
+  })
+
+  // ── API-Call übergibt recursive/depth ─────────────────────────────────────
+
+  it('loadImages schickt recursive+depth aus URL an /api/images', async () => {
+    factoryNonGuest({
+      settings: { recursion_enabled: true },
+      query: { recursive: '1', depth: '2' },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+    const imageCall = axios.get.mock.calls.find(c => /\/api\/images/.test(c[0]))
+    expect(imageCall).toBeDefined()
+    expect(imageCall[1].params).toMatchObject({ recursive: 1, depth: 2 })
+  })
+
+  // ── Dynamischer Breadcrumb-Tail ───────────────────────────────────────────
+
+  it('Hover-Event aus GridView aktualisiert hoveredImage', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: true },
+    })
+    await flushPromises()
+    const grid = w.findComponent(GridViewStub)
+    await grid.vm.$emit('focus-preview', {
+      id: 42, name: 'IMG.jpg', relPath: '2025/Wedding/IMG.jpg',
+    })
+    await flushPromises()
+    // Erwartet: zwei dynamische Segmente (2025, Wedding) im Breadcrumb
+    const dynSegs = w.findAll('.sr-breadcrumb__seg--dynamic')
+    expect(dynSegs).toHaveLength(2)
+    expect(dynSegs[0].text()).toBe('2025')
+    expect(dynSegs[1].text()).toBe('Wedding')
+  })
+
+  it('Dynamischer Tail bleibt leer wenn recursive=false', async () => {
+    const { w } = await factoryNonGuest({
+      settings: { recursion_enabled: false },
+    })
+    await flushPromises()
+    const grid = w.findComponent(GridViewStub)
+    await grid.vm.$emit('focus-preview', {
+      id: 1, name: 'A.jpg', relPath: '2025/Wedding/A.jpg',
+    })
+    await flushPromises()
+    expect(w.findAll('.sr-breadcrumb__seg--dynamic')).toHaveLength(0)
+  })
+
+  it('Klick auf dynamischen Segment navigiert in den Subfolder ohne Recursion', async () => {
+    const { w, router } = await factoryNonGuest({
+      settings: { recursion_enabled: true, recursive_default: true },
+      path: '/folder/Photos',
+    })
+    await flushPromises()
+    await w.findComponent(GridViewStub).vm.$emit('focus-preview', {
+      id: 42, name: 'IMG.jpg', relPath: '2025/Wedding/IMG.jpg',
+    })
+    await flushPromises()
+    // Klick auf erstes dynamisches Segment '2025' → /folder/Photos/2025?recursive=0
+    await w.findAll('.sr-breadcrumb__seg--dynamic')[0].trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/folder/Photos/2025')
+    expect(router.currentRoute.value.query.recursive).toBe('0')
   })
 })
