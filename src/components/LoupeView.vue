@@ -96,6 +96,39 @@
     <!-- Untere Overlay: Dateiname + Rating + Farbe -->
     <Transition name="slide-up">
       <div class="sr-loupe__footer" v-show="showControls">
+        <!-- Diashow: Play/Pause + (im Play-Modus) Intervall-Dropdown -->
+        <div class="sr-loupe__footer-slideshow">
+          <button
+            class="sr-loupe__slideshow-btn"
+            :class="{ 'sr-loupe__slideshow-btn--active': playing }"
+            type="button"
+            :title="playing ? t('starrate', 'Diashow pausieren (S)') : t('starrate', 'Diashow starten (S)')"
+            :aria-label="playing ? t('starrate', 'Diashow pausieren') : t('starrate', 'Diashow starten')"
+            :aria-pressed="playing"
+            @click="togglePlay"
+          >
+            <svg v-if="!playing" class="sr-loupe__slideshow-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="6,4 20,12 6,20" />
+            </svg>
+            <svg v-else class="sr-loupe__slideshow-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </button>
+          <Transition name="fade">
+            <select
+              v-if="playing"
+              class="sr-loupe__slideshow-select"
+              :value="slideshowSec"
+              :title="t('starrate', 'Diashow-Intervall')"
+              :aria-label="t('starrate', 'Diashow-Intervall in Sekunden')"
+              @change="changeInterval(parseInt($event.target.value, 10))"
+            >
+              <option v-for="s in SLIDESHOW_INTERVALS" :key="s" :value="s">{{ s }} s</option>
+            </select>
+          </Transition>
+        </div>
+
         <div class="sr-loupe__footer-left">
           <span class="sr-loupe__filename">{{ currentImage?.name }}</span>
           <span class="sr-loupe__index">{{ currentIndex + 1 }} / {{ images.length }}</span>
@@ -227,12 +260,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 import RatingStars from './RatingStars.vue'
 import ColorLabel from './ColorLabel.vue'
+import {
+  SLIDESHOW_INTERVALS,
+  SLIDESHOW_DEFAULT_SEC,
+  SLIDESHOW_GUEST_LS_KEY,
+  isValidSlideshowInterval,
+} from '../utils/slideshow.js'
 
 const props = defineProps({
   images: {
@@ -266,6 +305,16 @@ const props = defineProps({
   },
   /** Owner-Modus: Kommentare global aktiviert */
   commentsEnabledOwner: {
+    type: Boolean,
+    default: false,
+  },
+  /** Diashow-Intervall in Sekunden (User-Setting). Loupe-lokale Änderungen sind ephemer. */
+  slideshowInterval: {
+    type: Number,
+    default: SLIDESHOW_DEFAULT_SEC,
+  },
+  /** Gast-Modus: localStorage-Backup statt User-Setting. */
+  guestMode: {
     type: Boolean,
     default: false,
   },
@@ -305,6 +354,11 @@ let   lastTouchEnd = 0
 
 // Bildübergang
 const transitionName = ref('slide-right')
+
+// Diashow (Konstanten siehe utils/slideshow.js)
+const playing      = ref(false)
+const slideshowSec = ref(SLIDESHOW_DEFAULT_SEC)
+let   slideshowTimer = null
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -358,6 +412,82 @@ function navigate(delta) {
 
   // Rating vom Server nachladen (Sync-Light für Multi-User)
   props.onRefreshRating?.(props.images[newIdx])
+}
+
+// ─── Diashow ─────────────────────────────────────────────────────────────────
+
+function clearSlideshowTimer() {
+  if (slideshowTimer) {
+    clearTimeout(slideshowTimer)
+    slideshowTimer = null
+  }
+}
+
+function scheduleNext() {
+  clearSlideshowTimer()
+  if (!playing.value) return
+  if (props.images.length === 0) {
+    playing.value = false
+    return
+  }
+  slideshowTimer = setTimeout(() => {
+    if (!playing.value) return
+    if (currentIndex.value < props.images.length - 1) {
+      navigate(1)
+    } else {
+      // Loop zurück zum ersten Bild — Slideshow läuft endlos.
+      transitionName.value = 'slide-left'
+      currentIndex.value   = 0
+      resetZoom()
+      emit('index-change', 0)
+      props.onRefreshRating?.(props.images[0])
+    }
+  }, slideshowSec.value * 1000)
+}
+
+function togglePlay() {
+  // Bei offenem Comment-Sheet kein Toggle (Sicherheitsnetz neben dem Sheet-Guard
+  // in onKeydown — schützt z.B. Click auf Play während Sheet offen ist).
+  if (commentSheetOpen.value) return
+  playing.value = !playing.value
+}
+
+function changeInterval(sec) {
+  if (!isValidSlideshowInterval(sec)) return
+  slideshowSec.value = sec
+  if (props.guestMode) {
+    try { localStorage.setItem(SLIDESHOW_GUEST_LS_KEY, String(sec)) } catch {}
+  }
+}
+
+watch(playing, (v) => {
+  if (v) scheduleNext()
+  else   clearSlideshowTimer()
+})
+
+watch(currentIndex, () => {
+  if (playing.value) scheduleNext()
+})
+
+watch(slideshowSec, () => {
+  if (playing.value) scheduleNext()
+})
+
+// Owner-Modus: Prop ist single source of truth — watchEffect spiegelt
+// Initial- und Update-Pfad konsistent. Gäste werden im onMounted aus
+// localStorage initialisiert; ein Prop-Update kann sie nicht mehr überschreiben.
+watchEffect(() => {
+  if (props.guestMode) return
+  if (isValidSlideshowInterval(props.slideshowInterval)) {
+    slideshowSec.value = props.slideshowInterval
+  }
+})
+
+// Tab-Visibility: pausiert die Slideshow wenn der Tab in den Hintergrund geht.
+// Browser throtteln setTimeout im Hintergrund (Chrome ab 1 min hart) — ohne
+// Pause käme bei Rückkehr eine Bilderlawine.
+function onVisibilityChange() {
+  if (document.hidden && playing.value) playing.value = false
 }
 
 const preloadedUrls = new Set()
@@ -592,6 +722,11 @@ function onKeydown(e) {
     return
   }
 
+  // Bei offenem Comment-Sheet alle Shortcuts deaktivieren — schützt nicht
+  // nur die Textarea-Eingabe (TEXTAREA-Guard greift dafür ohnehin), sondern
+  // auch Klicks außerhalb des Textfelds bei offenem Sheet.
+  if (commentSheetOpen.value) return
+
   // Eingabefelder in Ruhe lassen
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -635,6 +770,11 @@ function onKeydown(e) {
     case ' ':
       e.preventDefault()
       resetZoom()
+      break
+
+    case 's': case 'S':
+      e.preventDefault()
+      togglePlay()
       break
 
     // Bewertungen
@@ -832,6 +972,9 @@ function loadComment(fileId) {
 }
 
 async function openCommentSheet() {
+  // Sheet öffnen pausiert die Slideshow — sonst wechselt das Bild unter dem
+  // offenen Sheet weg und der User kommentiert das falsche Bild.
+  playing.value = false
   commentStatus.value = ''
   // Sicherstellen dass Kommentar geladen ist (kein Doppel-Request dank commentLoaded-Flag)
   if (!commentLoaded.value) {
@@ -919,18 +1062,29 @@ watch(currentImage, (img) => {
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   resetControlsTimer()
   // Kommentar für das erste Bild laden (ohne Watch-immediate um Jiggling zu vermeiden)
   if (props.allowComment || props.commentsEnabledOwner) {
     loadComment(currentImage.value?.id)
   }
+  // Gast-Modus: localStorage-Backup für Slideshow-Intervall einlesen.
+  // Im Owner-Modus übernimmt das der watchEffect auf props.slideshowInterval.
+  if (props.guestMode) {
+    try {
+      const v = parseInt(localStorage.getItem(SLIDESHOW_GUEST_LS_KEY) || '', 10)
+      if (isValidSlideshowInterval(v)) slideshowSec.value = v
+    } catch {}
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   clearTimeout(hideControlsTimer)
   clearTimeout(previewRetryTimer)
   clearTimeout(commentStatusTimer)
+  clearSlideshowTimer()
 })
 
 watch(() => props.initialIndex, idx => {
@@ -1173,6 +1327,55 @@ watch(() => props.initialIndex, idx => {
   flex-shrink: 0;
 }
 
+/* ── Diashow Footer-Block ─────────────────────────────────────────────────── */
+.sr-loupe__footer-slideshow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sr-loupe__slideshow-btn {
+  background: transparent;
+  border: none;
+  color: #a8a8b8;
+  cursor: pointer;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  transition: color 150ms;
+}
+
+.sr-loupe__slideshow-btn:hover         { color: #d4d4d8; }
+.sr-loupe__slideshow-btn--active       { color: #d4d4d8; }
+.sr-loupe__slideshow-icon              { width: 22px; height: 22px; }
+
+.sr-loupe__slideshow-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(0, 0, 0, 0.5);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23bbbbbb' d='M0 0l5 6 5-6z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  color: #d4d4d8;
+  border: 1px solid #44446a;
+  border-radius: 4px;
+  padding: 2px 18px 2px 6px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+.sr-loupe__slideshow-select:focus      { border-color: #e94560; }
+
+/* Desktop: Slideshow-Block direkt links neben Comment-Button (in der Mitte) */
+@media (pointer: fine) {
+  .sr-loupe__footer-left      { order: 1; }
+  .sr-loupe__footer-slideshow { order: 2; }
+  .sr-loupe__comment-btn      { order: 3; }
+  .sr-loupe__footer-center    { order: 4; }
+  .sr-loupe__footer-right     { order: 5; }
+}
+
 .sr-loupe__pick-btn {
   width: 28px;
   height: 28px;
@@ -1316,6 +1519,13 @@ watch(() => props.initialIndex, idx => {
   }
   .sr-loupe__comment-icon { width: 26px; height: 26px; }
   .sr-loupe__comment-label { display: none; }
+  /* Diashow als dritter Block in Zeile 2, ganz links: [Play] [File] [Comment] */
+  .sr-loupe__footer-slideshow {
+    order: 2;
+    align-self: center;
+  }
+  .sr-loupe__slideshow-icon { width: 26px; height: 26px; }
+  .sr-loupe__slideshow-select { font-size: 13px; padding: 3px 6px; }
 }
 
 /* ── Kommentar Bottom Sheet ────────────────────────────────────────────────── */

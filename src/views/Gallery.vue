@@ -141,6 +141,8 @@
         :allow-comment="settings.comments_enabled || allowComment"
         :comment-api="commentApi"
         :comments-enabled-owner="settings.comments_enabled"
+        :slideshow-interval="settings.slideshow_interval ?? 4"
+        :guest-mode="guestMode"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
@@ -324,6 +326,7 @@ const settings = ref({
   recursion_enabled:         false,
   recursive_default:         false,
   recursive_default_depth:   0,
+  slideshow_interval:        4,
 })
 const subFolders   = ref([])
 const currentIndex = ref(0)
