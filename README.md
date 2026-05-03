@@ -115,12 +115,17 @@ sudo -u www-data /var/www/nextcloud/occ app:enable starrate
 
 ---
 
-## Coming Soon: Android App 🤖
+## The StarRate Ecosystem
 
-A native Android app is in development:
+One shared XMP rating contract — multiple apps that read and write it.
 
-- **Nextcloud SSO** account picker
-- **Guest deep-links** — open `starrate://guest?token=...` links directly in the app
+| Component                  | Status         | What it does                                                                                       |
+|----------------------------|----------------|----------------------------------------------------------------------------------------------------|
+| **StarRate for Nextcloud** | This repo      | Rate in your browser, share guest galleries, write XMP straight into the JPEG                      |
+| **StarRate for Android**   | Coming soon    | Native app with Nextcloud SSO and `starrate://` deep links for guest shares                        |
+| **[FlashView](https://flashview.net)** | In development | A lightning-fast Windows image viewer — opens folders instantly and tags the very same XMP that StarRate reads |
+
+The shared workflow: cull thousands of shots in FlashView on your desktop, sync the folder to Nextcloud, and send a guest link to your client. Photographer and client edit the same XMP metadata — every star, color label and pick stays in sync, no re-export needed.
 
 ⭐ **Star this repo** to get notified when the Android beta launches.
 
