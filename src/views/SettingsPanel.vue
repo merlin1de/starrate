@@ -122,6 +122,23 @@
       </p>
     </div>
 
+    <div class="sr-settings__group">
+      <h3 class="sr-settings__heading">{{ t('starrate', 'Diashow') }}</h3>
+
+      <div class="sr-settings__row">
+        <label class="sr-settings__label">{{ t('starrate', 'Intervall') }}</label>
+        <div class="sr-settings__control">
+          <select v-model.number="form.slideshow_interval" class="sr-settings__select" @change="autosave">
+            <option v-for="s in SLIDESHOW_INTERVALS" :key="s" :value="s">{{ s }} s</option>
+          </select>
+        </div>
+      </div>
+
+      <p class="sr-settings__hint">
+        {{ t('starrate', 'Zeit pro Bild in der Diashow. Start/Pause mit Taste S in der Lupenansicht.') }}
+      </p>
+    </div>
+
     <!-- Status -->
     <Transition name="sr-fade">
       <span v-if="status" class="sr-settings__status" :class="`sr-settings__status--${status}`">
@@ -137,6 +154,7 @@ import { reactive, ref } from 'vue'
 import { t } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { SLIDESHOW_INTERVALS, SLIDESHOW_DEFAULT_SEC } from '../utils/slideshow.js'
 
 const props = defineProps({
   initial: { type: Object, default: () => ({}) },
@@ -155,6 +173,7 @@ const DEFAULTS = {
   recursion_enabled:         false,
   recursive_default:         false,
   recursive_default_depth:   0,
+  slideshow_interval:        SLIDESHOW_DEFAULT_SEC,
 }
 
 const form   = reactive({ ...DEFAULTS, ...props.initial })

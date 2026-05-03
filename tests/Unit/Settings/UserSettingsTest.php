@@ -322,6 +322,63 @@ class UserSettingsTest extends TestCase
         return [['auto'], ['2'], ['3'], ['4'], ['5'], ['6'], ['8']];
     }
 
+    // ─── Slideshow-Intervall ─────────────────────────────────────────────────
+
+    public function testGetSettingsReturnsSlideshowDefault(): void
+    {
+        $this->config->method('getUserValue')
+            ->willReturnCallback(fn($uid, $app, $key, $default) => $default);
+
+        $result = $this->settings->getSettings(self::USER_ID);
+        $this->assertSame(4, $result['slideshow_interval']);
+    }
+
+    public function testGetSettingsParsesSlideshowAsInt(): void
+    {
+        $this->config->method('getUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $default) {
+                return $key === 'slideshow_interval' ? '7' : $default;
+            });
+
+        $result = $this->settings->getSettings(self::USER_ID);
+        $this->assertSame(7, $result['slideshow_interval']);
+    }
+
+    /** @dataProvider validSlideshowIntervalProvider */
+    public function testSaveSettingsAcceptsAllValidSlideshowIntervals(int $sec): void
+    {
+        $saved = [];
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($uid, $app, $key, $val) use (&$saved) {
+                $saved[$key] = $val;
+            });
+        $this->settings->saveSettings(self::USER_ID, ['slideshow_interval' => $sec]);
+        $this->assertSame((string) $sec, $saved['slideshow_interval']);
+    }
+
+    public static function validSlideshowIntervalProvider(): array
+    {
+        return [[1], [2], [3], [4], [5], [7], [10], [15], [30]];
+    }
+
+    public function testSaveSettingsThrowsForInvalidSlideshowInterval(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['slideshow_interval' => 6]);
+    }
+
+    public function testSaveSettingsThrowsForOutOfRangeSlideshowInterval(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['slideshow_interval' => 99]);
+    }
+
+    public function testSaveSettingsThrowsForNonNumericSlideshowInterval(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->settings->saveSettings(self::USER_ID, ['slideshow_interval' => 'fast']);
+    }
+
     // ─── getSection / getPriority ────────────────────────────────────────────
 
     public function testGetSectionReturnsStarrate(): void
