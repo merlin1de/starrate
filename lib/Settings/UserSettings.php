@@ -17,6 +17,11 @@ class UserSettings implements ISettings
 {
     private const APP_ID = 'starrate';
 
+    /** Erlaubte Diashow-Intervalle in Sekunden. Spiegel zu src/utils/slideshow.js. */
+    public const SLIDESHOW_INTERVALS = [1, 2, 3, 4, 5, 7, 10, 15, 30];
+
+    public const SLIDESHOW_DEFAULT_SEC = 4;
+
     public function __construct(
         private readonly IConfig      $config,
         private readonly IUserSession $userSession,
@@ -69,6 +74,8 @@ class UserSettings implements ISettings
             'recursion_enabled'        => $this->getBool($userId, 'recursion_enabled', false),
             'recursive_default'        => $this->getBool($userId, 'recursive_default', false),
             'recursive_default_depth'  => $this->getInt($userId, 'recursive_default_depth', 0),
+            // Diashow-Intervall in Sekunden. Siehe Loupe „S“-Toggle.
+            'slideshow_interval'       => $this->getInt($userId, 'slideshow_interval', self::SLIDESHOW_DEFAULT_SEC),
         ];
     }
 
@@ -85,6 +92,7 @@ class UserSettings implements ISettings
             'show_filename', 'show_rating_overlay',
             'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp', 'comments_enabled',
             'recursion_enabled', 'recursive_default', 'recursive_default_depth',
+            'slideshow_interval',
         ];
 
         foreach ($data as $key => $value) {
@@ -129,6 +137,7 @@ class UserSettings implements ISettings
             'default_sort_order' => $this->assertIn($key, $value, ['asc', 'desc']),
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
             'recursive_default_depth' => $this->assertIntRange($key, $value, 0, 4),
+            'slideshow_interval' => $this->assertIn($key, (int) $value, self::SLIDESHOW_INTERVALS),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
             'enable_pick_ui', 'write_xmp', 'comments_enabled',
             'recursion_enabled', 'recursive_default' => null,

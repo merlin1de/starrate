@@ -781,3 +781,175 @@ describe('LoupeView – Zoom & Navigation', () => {
   })
 
 })
+
+// ─── Diashow ──────────────────────────────────────────────────────────────────
+
+describe('LoupeView – Diashow', () => {
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('zeigt Play-Icon, kein Dropdown im Ruhezustand', () => {
+    const w = factory({ slideshowInterval: 4 })
+    expect(w.find('.sr-loupe__slideshow-btn').exists()).toBe(true)
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(false)
+    expect(w.find('.sr-loupe__slideshow-select').exists()).toBe(false)
+    // Play-SVG = polygon
+    expect(w.find('.sr-loupe__slideshow-btn polygon').exists()).toBe(true)
+  })
+
+  it('Klick auf Play toggelt zu Pause + zeigt Dropdown', async () => {
+    const w = factory({ slideshowInterval: 4 })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(true)
+    expect(w.find('.sr-loupe__slideshow-select').exists()).toBe(true)
+    // Pause-SVG = zwei rects
+    expect(w.find('.sr-loupe__slideshow-btn rect').exists()).toBe(true)
+  })
+
+  it('Tastatur "s" toggelt Play/Pause', async () => {
+    const w = factory({ slideshowInterval: 4 })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }))
+    await w.vm.$nextTick()
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(true)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'S' }))
+    await w.vm.$nextTick()
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(false)
+  })
+
+  it('advanced nach Intervall zum nächsten Bild', async () => {
+    vi.useFakeTimers()
+    const w = factory({ slideshowInterval: 2 })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.emitted('index-change')).toBeFalsy()
+    vi.advanceTimersByTime(2000)
+    await flushPromises()
+    expect(w.emitted('index-change')?.[0]).toEqual([1])
+    vi.useRealTimers()
+  })
+
+  it('loopt zum ersten Bild zurück und läuft weiter', async () => {
+    vi.useFakeTimers()
+    const w = factory({ slideshowInterval: 1, initialIndex: 2 })   // letzter Index
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(true)
+    // Erster Tick: loopt zum Anfang
+    vi.advanceTimersByTime(1000)
+    await flushPromises()
+    expect(w.emitted('index-change')?.[0]).toEqual([0])
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(true)
+    // Zweiter Tick: weiter zu Index 1
+    vi.advanceTimersByTime(1000)
+    await flushPromises()
+    expect(w.emitted('index-change')?.[1]).toEqual([1])
+    vi.useRealTimers()
+  })
+
+  it('stoppt sofort wenn images leer ist', async () => {
+    vi.useFakeTimers()
+    const w = mount(LoupeView, { props: { images: [], initialIndex: 0 } })
+    wrappers.push(w)
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it('Pfeil-rechts während Play → resettet Timer', async () => {
+    vi.useFakeTimers()
+    const w = factory({ slideshowInterval: 3 })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    vi.advanceTimersByTime(1500)                        // halber Intervall
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+    await flushPromises()
+    expect(w.emitted('index-change')?.[0]).toEqual([1])
+    // Nach Reset: weitere 1500ms reichen NICHT für nächsten Advance (Timer startete bei Index 1 neu)
+    vi.advanceTimersByTime(1500)
+    await flushPromises()
+    expect(w.emitted('index-change')?.length).toBe(1)
+    vi.advanceTimersByTime(1500)
+    await flushPromises()
+    expect(w.emitted('index-change')?.[1]).toEqual([2])
+    vi.useRealTimers()
+  })
+
+  it('Dropdown-Change im Owner-Modus: kein localStorage-Write', async () => {
+    const w = factory({ slideshowInterval: 4, guestMode: false })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    const select = w.find('.sr-loupe__slideshow-select')
+    await select.setValue('7')
+    expect(localStorage.getItem('starrate_guest_slideshow_interval')).toBeNull()
+  })
+
+  it('Dropdown-Change im Gast-Modus: schreibt localStorage', async () => {
+    const w = factory({ slideshowInterval: 4, guestMode: true })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    const select = w.find('.sr-loupe__slideshow-select')
+    await select.setValue('7')
+    expect(localStorage.getItem('starrate_guest_slideshow_interval')).toBe('7')
+  })
+
+  it('Mount im Gast-Modus liest localStorage', async () => {
+    localStorage.setItem('starrate_guest_slideshow_interval', '10')
+    const w = factory({ slideshowInterval: 4, guestMode: true })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    const select = w.find('.sr-loupe__slideshow-select')
+    expect(select.element.value).toBe('10')
+  })
+
+  it('Mount im Gast-Modus mit ungültigem localStorage-Wert: Default 4 bleibt', async () => {
+    localStorage.setItem('starrate_guest_slideshow_interval', '999')
+    const w = factory({ slideshowInterval: 4, guestMode: true })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    const select = w.find('.sr-loupe__slideshow-select')
+    expect(select.element.value).toBe('4')
+  })
+
+  it('onUnmounted: kein Tick nach Unmount', async () => {
+    vi.useFakeTimers()
+    const w = factory({ slideshowInterval: 1 })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    w.unmount()
+    // Aus wrappers entfernen, damit afterEach nicht doppelt unmounted
+    wrappers.pop()
+    expect(() => vi.advanceTimersByTime(2000)).not.toThrow()
+    vi.useRealTimers()
+  })
+
+  it('Owner-Modus: Prop-Update spiegelt sich in slideshowSec', async () => {
+    const w = factory({ slideshowInterval: 4, guestMode: false })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.find('.sr-loupe__slideshow-select').element.value).toBe('4')
+    await w.setProps({ slideshowInterval: 15 })
+    expect(w.find('.sr-loupe__slideshow-select').element.value).toBe('15')
+  })
+
+  it('Gast-Modus: Prop-Update überschreibt localStorage-Wert NICHT', async () => {
+    localStorage.setItem('starrate_guest_slideshow_interval', '10')
+    const w = factory({ slideshowInterval: 4, guestMode: true })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.find('.sr-loupe__slideshow-select').element.value).toBe('10')
+    await w.setProps({ slideshowInterval: 15 })
+    expect(w.find('.sr-loupe__slideshow-select').element.value).toBe('10')
+  })
+
+  it('Comment-Sheet öffnen pausiert die Slideshow', async () => {
+    const w = factory({ slideshowInterval: 4, commentsEnabledOwner: true })
+    await w.find('.sr-loupe__slideshow-btn').trigger('click')
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(true)
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(false)
+  })
+
+  it('"s"-Taste bei offenem Comment-Sheet wird ignoriert', async () => {
+    const w = factory({ slideshowInterval: 4, commentsEnabledOwner: true })
+    await w.find('.sr-loupe__comment-btn').trigger('click')
+    await flushPromises()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }))
+    await w.vm.$nextTick()
+    expect(w.find('.sr-loupe__slideshow-btn--active').exists()).toBe(false)
+  })
+
+})
