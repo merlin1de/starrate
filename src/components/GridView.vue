@@ -268,7 +268,10 @@ function resyncRenderedThumbs() {
   scrollEndTimer = null
   if (!virtualEnabled.value) return
   pruneCancelledLoads()
-  for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+  // Reverse-Iteration kombiniert mit enqueueThumb's unshift gibt am Ende
+  // Forward-Order in der Queue (top-of-range zuerst). Forward-Iteration
+  // mit unshift kehrt die Reihenfolge um und lädt Bottom-Items zuerst.
+  for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
     const img = props.images[i]
     if (!img || img.thumbLoaded || img.thumbLoading) continue
     if (thumbCache.value[img.id]) {
@@ -465,16 +468,21 @@ function onImgLoad(image) {
   drainQueue()
 }
 
+// Backoff zwischen Retry-Versuchen. Lang gewählt, weil NCs Lazy-Generation für
+// große JPEGs/RAWs 10–30s dauern kann; kurze Backoffs (3/6/9s) ließen unsere
+// Retries mitten in den noch laufenden Server-Job feuern und triggerten Cascade-
+// Errors. Mit 15s/60s ist der Server beim Retry meist fertig — Cache-Hit, instant.
+const RETRY_BACKOFF_MS = [15000, 60000]
+
 function onImgError(image) {
   if (!image.thumbLoading) return
   image.thumbLoading = false
   loadingItems.delete(image)
   image.thumbRetries = (image.thumbRetries ?? 0) + 1
   if (image.thumbRetries < 3) {
-    // NC generiert Previews beim ersten Zugriff lazy – nach kurzer Pause nochmals versuchen.
     // src zurücksetzen, damit beim Retry das <img> wirklich erneut lädt.
     image.thumbUrl = ''
-    setTimeout(() => enqueueThumb(image), image.thumbRetries * 3000)
+    setTimeout(() => enqueueThumb(image), RETRY_BACKOFF_MS[image.thumbRetries - 1])
   } else {
     image.thumbError = true
   }
@@ -787,13 +795,33 @@ watch(focusedIndex, idx => {
 // Viewport scrollen UND Keyboard-Fokus aufs Grid legen. Ohne den focus-Call
 // wandert der DOM-Fokus beim Loupe-Unmount zur document.body — Cursor-
 // Tasten scrollen dann den Body statt durchs Grid zu navigieren.
+//
+// Außerdem: Errored Thumbs im Render-Range neu enqueuen. Loupe-Visit hat NC
+// gezwungen, Previews zu generieren (mindestens für das fokussierte Bild + ←/→-
+// Nachbarn). Diese Items haben jetzt einen Server-side Cache und liefern beim
+// Retry instant. Items die NC immer noch nicht hat, scheitern halt wieder.
 watch(() => props.active, isActive => {
   if (!isActive) return
   const idx = focusedIndex.value >= 0 ? focusedIndex.value : props.currentIndex
   if (idx >= 0) {
     scrollItemIntoView(idx, 'auto')
   }
-  nextTick(() => gridEl.value?.focus({ preventScroll: true }))
+  nextTick(() => {
+    gridEl.value?.focus({ preventScroll: true })
+    const start = virtualEnabled.value ? renderStartIdx.value : 0
+    const end   = virtualEnabled.value ? renderEndIdx.value   : props.images.length
+    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
+    // Bottom-Up-Order — Items oben (oft im Viewport) würden hinten landen.
+    for (let i = end - 1; i >= start; i--) {
+      const img = props.images[i]
+      if (!img || !img.thumbError || img.thumbLoading) continue
+      img.thumbError   = false
+      img.thumbRetries = 0
+      img.thumbUrl     = ''
+      enqueueThumb(img, true)
+    }
+    drainQueue()
+  })
 })
 
 // ─── Autofocus beim Mount ─────────────────────────────────────────────────────
@@ -850,9 +878,20 @@ onUnmounted(() => {
 watch([renderStartIdx, renderEndIdx], () => {
   if (!virtualEnabled.value) return
   pruneCancelledLoads()  // Slot-Freigabe für aus dem DOM verschwundene Items
+  // Queue verwerfen: Items dort waren entweder priority-Loads aus früheren
+  // Range-Ticks, die durch einen Pool-Stau (NC liefert lang) nie drankamen,
+  // oder out-of-Range-Items ohne <img> im DOM. Die nicht-mehr-sichtbaren
+  // brauchen wir nicht; die noch sichtbaren werden gleich frisch ge-enqueued.
+  // Ohne dieses Reset blockiert der loadQueue.some()-Guard in enqueueThumb
+  // spätere Re-Enqueues für Items, die hinten in der Queue stecken — sie
+  // gelten als "schon queued", werden aber nie geladen → "ganze Reihen fehlen".
+  loadQueue.length = 0
   observeAllItems()
   nextTick(() => {
-    for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
+    // Bottom-Up-Order. Mit Reverse landet das oberste Item ganz vorne in der
+    // Queue und drainQueue bedient es zuerst — Viewport-Items haben Vorrang.
+    for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
       const img = props.images[i]
       if (!img || img.thumbLoaded || img.thumbLoading) continue
       if (thumbCache.value[img.id]) {
