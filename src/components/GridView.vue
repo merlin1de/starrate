@@ -880,6 +880,23 @@ function measureContainer() {
   if (w === 0 && h === 0) return
   containerWidth.value = w
   viewportHeight.value = h
+  syncMaxHeight()
+}
+
+// Dynamische max-height: vom Container-Top bis zum Window-Boden. Statisches
+// calc(100vh - 160px) im CSS verschätzte sich bei vollem NC-Header oder
+// ausgeklappter Filterbar — der Container reichte unter den Viewport, der
+// Scrollbar-Boden inkl. Down-Chevron wurde geclippt, der User-Drag erreichte
+// nicht 100%. Diff-Check verhindert eine ResizeObserver→Style→Resize-Schleife.
+function syncMaxHeight() {
+  if (!gridEl.value) return
+  const top = gridEl.value.getBoundingClientRect().top
+  const safety = 8
+  const newMax = Math.max(0, window.innerHeight - top - safety)
+  const currentMax = parseFloat(gridEl.value.style.maxHeight) || 0
+  if (Math.abs(newMax - currentMax) > 1) {
+    gridEl.value.style.maxHeight = newMax + 'px'
+  }
 }
 
 onMounted(() => {
@@ -894,6 +911,7 @@ onMounted(() => {
     resizeObserver.observe(gridEl.value)
   }
   observeAllItems()
+  window.addEventListener('resize', syncMaxHeight)
   nextTick(() => gridEl.value?.focus({ preventScroll: true }))
 })
 
@@ -903,6 +921,7 @@ onUnmounted(() => {
   if (scrollRafId) cancelAnimationFrame(scrollRafId)
   if (scrollEndTimer) clearTimeout(scrollEndTimer)
   gridEl.value?.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', syncMaxHeight)
 })
 
 // Wenn der Virtual-Range neue Items in den DOM bringt: Thumbnail-Loading
