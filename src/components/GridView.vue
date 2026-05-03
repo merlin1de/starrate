@@ -238,6 +238,18 @@ const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
 
+// Cap der physischen Container-Höhe in px. Browser (Chrome/Edge auf Windows)
+// haben ein internes Limit für scroll-position-mapping bei sehr hohen
+// Containern — wir haben das bei 7345 Items × ~250px = 459k empirisch bei
+// ~378k beobachtet (User-Drag stoppt unterhalb des echten Endes).
+//
+// Wenn die rechnerische Container-Höhe diesen Wert überschreitet, wird der
+// Scroll logisch komprimiert: scrollTop 0..MAX mappt linear auf alle Items.
+// Cost: an Reihen-Grenzen schiebt sich der sichtbare Content um eine Reihe
+// während des Scrollens (kein 1:1 Pixel-zu-Pixel-Mapping mehr). Bei kleinen
+// Compression-Ratios (<1.5) ist der Effekt subtil, bei großen Ratios spürbar.
+const MAX_PHYSICAL_HEIGHT = 350000
+
 const scrollTop      = ref(0)
 const containerWidth = ref(0)
 const viewportHeight = ref(0)
@@ -320,16 +332,28 @@ const totalRows = computed(() => {
 // Sonst (jsdom-Tests, initial vor Mount): alles rendern, Fallback-Verhalten.
 const virtualEnabled = computed(() => rowStride.value > 0 && viewportHeight.value > 0)
 
+// Logical-Scroll-Mapping: bei Listen, die rechnerisch über MAX_PHYSICAL_HEIGHT
+// kämen, wird der physische Scrollbereich gekappt und auf den logischen
+// Bereich gemappt. compressionRatio=1 bedeutet kein Mapping (kleine Listen).
+const fullLogicalHeight = computed(() => totalRows.value * rowStride.value)
+const compressionRatio  = computed(() =>
+  Math.max(1, fullLogicalHeight.value / MAX_PHYSICAL_HEIGHT)
+)
+const physicalScrollHeight = computed(() => fullLogicalHeight.value / compressionRatio.value)
+const logicalScrollTop = computed(() => scrollTop.value * compressionRatio.value)
+
 const visibleStartRow = computed(() => {
   if (!virtualEnabled.value) return 0
-  return Math.max(0, Math.floor(scrollTop.value / rowStride.value) - VIRTUAL_BUFFER_ROWS)
+  return Math.max(0, Math.floor(logicalScrollTop.value / rowStride.value) - VIRTUAL_BUFFER_ROWS)
 })
 
 const visibleEndRow = computed(() => {
   if (!virtualEnabled.value) return totalRows.value
+  // Items haben physische volle Größe — der sichtbare Bereich umfasst
+  // viewportHeight/rowStride physische Reihen, unabhängig vom Mapping.
   return Math.min(
     totalRows.value,
-    Math.ceil((scrollTop.value + viewportHeight.value) / rowStride.value) + VIRTUAL_BUFFER_ROWS,
+    Math.ceil((logicalScrollTop.value + viewportHeight.value) / rowStride.value) + VIRTUAL_BUFFER_ROWS,
   )
 })
 
@@ -341,16 +365,33 @@ const renderedImages = computed(() => {
   return props.images.slice(renderStartIdx.value, renderEndIdx.value)
 })
 
-// Spacer-Höhen: N Reihen brauchen N*tileHeight + (N-1)*gap.
-// Plus den Gap-Abstand zur folgenden/vorherigen Reihe stellt das CSS-Grid
-// selbst über sein normales gap-Setting her.
+// Spacer-Höhen: bei kleinen Listen (compressionRatio=1) klassisch — N Reihen
+// × rowHeight + (N-1) × GRID_GAP, damit Items exakt an Reihen-Grenzen sitzen.
+// Bei Compression Anchor-zu-scrollTop: Item bei `visibleStartRow + BUFFER`
+// (= logische Reihe am Viewport-Top) wird physisch bei scrollTop positioniert,
+// topSpacer/bottomSpacer summieren auf physicalScrollHeight.
 function spacerHeightForRows(n) {
   if (n <= 0) return 0
   return n * rowHeight.value + (n - 1) * GRID_GAP
 }
 
-const topSpacerHeight = computed(() => spacerHeightForRows(visibleStartRow.value))
-const bottomSpacerHeight = computed(() => spacerHeightForRows(totalRows.value - visibleEndRow.value))
+const topSpacerHeight = computed(() => {
+  if (!virtualEnabled.value) return 0
+  if (compressionRatio.value === 1) {
+    return spacerHeightForRows(visibleStartRow.value)
+  }
+  if (visibleStartRow.value === 0) return 0
+  return Math.max(0, scrollTop.value - VIRTUAL_BUFFER_ROWS * rowStride.value)
+})
+
+const bottomSpacerHeight = computed(() => {
+  if (!virtualEnabled.value) return 0
+  if (compressionRatio.value === 1) {
+    return spacerHeightForRows(totalRows.value - visibleEndRow.value)
+  }
+  const itemsBlockHeight = (visibleEndRow.value - visibleStartRow.value) * rowStride.value
+  return Math.max(0, physicalScrollHeight.value - topSpacerHeight.value - itemsBlockHeight)
+})
 
 // ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
@@ -754,10 +795,11 @@ function scrollItemIntoView(index, behavior = 'smooth') {
     }
     // Item nicht gerendert (außerhalb des Virtual-Range): direkt zu seiner
     // berechneten Reihe scrollen. Nach dem Scroll rerendert sich der visible
-    // Range automatisch.
+    // Range automatisch. Bei compressionRatio>1 ist die physische scroll-
+    // Position kleiner als die logische — durch ratio teilen.
     if (!virtualEnabled.value || !gridEl.value) return
     const targetRow = Math.floor(index / columnsCount.value)
-    const targetTop = targetRow * rowStride.value
+    const targetTop = targetRow * rowStride.value / compressionRatio.value
     const containerH = gridEl.value.clientHeight
     const currentTop = gridEl.value.scrollTop
     // Nur scrollen, wenn das Item nicht ohnehin im Viewport-Range liegen würde.
@@ -838,6 +880,23 @@ function measureContainer() {
   if (w === 0 && h === 0) return
   containerWidth.value = w
   viewportHeight.value = h
+  syncMaxHeight()
+}
+
+// Dynamische max-height: vom Container-Top bis zum Window-Boden. Statisches
+// calc(100vh - 160px) im CSS verschätzte sich bei vollem NC-Header oder
+// ausgeklappter Filterbar — der Container reichte unter den Viewport, der
+// Scrollbar-Boden inkl. Down-Chevron wurde geclippt, der User-Drag erreichte
+// nicht 100%. Diff-Check verhindert eine ResizeObserver→Style→Resize-Schleife.
+function syncMaxHeight() {
+  if (!gridEl.value) return
+  const top = gridEl.value.getBoundingClientRect().top
+  const safety = 8
+  const newMax = Math.max(0, window.innerHeight - top - safety)
+  const currentMax = parseFloat(gridEl.value.style.maxHeight) || 0
+  if (Math.abs(newMax - currentMax) > 1) {
+    gridEl.value.style.maxHeight = newMax + 'px'
+  }
 }
 
 onMounted(() => {
@@ -852,6 +911,7 @@ onMounted(() => {
     resizeObserver.observe(gridEl.value)
   }
   observeAllItems()
+  window.addEventListener('resize', syncMaxHeight)
   nextTick(() => gridEl.value?.focus({ preventScroll: true }))
 })
 
@@ -861,6 +921,7 @@ onUnmounted(() => {
   if (scrollRafId) cancelAnimationFrame(scrollRafId)
   if (scrollEndTimer) clearTimeout(scrollEndTimer)
   gridEl.value?.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', syncMaxHeight)
 })
 
 // Wenn der Virtual-Range neue Items in den DOM bringt: Thumbnail-Loading
