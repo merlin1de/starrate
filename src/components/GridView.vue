@@ -268,7 +268,10 @@ function resyncRenderedThumbs() {
   scrollEndTimer = null
   if (!virtualEnabled.value) return
   pruneCancelledLoads()
-  for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+  // Reverse-Iteration kombiniert mit enqueueThumb's unshift gibt am Ende
+  // Forward-Order in der Queue (top-of-range zuerst). Forward-Iteration
+  // mit unshift kehrt die Reihenfolge um und lädt Bottom-Items zuerst.
+  for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
     const img = props.images[i]
     if (!img || img.thumbLoaded || img.thumbLoading) continue
     if (thumbCache.value[img.id]) {
@@ -807,7 +810,9 @@ watch(() => props.active, isActive => {
     gridEl.value?.focus({ preventScroll: true })
     const start = virtualEnabled.value ? renderStartIdx.value : 0
     const end   = virtualEnabled.value ? renderEndIdx.value   : props.images.length
-    for (let i = start; i < end; i++) {
+    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
+    // Bottom-Up-Order — Items oben (oft im Viewport) würden hinten landen.
+    for (let i = end - 1; i >= start; i--) {
       const img = props.images[i]
       if (!img || !img.thumbError || img.thumbLoading) continue
       img.thumbError   = false
@@ -883,7 +888,10 @@ watch([renderStartIdx, renderEndIdx], () => {
   loadQueue.length = 0
   observeAllItems()
   nextTick(() => {
-    for (let i = renderStartIdx.value; i < renderEndIdx.value; i++) {
+    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
+    // Bottom-Up-Order. Mit Reverse landet das oberste Item ganz vorne in der
+    // Queue und drainQueue bedient es zuerst — Viewport-Items haben Vorrang.
+    for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
       const img = props.images[i]
       if (!img || img.thumbLoaded || img.thumbLoading) continue
       if (thumbCache.value[img.id]) {
