@@ -1068,6 +1068,9 @@ onMounted(() => {
   if (props.allowComment || props.commentsEnabledOwner) {
     loadComment(currentImage.value?.id)
   }
+  // Self-healing XMP-Read auch beim ersten Loupe-Open auslösen — Pfeil-Navigation
+  // triggert via navigate(), aber der Initial-Mount fehlte sonst.
+  props.onRefreshRating?.(currentImage.value)
   // Gast-Modus: localStorage-Backup für Slideshow-Intervall einlesen.
   // Im Owner-Modus übernimmt das der watchEffect auf props.slideshowInterval.
   if (props.guestMode) {

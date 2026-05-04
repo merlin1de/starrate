@@ -114,6 +114,9 @@ class RatingControllerTest extends TestCase
         $this->tagService->method('getMetadata')
             ->with((string) self::FILE_ID)
             ->willReturn(['rating' => 3, 'color' => 'Green', 'pick' => 'none']);
+        // Self-healing-Pfad: XMP entspricht DB → kein Sync
+        $this->exifService->method('readMetadata')
+            ->willReturn(['rating' => 3, 'label' => 'Green', 'pick' => 'none']);
 
         $response = $this->controller->get(self::FILE_ID);
 
@@ -130,6 +133,121 @@ class RatingControllerTest extends TestCase
 
         $response = $this->controller->get(self::FILE_ID);
         $this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+    }
+
+    // ─── Self-healing XMP read (Loupe-Open) ───────────────────────────────────
+
+    public function testGetSyncsFromXmpWhenDifferent(): void
+    {
+        $this->mockFileById(self::FILE_ID);
+        // DB hat alte Werte
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 2, 'color' => 'Red', 'pick' => 'none']);
+        // Datei wurde extern (z.B. in LR) geändert: rating 5, Blau, pick
+        $this->exifService->method('readMetadata')
+            ->willReturn(['rating' => 5, 'label' => 'Blue', 'pick' => 'pick']);
+
+        // Erwartung: Tag wird auf XMP-Stand gebracht
+        $this->tagService->expects($this->once())
+            ->method('setMetadata')
+            ->with(
+                (string) self::FILE_ID,
+                ['rating' => 5, 'color' => 'Blue', 'pick' => 'pick']
+            );
+
+        $response = $this->controller->get(self::FILE_ID);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $data = $response->getData();
+        $this->assertSame(5,      $data['rating']);
+        $this->assertSame('Blue', $data['color']);
+        $this->assertSame('pick', $data['pick']);
+    }
+
+    public function testGetSurvivesXmpReadFailure(): void
+    {
+        $this->mockFileById(self::FILE_ID);
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 4, 'color' => 'Yellow', 'pick' => 'none']);
+        // Datei nicht lesbar → readMetadata wirft (Permission, korrupt, Storage offline)
+        $this->exifService->method('readMetadata')
+            ->willThrowException(new \RuntimeException('storage offline'));
+        // setMetadata darf NICHT gerufen werden — Sync schlägt sicher fehl
+        $this->tagService->expects($this->never())->method('setMetadata');
+
+        $response = $this->controller->get(self::FILE_ID);
+
+        // Fail-soft: kein 500, DB-Wert zurück
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $data = $response->getData();
+        $this->assertSame(4,        $data['rating']);
+        $this->assertSame('Yellow', $data['color']);
+    }
+
+    public function testGetDoesNotClearTagsWhenXmpIsEmpty(): void
+    {
+        // DB hat User-Werte, aber XMP ist leer (z.B. weil LR keine XMP geschrieben hat,
+        // Datei unlesbar war oder unser Parser ein LR-spezifisches Layout nicht findet).
+        // Konservative Heuristik: KEIN Sync → DB-Werte bleiben erhalten.
+        $this->mockFileById(self::FILE_ID);
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 5, 'color' => 'Red', 'pick' => 'pick']);
+        // exif liefert "leer" → interpretieren als "Datei hat keine StarRate-Metadaten"
+        $this->exifService->method('readMetadata')
+            ->willReturn(['rating' => 0, 'label' => null, 'pick' => 'none']);
+        // setMetadata DARF NICHT gerufen werden — sonst würden wir User-Tags löschen
+        $this->tagService->expects($this->never())->method('setMetadata');
+
+        $response = $this->controller->get(self::FILE_ID);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $data = $response->getData();
+        $this->assertSame(5,      $data['rating']);
+        $this->assertSame('Red',  $data['color']);
+        $this->assertSame('pick', $data['pick']);
+    }
+
+    public function testGetSkipsSelfHealForNonJpeg(): void
+    {
+        // RAW oder PNG → Self-healing nur bei JPEG
+        $this->mockFileById(self::FILE_ID, 'image/x-canon-cr3');
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 3, 'color' => 'Green', 'pick' => 'none']);
+        // Falls readMetadata gerufen würde, würde der Test failen — wir erwarten kein readMetadata
+        $this->exifService->expects($this->never())->method('readMetadata');
+        $this->tagService->expects($this->never())->method('setMetadata');
+
+        $response = $this->controller->get(self::FILE_ID);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame(3, $response->getData()['rating']);
+    }
+
+    public function testGetSkipsSelfHealWhenWriteXmpDisabled(): void
+    {
+        // User hat XMP-as-master nicht aktiviert → kein Read, kein Sync
+        $this->userSettings = $this->createMock(UserSettings::class);
+        $this->userSettings->method('getSettings')->willReturn([
+            'write_xmp'          => false,
+            'xmp_label_language' => 'en',
+            'comments_enabled'   => true,
+        ]);
+        $controller = new RatingController(
+            'starrate', $this->request, $this->rootFolder,
+            $this->userSession, $this->tagService, $this->exifService,
+            $this->userSettings, $this->shareService, $this->logger,
+        );
+
+        $this->mockFileById(self::FILE_ID);
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 4, 'color' => 'Yellow', 'pick' => 'none']);
+        $this->exifService->expects($this->never())->method('readMetadata');
+        $this->tagService->expects($this->never())->method('setMetadata');
+
+        $response = $controller->get(self::FILE_ID);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame(4, $response->getData()['rating']);
     }
 
     // ─── Tests: POST /api/rating/{fileId} ────────────────────────────────────

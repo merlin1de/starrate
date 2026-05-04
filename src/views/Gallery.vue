@@ -904,17 +904,28 @@ async function loadSettings() {
 }
 
 // ─── Sync-Light: einzelnes Bild aktualisieren (für Loupe-Navigation) ──────────
+//
+// Debounced damit beim Durchscrollen via Pfeiltasten keine Queue von Server-
+// Requests aufläuft — der Backend-Endpoint führt zusätzlich einen Self-healing
+// XMP-Read durch (~30–250 ms pro Bild). Erst wenn der User auf einem Bild
+// stehen bleibt (LINGER_MS), feuert genau ein Request für das aktuelle Bild.
 
-async function refreshImageRating(image) {
+const REFRESH_LINGER_MS = 400
+let _refreshTimer = null
+
+function refreshImageRating(image) {
   if (!image?.id) return
-  try {
-    const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
-    const { data } = await axios.get(url, { timeout: 5000 })
-    const local = allImages.value.find(i => i.id === image.id)
-    if (local) Object.assign(local, { rating: data.rating, color: data.color, pick: data.pick })
-  } catch {
-    // still ignore – user sees last known value
-  }
+  clearTimeout(_refreshTimer)
+  _refreshTimer = setTimeout(async () => {
+    try {
+      const url = generateUrl(`/apps/starrate/api/rating/${image.id}`)
+      const { data } = await axios.get(url, { timeout: 5000 })
+      const local = allImages.value.find(i => i.id === image.id)
+      if (local) Object.assign(local, { rating: data.rating, color: data.color, pick: data.pick })
+    } catch {
+      // still ignore – user sees last known value
+    }
+  }, REFRESH_LINGER_MS)
 }
 
 // ─── Background-Sync: alle 5 Minuten stiller Reload wenn Tab sichtbar ──────
