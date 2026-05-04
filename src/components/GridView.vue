@@ -909,6 +909,14 @@ onMounted(() => {
     gridEl.value.addEventListener('scroll', onScroll, { passive: true })
     resizeObserver = new ResizeObserver(measureContainer)
     resizeObserver.observe(gridEl.value)
+    // Auch den Wrap-Parent beobachten: bei SPA-Folder-Wechsel ändert sich der
+    // Header darüber (Subfolder-Pills tauchen auf/verschwinden), damit auch der
+    // verfügbare Wrap-Bereich. Das gridEl selbst behält seine Größe → der
+    // ResizeObserver darauf feuert nicht. Ohne Parent-Observer bleibt die alte
+    // maxHeight stehen → Grid wirkt zu kurz/zu lang bis zum Reload.
+    if (gridEl.value.parentElement) {
+      resizeObserver.observe(gridEl.value.parentElement)
+    }
   }
   observeAllItems()
   window.addEventListener('resize', syncMaxHeight)
