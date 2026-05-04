@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### EN
+
+**New features**
+- **Color rating compatible with: Lightroom (DE) / Bridge / digiKam** (#69, #70) — new personal setting that controls the language of `xmp:Label`. With "Lightroom (German localization)" StarRate writes `xmp:Label="Rot"` etc. so a German LRC matches its native label set strings instead of falling through to "Custom" with a white flag. With "Bridge / digiKam / English tools" it writes `xmp:Label="Red"` etc. Default derives from the NC user UI language (`de_*` → DE, otherwise EN), so German users get a working LRC import out of the box. The companion `photoshop:LabelColor` field stays lowercase English regardless — that's universal and drives the LR color stripe.
+- **Pick / Reject is now written into XMP** (#70) — previously stored only in NC tags. Bridge/LRC standard format: pick → `xmpDM:pick="1"` + `xmpDM:good="true"`, reject → `xmpDM:pick="-1"` + `xmpDM:good="false"`, none → both attributes removed. Read path is backward-compatible with the older FlashView schema (`flashView:IsPicked`/`IsRejected`); the write path actively cleans up those legacy attributes including the orphan `xmlns:flashView` namespace declaration.
+
+**Bug fixes**
+- **LR re-imports the wrong color label after editing in StarRate** (#70) — Lightroom Classic 7+ reads `photoshop:LabelColor` (lowercase EN) with priority over `xmp:Label` to derive the color stripe. StarRate previously only wrote `xmp:Label`, and the patch path did not strip a stale `photoshop:LabelColor` left behind by LR — so a re-import in LR showed the old color, ignoring the change. StarRate now writes both fields in lockstep and removes any stale `photoshop:LabelColor` before re-injecting.
+- **Grid only fills 2/3 of the viewport after navigating into a subfolder** (#71) — when SPA-navigating between folders, the header above the grid changed (subfolder pills appearing/disappearing), which moved the grid vertically without changing its own size. The existing `ResizeObserver` on the grid stayed silent and the cached `max-height` was wrong for the new layout, requiring a manual reload. Now the observer also watches the grid's wrap parent, so any header-size change re-runs the height calculation.
+
+### DE
+
+**Neue Features**
+- **Farb-Bewertungen kompatibel mit: Lightroom (DE) / Bridge / digiKam** (#69, #70) — neue persönliche Einstellung, die die Sprache von `xmp:Label` steuert. Mit „Lightroom (deutsche Lokalisierung)" schreibt StarRate `xmp:Label="Rot"` etc., damit ein deutsches LRC den nativen Label-Set-String matcht und nicht auf „Custom" mit weißer Fahne durchfällt. Mit „Bridge / digiKam / englische Tools" wird `xmp:Label="Red"` etc. geschrieben. Default leitet sich aus der NC-UI-Sprache ab (`de_*` → DE, sonst EN) — deutsche User bekommen einen funktionierenden LRC-Import direkt out of the box. Das parallele Feld `photoshop:LabelColor` bleibt unabhängig davon immer in lowercase EN — das ist universell und treibt den Farbstreifen in LR.
+- **Pick / Reject werden jetzt ins XMP geschrieben** (#70) — bislang nur als NC-Tag gespeichert. Bridge/LRC-Standardformat: Pick → `xmpDM:pick="1"` + `xmpDM:good="true"`, Reject → `xmpDM:pick="-1"` + `xmpDM:good="false"`, none → beide Attribute komplett entfernt. Der Lesepfad bleibt rückwärtskompatibel zum älteren FlashView-Schema (`flashView:IsPicked`/`IsRejected`); der Schreibpfad räumt diese Legacy-Attribute inklusive verwaister `xmlns:flashView`-Namespace-Deklaration aktiv weg.
+
+**Bugfixes**
+- **LR re-importiert die falsche Farbe nach Änderung in StarRate** (#70) — Lightroom Classic 7+ liest `photoshop:LabelColor` (lowercase EN) mit Priorität über `xmp:Label`, um den Farbstreifen abzuleiten. StarRate hat bisher nur `xmp:Label` geschrieben, und der Patch-Pfad hat ein von LR hinterlassenes `photoshop:LabelColor` nicht entfernt — beim Re-Import in LR wurde die alte Farbe angezeigt, unsere Änderung ignoriert. StarRate schreibt jetzt beide Felder parallel und räumt ein stale `photoshop:LabelColor` vor dem Re-Inject weg.
+- **Grid füllt nur 2/3 der Bildschirmhöhe nach Wechsel in einen Unterordner** (#71) — bei SPA-Navigation zwischen Ordnern änderte sich der Header oberhalb des Grids (Subfolder-Pills tauchten auf oder verschwanden), das Grid wurde vertikal verschoben, behielt aber seine eigene Größe. Der bestehende `ResizeObserver` auf dem Grid feuerte daher nicht und die gecachte `max-height` war für das neue Layout falsch — ein manueller Reload war nötig. Der Observer beobachtet jetzt zusätzlich das Wrap-Parent-Element, sodass jede Header-Größenänderung die Höhenberechnung neu auslöst.
+
 ## 1.2.11
 
 ### EN
