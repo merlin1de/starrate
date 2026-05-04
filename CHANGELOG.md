@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.3
 
 ### EN
 
@@ -12,6 +12,7 @@
 **Bug fixes**
 - **LR re-imports the wrong color label after editing in StarRate** (#70) — Lightroom Classic 7+ reads `photoshop:LabelColor` (lowercase EN) with priority over `xmp:Label` to derive the color stripe. StarRate previously only wrote `xmp:Label`, and the patch path did not strip a stale `photoshop:LabelColor` left behind by LR — so a re-import in LR showed the old color, ignoring the change. StarRate now writes both fields in lockstep and removes any stale `photoshop:LabelColor` before re-injecting.
 - **Grid only fills 2/3 of the viewport after navigating into a subfolder** (#71) — when SPA-navigating between folders, the header above the grid changed (subfolder pills appearing/disappearing), which moved the grid vertically without changing its own size. The existing `ResizeObserver` on the grid stayed silent and the cached `max-height` was wrong for the new layout, requiring a manual reload. Now the observer also watches the grid's wrap parent, so any header-size change re-runs the height calculation.
+- **XMP read returned empty on Nextcloud's wrapped storage** (#72) — `fopen('rb') + fread($h, 256_000)` only delivered the first 8 KB block in NC's stacked storage (e.g. the `Files_Trashbin` wrapper), not the requested header size. Since LR-written XMP typically sits at offset 15–25 KB after the EXIF block, our parser never saw it. Switched to `stream_get_contents` which loops internally until limit or EOF — Self-healing now finds LR/Bridge/digiKam XMP reliably.
 
 ### DE
 
@@ -23,6 +24,7 @@
 **Bugfixes**
 - **LR re-importiert die falsche Farbe nach Änderung in StarRate** (#70) — Lightroom Classic 7+ liest `photoshop:LabelColor` (lowercase EN) mit Priorität über `xmp:Label`, um den Farbstreifen abzuleiten. StarRate hat bisher nur `xmp:Label` geschrieben, und der Patch-Pfad hat ein von LR hinterlassenes `photoshop:LabelColor` nicht entfernt — beim Re-Import in LR wurde die alte Farbe angezeigt, unsere Änderung ignoriert. StarRate schreibt jetzt beide Felder parallel und räumt ein stale `photoshop:LabelColor` vor dem Re-Inject weg.
 - **Grid füllt nur 2/3 der Bildschirmhöhe nach Wechsel in einen Unterordner** (#71) — bei SPA-Navigation zwischen Ordnern änderte sich der Header oberhalb des Grids (Subfolder-Pills tauchten auf oder verschwanden), das Grid wurde vertikal verschoben, behielt aber seine eigene Größe. Der bestehende `ResizeObserver` auf dem Grid feuerte daher nicht und die gecachte `max-height` war für das neue Layout falsch — ein manueller Reload war nötig. Der Observer beobachtet jetzt zusätzlich das Wrap-Parent-Element, sodass jede Header-Größenänderung die Höhenberechnung neu auslöst.
+- **XMP-Read lieferte leer in Nextclouds gestapelter Storage** (#72) — `fopen('rb') + fread($h, 256_000)` lieferte in NCs Storage-Stack (z.B. `Files_Trashbin` Wrapper) nur den ersten 8 KB-Block zurück, nicht die angeforderte Header-Größe. Da LR-geschriebenes XMP typischerweise bei Offset 15–25 KB nach dem EXIF-Block sitzt, hat unser Parser es nie gesehen. Auf `stream_get_contents` umgestellt — schleift intern bis Limit oder EOF; Self-healing findet jetzt LR/Bridge/digiKam-XMP zuverlässig.
 
 ## 1.2.11
 
