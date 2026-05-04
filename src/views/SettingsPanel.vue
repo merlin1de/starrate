@@ -15,6 +15,19 @@
           {{ t('starrate', 'XMP in JPEG schreiben') }}
         </label>
       </div>
+
+      <div v-if="form.write_xmp" class="sr-settings__row">
+        <label class="sr-settings__label">{{ t('starrate', 'Farb-Bewertungen kompatibel mit') }}</label>
+        <div class="sr-settings__control">
+          <select v-model="form.xmp_label_language" class="sr-settings__select" @change="autosave">
+            <option value="de">{{ t('starrate', 'Lightroom (deutsche Lokalisierung)') }}</option>
+            <option value="en">{{ t('starrate', 'Bridge / digiKam / englische Tools') }}</option>
+          </select>
+        </div>
+      </div>
+      <p v-if="form.write_xmp" class="sr-settings__hint">
+        {{ t('starrate', 'Steuert nur den Label-Text (xmp:Label). Der Farbstreifen (photoshop:LabelColor) bleibt sprachneutral und funktioniert in beiden Modi.') }}
+      </p>
       <div class="sr-settings__row">
         <label class="sr-settings__label sr-settings__label--check">
           <input type="checkbox" v-model="form.comments_enabled" @change="autosave" />
@@ -169,6 +182,7 @@ const DEFAULTS = {
   grid_columns:             'auto',
   enable_pick_ui:            false,
   write_xmp:                 true,
+  xmp_label_language:        'en',  // Server-seitig basierend auf User-Locale gesetzt
   comments_enabled:          false,
   recursion_enabled:         false,
   recursive_default:         false,
