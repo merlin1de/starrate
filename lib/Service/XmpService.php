@@ -32,6 +32,23 @@ class XmpService
         'Lila' => 'Purple',
     ];
 
+    // Kanonisches EN → deutsches LR-Standard-Label-Set
+    // Beim Schreiben im Modus "Lightroom (deutsche Lokalisierung)" verwendet, damit
+    // DE-LRC den xmp:Label-String matchen kann (sonst zeigt LR "Custom" / weiße Fahne).
+    // photoshop:LabelColor bleibt unabhängig immer lowercase EN — das treibt den
+    // Farbstreifen in LR und ist universell.
+    private const LABEL_MAP_DE = [
+        'Red'    => 'Rot',
+        'Yellow' => 'Gelb',
+        'Green'  => 'Grün',
+        'Blue'   => 'Blau',
+        'Purple' => 'Lila',
+    ];
+
+    public const LABEL_LANG_EN = 'en';
+    public const LABEL_LANG_DE = 'de';
+    public const VALID_LABEL_LANGS = [self::LABEL_LANG_EN, self::LABEL_LANG_DE];
+
     // digiKam:ColorLabel → kanonisch englisch (numerische Werte 0–10)
     // Werte ohne StarRate-Äquivalent (2=Orange, 7=Grey, 8=Black, 9=White, 10=Darkred) → null
     private const DIGIKAM_COLOR_MAP = [
@@ -42,13 +59,22 @@ class XmpService
         6 => 'Purple',
     ];
 
+    // Pick-Werte → xmpDM-Attribut-Paare (LRC/Bridge-kompatibel)
+    // xmpDM:pick: 1=Pick, -1=Reject, 0=none (none entspricht: Attribute komplett weglassen)
+    // xmpDM:good: redundantes Boolean (true=Pick, false=Reject), wird parallel geschrieben
+    public const VALID_PICKS = ['pick', 'reject', 'none'];
+    private const PICK_MAP = [
+        'pick'   => ['pick' => '1',  'good' => 'true'],
+        'reject' => ['pick' => '-1', 'good' => 'false'],
+    ];
+
     private const XMP_TEMPLATE = <<<'XMP'
 <?xpacket begin='﻿' id='W5M0MpCehiHzreSzNTczkc9d'?>
 <x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='StarRate 1.0'>
   <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
     <rdf:Description rdf:about=''
-      xmlns:xmp='http://ns.adobe.com/xap/1.0/'
-      %RATING_ATTR%%LABEL_ATTR%>
+      xmlns:xmp='http://ns.adobe.com/xap/1.0/'%PHOTOSHOP_NS%%XMPDM_NS%
+      %RATING_ATTR%%LABEL_ATTR%%PICK_ATTR%>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>
@@ -59,15 +85,47 @@ XMP;
 
     /**
      * Baut den XMP-Sidecar-Inhalt als String.
+     *
+     * Schreibt sowohl xmp:Label (sprachneutral kanonisch EN) als auch
+     * photoshop:LabelColor (lowercase EN) — analog zu Lightroom Classic.
+     * photoshop:LabelColor ist beim Re-Import durch LR persistenter, da LR
+     * dieses Feld mit Priorität 1 liest.
+     *
+     * Pick/Reject als xmpDM:pick (1/-1) + xmpDM:good (true/false) — Bridge-/LRC-kompatibel.
+     * Bei pick='none' oder pick=null werden die Attribute komplett weggelassen.
+     *
+     * @param string $lang 'en' = Bridge/digiKam-kompatibel (Red/Yellow/…),
+     *                     'de' = Lightroom DE-Lokalisierung (Rot/Gelb/…).
+     *                     Beeinflusst nur xmp:Label, nicht photoshop:LabelColor.
      */
-    public function buildXmpContent(int $rating, ?string $label): string
+    public function buildXmpContent(int $rating, ?string $label, ?string $pick = null, string $lang = self::LABEL_LANG_EN): string
     {
         $ratingAttr = "xmp:Rating=\"{$rating}\"";
-        $labelAttr  = $label ? "\n      xmp:Label=\"{$label}\"" : '';
+
+        if ($label) {
+            $labelLower    = strtolower($label);
+            $localized     = self::localizeLabel($label, $lang);
+            $labelAttr     = "\n      xmp:Label=\"{$localized}\""
+                           . "\n      photoshop:LabelColor=\"{$labelLower}\"";
+            $photoshopNs   = "\n      xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/'";
+        } else {
+            $labelAttr   = '';
+            $photoshopNs = '';
+        }
+
+        if (isset(self::PICK_MAP[$pick])) {
+            $pickValues = self::PICK_MAP[$pick];
+            $pickAttr   = "\n      xmpDM:pick=\"{$pickValues['pick']}\""
+                        . "\n      xmpDM:good=\"{$pickValues['good']}\"";
+            $xmpDmNs    = "\n      xmlns:xmpDM='http://ns.adobe.com/xmp/1.0/DynamicMedia/'";
+        } else {
+            $pickAttr = '';
+            $xmpDmNs  = '';
+        }
 
         $xmp = str_replace(
-            ['%RATING_ATTR%', '%LABEL_ATTR%'],
-            [$ratingAttr, $labelAttr],
+            ['%RATING_ATTR%', '%LABEL_ATTR%', '%PICK_ATTR%', '%PHOTOSHOP_NS%', '%XMPDM_NS%'],
+            [$ratingAttr, $labelAttr, $pickAttr, $photoshopNs, $xmpDmNs],
             self::XMP_TEMPLATE
         );
 
@@ -75,7 +133,7 @@ XMP;
     }
 
     /**
-     * Parst einen XMP-String und gibt Rating + Label zurück.
+     * Parst einen XMP-String und gibt Rating + Label + Pick zurück.
      *
      * Rating-Auflösung:
      *  xmp:Rating / xap:Rating (xap: ist der alte exiftool/IDimager Alias, gleiche Namespace-URI)
@@ -85,12 +143,17 @@ XMP;
      *  2. xmp:Label             — Standard, sprachabhängig (Red/Rot/Rouge/…)
      *  3. digiKam:ColorLabel    — numerisch (1=Red, 3=Yellow, 4=Green, 5=Blue, 6=Purple)
      *
-     * @return array{rating: int, label: string|null}
+     * Pick-Auflösung (Priorität hoch → niedrig):
+     *  1. xmpDM:pick   — 1=Pick, -1=Reject, 0=none (Bridge/LRC-Standard)
+     *  2. flashView:IsPicked / flashView:IsRejected — alter FlashView-Namespace (rückwärtskompatibel)
+     *
+     * @return array{rating: int, label: string|null, pick: string}
      */
     public function parseXmpContent(string $xmp): array
     {
         $rating = 0;
         $label  = null;
+        $pick   = 'none';
 
         // xmp:Rating / xap:Rating als Attribut oder Element
         if (preg_match('/(?:xmp|xap):Rating\s*=\s*[\'"](\d+)[\'"]/', $xmp, $m)) {
@@ -122,7 +185,40 @@ XMP;
             $label = self::DIGIKAM_COLOR_MAP[(int) $m[1]] ?? null;
         }
 
-        return ['rating' => $rating, 'label' => $label];
+        // xmpDM:pick (Prio 1) — 1=Pick, -1=Reject, 0/sonst=none
+        if (preg_match('/xmpDM:pick\s*=\s*[\'"](-?\d+)[\'"]/', $xmp, $m)
+            || preg_match('/<xmpDM:pick>(-?\d+)<\/xmpDM:pick>/', $xmp, $m)) {
+            $pickVal = (int) $m[1];
+            if ($pickVal === 1) {
+                $pick = 'pick';
+            } elseif ($pickVal === -1) {
+                $pick = 'reject';
+            }
+        }
+
+        // flashView:IsPicked / IsRejected (Prio 2, nur wenn xmpDM:pick nicht aufgelöst)
+        // Rückwärtskompatibel mit altem FlashView-Schema (vor xmpDM-Migration)
+        if ($pick === 'none') {
+            if (preg_match('/flashView:IsPicked\s*=\s*[\'"](True|true|1)[\'"]/', $xmp)) {
+                $pick = 'pick';
+            } elseif (preg_match('/flashView:IsRejected\s*=\s*[\'"](True|true|1)[\'"]/', $xmp)) {
+                $pick = 'reject';
+            }
+        }
+
+        return ['rating' => $rating, 'label' => $label, 'pick' => $pick];
+    }
+
+    /**
+     * Übersetzt einen kanonisch englischen Label-Namen in die Ziel-Sprache.
+     * Unbekannte Sprachen oder Labels → unverändert (EN).
+     */
+    public static function localizeLabel(string $canonicalEn, string $lang): string
+    {
+        if ($lang === self::LABEL_LANG_DE && isset(self::LABEL_MAP_DE[$canonicalEn])) {
+            return self::LABEL_MAP_DE[$canonicalEn];
+        }
+        return $canonicalEn;
     }
 
     /**

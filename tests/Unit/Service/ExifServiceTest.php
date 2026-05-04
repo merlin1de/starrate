@@ -312,6 +312,242 @@ class ExifServiceTest extends TestCase
     }
 
     /**
+     * Baut JPEG mit XMP, das bereits photoshop:LabelColor enthält (wie LR-Export).
+     */
+    private function makeJpegWithPhotoshopLabelColor(string $psValue, string $xmpLabel): string
+    {
+        $xmp = "<?xpacket begin='\xef\xbb\xbf' id='W5M0MpCehiHzreSzNTczkc9d'?>\n"
+            . "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='Adobe XMP Core 6.0.0'>\n"
+            . "  <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n"
+            . "    <rdf:Description rdf:about=''\n"
+            . "      xmlns:xmp='http://ns.adobe.com/xap/1.0/'\n"
+            . "      xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/'\n"
+            . "      xmp:Rating='2'\n"
+            . "      xmp:Label='{$xmpLabel}'\n"
+            . "      photoshop:LabelColor='{$psValue}'>\n"
+            . "    </rdf:Description>\n"
+            . "  </rdf:RDF>\n"
+            . "</x:xmpmeta>\n"
+            . "<?xpacket end='w'?>";
+
+        $magic   = "http://ns.adobe.com/xap/1.0/\x00";
+        $payload = $magic . $xmp;
+        $segLen  = strlen($payload) + 2;
+        $app1Seg = "\xFF\xE1" . chr(($segLen >> 8) & 0xFF) . chr($segLen & 0xFF) . $payload;
+
+        $base = $this->makeMinimalJpeg();
+        return substr($base, 0, 2) . $app1Seg . substr($base, 2);
+    }
+
+    /**
+     * Regression: vorher blieb stale `photoshop:LabelColor="green"` stehen, wenn StarRate
+     * das Label auf Red änderte. LR liest photoshop:LabelColor mit Prio 1 → Round-Trip
+     * zeigt das alte (falsche) Label. Jetzt werden beide Felder synchron aktualisiert.
+     */
+    public function testStalePhotoshopLabelColorIsReplacedOnLabelChange(): void
+    {
+        // Vorher: xmp:Label="Green" + photoshop:LabelColor="green"
+        $jpeg = $this->makeJpegWithPhotoshopLabelColor('green', 'Green');
+
+        // Schreibe Red
+        $written = $this->service->writeMetadataToContent($jpeg, 5, 'Red');
+
+        // photoshop:LabelColor muss auf "red" aktualisiert sein, nicht "green"
+        $this->assertStringContainsString('photoshop:LabelColor="red"', $written);
+        $this->assertStringNotContainsString('photoshop:LabelColor="green"', $written);
+        $this->assertStringContainsString('xmp:Label="Red"', $written);
+
+        // Round-Trip: parser nimmt photoshop:LabelColor mit Prio 1 → muss Red liefern
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame(5,     $result['rating']);
+        $this->assertSame('Red', $result['label']);
+    }
+
+    public function testPhotoshopLabelColorIsRemovedWhenLabelCleared(): void
+    {
+        $jpeg    = $this->makeJpegWithPhotoshopLabelColor('blue', 'Blue');
+        $written = $this->service->writeMetadataToContent($jpeg, 3, '');
+
+        // Label entfernt → photoshop:LabelColor darf nicht mehr drin sein
+        $this->assertStringNotContainsString('photoshop:LabelColor', $written);
+
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame(3,    $result['rating']);
+        $this->assertNull($result['label']);
+    }
+
+    public function testPhotoshopLabelColorIsAddedToLightroomXmpWithoutNamespace(): void
+    {
+        // Bestehendes XMP hat kein xmlns:photoshop → Inject muss NS-Decl ergänzen
+        $jpeg    = $this->makeJpegWithLightroomXmp();
+        $written = $this->service->writeMetadataToContent($jpeg, 4, 'Yellow');
+
+        $this->assertStringContainsString('xmlns:photoshop=', $written);
+        $this->assertStringContainsString('photoshop:LabelColor="yellow"', $written);
+    }
+
+    // ─── Tests: Label-Sprache (xmp:Label EN vs. DE für LR-Lokalisierung) ─────
+
+    public function testWriteWithLangDeTranslatesXmpLabelInJpeg(): void
+    {
+        $jpeg    = $this->makeMinimalJpeg();
+        $written = $this->service->writeMetadataToContent($jpeg, 5, 'Red', null, 'de');
+
+        // xmp:Label DE, photoshop:LabelColor weiterhin lowercase EN
+        $this->assertStringContainsString('xmp:Label="Rot"',            $written);
+        $this->assertStringContainsString('photoshop:LabelColor="red"', $written);
+        $this->assertStringNotContainsString('xmp:Label="Red"',         $written);
+
+        // Round-Trip: photoshop:LabelColor hat höhere Prio → liefert kanonisch EN
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame(5,     $result['rating']);
+        $this->assertSame('Red', $result['label']);
+    }
+
+    public function testPatchWithLangDeReplacesEnglishLabelInExistingXmp(): void
+    {
+        // Bestehende Datei mit EN xmp:Label. Beim Re-Schreiben mit lang='de' muss
+        // xmp:Label durch DE ersetzt werden, photoshop:LabelColor weiter EN bleiben.
+        $jpeg    = $this->makeJpegWithLightroomXmp(); // hat xmp:Label='Red'
+        $written = $this->service->writeMetadataToContent($jpeg, null, 'Green', null, 'de');
+
+        $this->assertStringContainsString('xmp:Label="Grün"',             $written);
+        $this->assertStringNotContainsString('xmp:Label="Green"',         $written);
+        $this->assertStringNotContainsString('xmp:Label="Red"',           $written);
+        $this->assertStringContainsString('photoshop:LabelColor="green"', $written);
+    }
+
+    // ─── Tests: Pick/Reject (xmpDM) ───────────────────────────────────────────
+
+    public function testWriteAndReadPick(): void
+    {
+        $jpeg    = $this->makeMinimalJpeg();
+        $written = $this->service->writeMetadataToContent($jpeg, null, null, 'pick');
+
+        $this->assertStringContainsString('xmpDM:pick="1"',    $written);
+        $this->assertStringContainsString('xmpDM:good="true"', $written);
+        $this->assertStringContainsString('xmlns:xmpDM=',      $written);
+
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame('pick', $result['pick']);
+    }
+
+    public function testWriteAndReadReject(): void
+    {
+        $jpeg    = $this->makeMinimalJpeg();
+        $written = $this->service->writeMetadataToContent($jpeg, null, null, 'reject');
+
+        $this->assertStringContainsString('xmpDM:pick="-1"',    $written);
+        $this->assertStringContainsString('xmpDM:good="false"', $written);
+
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame('reject', $result['pick']);
+    }
+
+    public function testClearPickRemovesXmpDmAttrs(): void
+    {
+        $jpeg    = $this->makeMinimalJpeg();
+        $picked  = $this->service->writeMetadataToContent($jpeg, 4, 'Red', 'pick');
+        $cleared = $this->service->writeMetadataToContent($picked, null, null, 'none');
+
+        $this->assertStringNotContainsString('xmpDM:pick', $cleared);
+        $this->assertStringNotContainsString('xmpDM:good', $cleared);
+
+        // Rating + Label bleiben erhalten
+        $result = $this->service->readMetadataFromContent($cleared);
+        $this->assertSame(4,      $result['rating']);
+        $this->assertSame('Red',  $result['label']);
+        $this->assertSame('none', $result['pick']);
+    }
+
+    public function testInvalidPickThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->service->writeMetadataToContent($this->makeMinimalJpeg(), null, null, 'maybe');
+    }
+
+    /**
+     * Baut JPEG mit altem FlashView-Schema (vor xmpDM-Migration).
+     */
+    private function makeJpegWithFlashViewPick(string $picked, string $rejected): string
+    {
+        $xmp = "<?xpacket begin='\xef\xbb\xbf' id='W5M0MpCehiHzreSzNTczkc9d'?>\n"
+            . "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='FlashView 0.9'>\n"
+            . "  <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n"
+            . "    <rdf:Description rdf:about=''\n"
+            . "      xmlns:xmp='http://ns.adobe.com/xap/1.0/'\n"
+            . "      xmlns:flashView='http://flashview.net/xmp/1.0/'\n"
+            . "      xmp:Rating='2'\n"
+            . "      flashView:IsPicked='{$picked}'\n"
+            . "      flashView:IsRejected='{$rejected}'>\n"
+            . "    </rdf:Description>\n"
+            . "  </rdf:RDF>\n"
+            . "</x:xmpmeta>\n"
+            . "<?xpacket end='w'?>";
+
+        $magic   = "http://ns.adobe.com/xap/1.0/\x00";
+        $payload = $magic . $xmp;
+        $segLen  = strlen($payload) + 2;
+        $app1Seg = "\xFF\xE1" . chr(($segLen >> 8) & 0xFF) . chr($segLen & 0xFF) . $payload;
+
+        $base = $this->makeMinimalJpeg();
+        return substr($base, 0, 2) . $app1Seg . substr($base, 2);
+    }
+
+    public function testFlashViewIsPickedReadsAsPickRoundTrip(): void
+    {
+        // Lesen erkennt altes Schema
+        $jpeg   = $this->makeJpegWithFlashViewPick('True', 'False');
+        $result = $this->service->readMetadataFromContent($jpeg);
+        $this->assertSame('pick', $result['pick']);
+    }
+
+    public function testWriteCleansUpFlashViewArtifacts(): void
+    {
+        // Datei mit altem FlashView-Schema → Schreiben muss flashView-Attribute UND
+        // den verwaisten xmlns:flashView komplett entfernen.
+        $jpeg    = $this->makeJpegWithFlashViewPick('True', 'False');
+        $written = $this->service->writeMetadataToContent($jpeg, null, null, 'reject');
+
+        // Alte Felder weg
+        $this->assertStringNotContainsString('flashView:IsPicked',   $written);
+        $this->assertStringNotContainsString('flashView:IsRejected', $written);
+        $this->assertStringNotContainsString('xmlns:flashView',      $written);
+
+        // Neues xmpDM-Schema vorhanden, korrekt für reject
+        $this->assertStringContainsString('xmpDM:pick="-1"',    $written);
+        $this->assertStringContainsString('xmpDM:good="false"', $written);
+
+        $result = $this->service->readMetadataFromContent($written);
+        $this->assertSame('reject', $result['pick']);
+    }
+
+    public function testStaleXmpDmPickIsReplacedOnPickChange(): void
+    {
+        $jpeg    = $this->makeMinimalJpeg();
+        $picked  = $this->service->writeMetadataToContent($jpeg, null, null, 'pick');
+        $changed = $this->service->writeMetadataToContent($picked, null, null, 'reject');
+
+        // Nicht beide Werte parallel — nur reject darf übrig sein
+        $this->assertStringContainsString('xmpDM:pick="-1"',    $changed);
+        $this->assertStringNotContainsString('xmpDM:pick="1"',  $changed);
+        $this->assertStringContainsString('xmpDM:good="false"', $changed);
+        $this->assertStringNotContainsString('xmpDM:good="true"', $changed);
+    }
+
+    public function testPickIndependentOfRatingAndLabel(): void
+    {
+        // Setze rating + label + pick zusammen, prüfe alles bleibt erhalten
+        $jpeg    = $this->makeMinimalJpeg();
+        $written = $this->service->writeMetadataToContent($jpeg, 5, 'Blue', 'pick');
+        $result  = $this->service->readMetadataFromContent($written);
+
+        $this->assertSame(5,      $result['rating']);
+        $this->assertSame('Blue', $result['label']);
+        $this->assertSame('pick', $result['pick']);
+    }
+
+    /**
      * Regression: selbst-schließendes rdf:Description (z.B. digiKam-XMP) erzeugte
      * nach dem Schreiben ein unkorrekt geschlossenes Tag ("no closing tag for
      * rdf:Description" in exiftool). Die Ursache war, dass [^>]* das / von />
