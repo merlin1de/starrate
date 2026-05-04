@@ -35,11 +35,34 @@ class XmpServiceTest extends TestCase
         $this->assertStringContainsString('xmp:Label="Green"', $xmp);
     }
 
+    public function testBuildXmpContentContainsPhotoshopLabelColorLowercase(): void
+    {
+        // photoshop:LabelColor wird parallel zu xmp:Label geschrieben (LR-Kompatibilität)
+        $xmp = $this->service->buildXmpContent(3, 'Green');
+
+        $this->assertStringContainsString('photoshop:LabelColor="green"', $xmp);
+        $this->assertStringContainsString("xmlns:photoshop='http://ns.adobe.com/photoshop/1.0/'", $xmp);
+    }
+
+    /** @dataProvider allColorsProvider */
+    public function testBuildXmpContentPhotoshopLabelColorLowercaseForAllColors(string $color): void
+    {
+        $xmp = $this->service->buildXmpContent(1, $color);
+
+        $this->assertStringContainsString(
+            'photoshop:LabelColor="' . strtolower($color) . '"',
+            $xmp
+        );
+    }
+
     public function testBuildXmpContentWithoutLabelHasNoLabelAttribute(): void
     {
         $xmp = $this->service->buildXmpContent(2, null);
 
         $this->assertStringNotContainsString('xmp:Label', $xmp);
+        $this->assertStringNotContainsString('photoshop:LabelColor', $xmp);
+        // Ohne Label brauchen wir auch keinen photoshop-Namespace
+        $this->assertStringNotContainsString('xmlns:photoshop', $xmp);
     }
 
     public function testBuildXmpContentZeroRating(): void
@@ -253,26 +276,163 @@ XMP;
         $this->assertSame('Green', $result['label']);
     }
 
+    // ─── Tests: Pick/Reject (xmpDM) ───────────────────────────────────────────
+
+    public function testBuildXmpContentWithPick(): void
+    {
+        $xmp = $this->service->buildXmpContent(0, null, 'pick');
+
+        $this->assertStringContainsString('xmpDM:pick="1"',    $xmp);
+        $this->assertStringContainsString('xmpDM:good="true"', $xmp);
+        $this->assertStringContainsString("xmlns:xmpDM='http://ns.adobe.com/xmp/1.0/DynamicMedia/'", $xmp);
+    }
+
+    public function testBuildXmpContentWithReject(): void
+    {
+        $xmp = $this->service->buildXmpContent(0, null, 'reject');
+
+        $this->assertStringContainsString('xmpDM:pick="-1"',    $xmp);
+        $this->assertStringContainsString('xmpDM:good="false"', $xmp);
+    }
+
+    public function testBuildXmpContentWithNonePickHasNoXmpDmAttrs(): void
+    {
+        $xmp = $this->service->buildXmpContent(3, 'Red', 'none');
+
+        $this->assertStringNotContainsString('xmpDM:pick',  $xmp);
+        $this->assertStringNotContainsString('xmpDM:good',  $xmp);
+        // Kein Pick → auch kein xmpDM-Namespace nötig
+        $this->assertStringNotContainsString('xmlns:xmpDM', $xmp);
+    }
+
+    public function testBuildXmpContentWithoutPickArgHasNoXmpDmAttrs(): void
+    {
+        $xmp = $this->service->buildXmpContent(3, 'Red');
+
+        $this->assertStringNotContainsString('xmpDM:',      $xmp);
+        $this->assertStringNotContainsString('xmlns:xmpDM', $xmp);
+    }
+
+    // ─── Tests: Label-Sprache (xmp:Label EN vs. DE für LR-Lokalisierung) ─────
+
+    public function testBuildXmpContentDefaultLangIsEn(): void
+    {
+        // Default 'en' → xmp:Label="Red" (kanonisch, Bridge/digiKam/EN-LR)
+        $xmp = $this->service->buildXmpContent(0, 'Red');
+        $this->assertStringContainsString('xmp:Label="Red"', $xmp);
+    }
+
+    /** @dataProvider deLabelProvider */
+    public function testBuildXmpContentLangDeTranslatesXmpLabel(string $en, string $de): void
+    {
+        $xmp = $this->service->buildXmpContent(0, $en, null, 'de');
+
+        // xmp:Label in DE-Lokalisierung
+        $this->assertStringContainsString("xmp:Label=\"{$de}\"", $xmp);
+        // photoshop:LabelColor BLEIBT lowercase EN — sprachneutral, treibt LR-Farbstreifen
+        $this->assertStringContainsString('photoshop:LabelColor="' . strtolower($en) . '"', $xmp);
+    }
+
+    public static function deLabelProvider(): array
+    {
+        return [
+            ['Red',    'Rot'],
+            ['Yellow', 'Gelb'],
+            ['Green',  'Grün'],
+            ['Blue',   'Blau'],
+            ['Purple', 'Lila'],
+        ];
+    }
+
+    public function testBuildXmpContentLangEnExplicitWritesEnglish(): void
+    {
+        $xmp = $this->service->buildXmpContent(0, 'Green', null, 'en');
+        $this->assertStringContainsString('xmp:Label="Green"', $xmp);
+        $this->assertStringNotContainsString('xmp:Label="Grün"', $xmp);
+    }
+
+    public function testLocalizeLabelHelper(): void
+    {
+        // Static helper: kanonisch EN → DE bei lang='de', sonst EN
+        $this->assertSame('Rot',    XmpService::localizeLabel('Red',    'de'));
+        $this->assertSame('Red',    XmpService::localizeLabel('Red',    'en'));
+        $this->assertSame('Lila',   XmpService::localizeLabel('Purple', 'de'));
+        // Unbekannte Sprache → fällt auf EN zurück
+        $this->assertSame('Red',    XmpService::localizeLabel('Red',    'fr'));
+    }
+
+    /** @dataProvider xmpDmPickProvider */
+    public function testParseXmpDmPick(string $pickVal, string $expected): void
+    {
+        $result = $this->service->parseXmpContent("xmpDM:pick='{$pickVal}'");
+        $this->assertSame($expected, $result['pick']);
+    }
+
+    public static function xmpDmPickProvider(): array
+    {
+        return [
+            'pick (1)'    => ['1',  'pick'],
+            'reject (-1)' => ['-1', 'reject'],
+            'none (0)'    => ['0',  'none'],
+            'invalid (2)' => ['2',  'none'],
+        ];
+    }
+
+    public function testParseXmpDmPickElementForm(): void
+    {
+        $result = $this->service->parseXmpContent('<xmpDM:pick>1</xmpDM:pick>');
+        $this->assertSame('pick', $result['pick']);
+    }
+
+    public function testParseFlashViewIsPickedReadsAsPick(): void
+    {
+        // Rückwärtskompatibel: alte FlashView-Schreibweise wird beim Lesen erkannt
+        $result = $this->service->parseXmpContent("flashView:IsPicked='True'");
+        $this->assertSame('pick', $result['pick']);
+    }
+
+    public function testParseFlashViewIsRejectedReadsAsReject(): void
+    {
+        $result = $this->service->parseXmpContent("flashView:IsRejected='True'");
+        $this->assertSame('reject', $result['pick']);
+    }
+
+    public function testXmpDmPickTakesPriorityOverFlashView(): void
+    {
+        // Wenn beide gesetzt sind: xmpDM gewinnt (FlashView ist nur Fallback)
+        $xmp    = "xmpDM:pick='-1' flashView:IsPicked='True'";
+        $result = $this->service->parseXmpContent($xmp);
+        $this->assertSame('reject', $result['pick']);
+    }
+
+    public function testParseXmpContentEmptyReturnsNonePick(): void
+    {
+        $result = $this->service->parseXmpContent('<x:xmpmeta/>');
+        $this->assertSame('none', $result['pick']);
+    }
+
     // ─── Tests: Round-Trip (bauen + parsen) ───────────────────────────────────
 
     /** @dataProvider roundTripProvider */
-    public function testBuildAndParseRoundTrip(int $rating, ?string $label): void
+    public function testBuildAndParseRoundTrip(int $rating, ?string $label, ?string $pick = null): void
     {
-        $xmp    = $this->service->buildXmpContent($rating, $label);
+        $xmp    = $this->service->buildXmpContent($rating, $label, $pick);
         $result = $this->service->parseXmpContent($xmp);
 
         $this->assertSame($rating, $result['rating']);
         $this->assertSame($label,  $result['label']);
+        $this->assertSame($pick ?? 'none', $result['pick']);
     }
 
     public static function roundTripProvider(): array
     {
         return [
-            [0, null],
-            [1, null],
-            [5, 'Red'],
-            [3, 'Purple'],
-            [4, 'Green'],
+            [0, null,     null],
+            [1, null,     'pick'],
+            [5, 'Red',    'pick'],
+            [3, 'Purple', 'reject'],
+            [4, 'Green',  'none'],
+            [2, 'Blue',   null],
         ];
     }
 

@@ -15,7 +15,8 @@ use Psr\Log\LoggerInterface;
  * in den JPEG-Datenstrom eingebettet.
  *
  * Unterstützte Formate: JPEG / JPG
- * Schreibt: xmp:Rating (0–5), xmp:Label (Red/Yellow/Green/Blue/Purple)
+ * Schreibt: xmp:Rating (0–5), xmp:Label + photoshop:LabelColor,
+ *           xmpDM:pick + xmpDM:good (Pick/Reject, LRC/Bridge-kompatibel).
  */
 class ExifService
 {
@@ -39,38 +40,47 @@ class ExifService
     // ─── Öffentliche API ──────────────────────────────────────────────────────
 
     /**
-     * Schreibt Rating und/oder Label in die JPEG-Datei.
+     * Schreibt Rating und/oder Label und/oder Pick in die JPEG-Datei.
      * Alle anderen XMP-Felder (Lightroom-Metadaten etc.) bleiben erhalten.
      *
      * @param  File         $file   Nextcloud File-Objekt
      * @param  int|null     $rating 0–5 (null = nicht ändern)
      * @param  string|null  $label  Red/Yellow/Green/Blue/Purple/'' (null = nicht ändern, '' = entfernen)
+     * @param  string|null  $pick   pick/reject/none (null = nicht ändern, none = entfernen)
+     * @param  string       $lang   'en' (Bridge/digiKam) oder 'de' (Lightroom DE) — beeinflusst nur xmp:Label
      * @throws \RuntimeException bei Fehler
      */
-    public function writeMetadata(File $file, ?int $rating = null, ?string $label = null): void
-    {
-        $this->validateInputs($rating, $label);
+    public function writeMetadata(
+        File $file,
+        ?int $rating = null,
+        ?string $label = null,
+        ?string $pick = null,
+        string $lang = XmpService::LABEL_LANG_EN,
+    ): void {
+        $this->validateInputs($rating, $label, $pick);
 
         $content = $file->getContent();
         if (!$this->isJpeg($content)) {
             throw new \RuntimeException("Not a valid JPEG file: " . $file->getName());
         }
 
-        $updated = $this->applyMetadataToContent($content, $rating, $label);
+        $updated = $this->applyMetadataToContent($content, $rating, $label, $pick, $lang);
         $file->putContent($updated);
 
         $this->logger->info(sprintf(
-            'StarRate: XMP written to %s — rating: %s, label: %s',
+            'StarRate: XMP written to %s — rating: %s, label: %s, pick: %s, lang: %s',
             $file->getName(),
             $rating ?? 'unchanged',
-            $label  ?? 'unchanged'
+            $label  ?? 'unchanged',
+            $pick   ?? 'unchanged',
+            $lang
         ));
     }
 
     /**
      * Liest Rating und Label aus einer JPEG-Datei.
      *
-     * @return array{rating: int, label: string|null}
+     * @return array{rating: int, label: string|null, pick: string}
      */
     public function readMetadata(File $file): array
     {
@@ -79,55 +89,68 @@ class ExifService
             // typically well within 256 KB.  Avoids loading 30 MB+ RAW JPEGs.
             $handle = $file->fopen('rb');
             if ($handle === false) {
-                return ['rating' => 0, 'label' => null];
+                return self::emptyResult();
             }
             $header = fread($handle, self::READ_HEADER_SIZE);
             fclose($handle);
 
             if ($header === false || !$this->isJpeg($header)) {
-                return ['rating' => 0, 'label' => null];
+                return self::emptyResult();
             }
             $xmp = $this->readXmpFromContent($header);
-            if ($xmp['rating'] === 0 && $xmp['label'] === null) {
+            // EXIF-Fallback nur wenn das XMP komplett leer war — sonst überschreiben
+            // wir z.B. einen vorhandenen Pick-Wert mit dem leeren EXIF-Default.
+            if ($xmp['rating'] === 0 && $xmp['label'] === null && $xmp['pick'] === 'none') {
                 return $this->readExifRatingFromContent($header);
             }
             return $xmp;
         } catch (\Exception $e) {
             $this->logger->warning("StarRate: failed to read metadata from {$file->getName()}: " . $e->getMessage());
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
     }
 
     /**
      * Liest Metadaten aus rohem JPEG-Inhalt (für Tests und interne Nutzung).
      *
-     * @return array{rating: int, label: string|null}
+     * @return array{rating: int, label: string|null, pick: string}
      */
     public function readMetadataFromContent(string $content): array
     {
         if (!$this->isJpeg($content)) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
         $xmp = $this->readXmpFromContent($content);
-        if ($xmp['rating'] === 0 && $xmp['label'] === null) {
+        if ($xmp['rating'] === 0 && $xmp['label'] === null && $xmp['pick'] === 'none') {
             return $this->readExifRatingFromContent($content);
         }
         return $xmp;
+    }
+
+    /** @return array{rating: int, label: string|null, pick: string} */
+    private static function emptyResult(): array
+    {
+        return ['rating' => 0, 'label' => null, 'pick' => 'none'];
     }
 
     /**
      * Schreibt Metadaten in rohen JPEG-Inhalt und gibt den aktualisierten Inhalt zurück.
      * Alle anderen XMP-Felder bleiben erhalten. Hauptsächlich für Tests.
      */
-    public function writeMetadataToContent(string $content, ?int $rating = null, ?string $label = null): string
-    {
-        $this->validateInputs($rating, $label);
+    public function writeMetadataToContent(
+        string $content,
+        ?int $rating = null,
+        ?string $label = null,
+        ?string $pick = null,
+        string $lang = XmpService::LABEL_LANG_EN,
+    ): string {
+        $this->validateInputs($rating, $label, $pick);
 
         if (!$this->isJpeg($content)) {
             throw new \RuntimeException('Content is not a valid JPEG.');
         }
 
-        return $this->applyMetadataToContent($content, $rating, $label);
+        return $this->applyMetadataToContent($content, $rating, $label, $pick, $lang);
     }
 
     /**
@@ -151,18 +174,20 @@ class ExifService
     // ─── Kernlogik: Metadaten anwenden ───────────────────────────────────────
 
     /**
-     * Wendet Rating und Label auf JPEG-Inhalt an.
+     * Wendet Rating, Label und Pick auf JPEG-Inhalt an.
      * Vorhandene XMP-Felder (Lightroom-Metadaten etc.) bleiben erhalten.
      */
-    private function applyMetadataToContent(string $content, ?int $rating, ?string $label): string
+    private function applyMetadataToContent(string $content, ?int $rating, ?string $label, ?string $pick, string $lang): string
     {
         $xmpBlock = $this->extractXmpBlock($content);
-        $existing = $xmpBlock !== null ? $this->parseXmp($xmpBlock) : ['rating' => 0, 'label' => null];
-        $merged   = $this->mergeXmpData($existing, $rating, $label);
+        $existing = $xmpBlock !== null
+            ? $this->parseXmp($xmpBlock)
+            : ['rating' => 0, 'label' => null, 'pick' => 'none'];
+        $merged   = $this->mergeXmpData($existing, $rating, $label, $pick);
 
         $newXmp = $xmpBlock !== null
-            ? $this->patchXmpString($xmpBlock, $merged['rating'], $merged['label'])
-            : $this->buildXmpPacket($merged['rating'], $merged['label']);
+            ? $this->patchXmpString($xmpBlock, $merged['rating'], $merged['label'], $merged['pick'], $lang)
+            : $this->buildXmpPacket($merged['rating'], $merged['label'], $merged['pick'], $lang);
 
         return $this->embedXmpInJpeg($content, $newXmp);
     }
@@ -175,23 +200,60 @@ class ExifService
      * Schreibt immer in Attribut-Form zurück, konsistent mit dem Prefix der Datei.
      * Bei Multi-Block-XMP wird der Block mit der xmlns:xmp/xap-Deklaration gezielt befüllt.
      */
-    private function patchXmpString(string $existingXmp, int $rating, ?string $label): string
+    private function patchXmpString(string $existingXmp, int $rating, ?string $label, ?string $pick = 'none', string $lang = XmpService::LABEL_LANG_EN): string
     {
         $patched = $existingXmp;
 
-        // Vorhandene Rating- und Label-Felder entfernen (xmp: und xap:, Attribut- und Element-Form)
+        // Vorhandene Rating-, Label- und Pick-Felder entfernen.
+        // photoshop:LabelColor und xmpDM:pick/good werden ebenfalls weggeräumt, sonst bliebe
+        // ein veralteter Wert stehen und LR/Bridge würde beim Re-Import unsere Änderung ignorieren.
+        // Altes flashView:IsPicked/IsRejected (inkl. xmlns:flashView) wird aktiv aufgeräumt
+        // — neues Schema ist xmpDM:pick (Bridge/LRC-Standard).
         $patched = preg_replace('/[ \t]*(?:xmp|xap):Rating\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
         $patched = preg_replace('/<(?:xmp|xap):Rating>[^<]*<\/(?:xmp|xap):Rating>\s*/',    '', $patched) ?? $patched;
         $patched = preg_replace('/[ \t]*(?:xmp|xap):Label\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
         $patched = preg_replace('/<(?:xmp|xap):Label>[^<]*<\/(?:xmp|xap):Label>\s*/',      '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*photoshop:LabelColor\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<photoshop:LabelColor>[^<]*<\/photoshop:LabelColor>\s*/',  '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*xmpDM:pick\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<xmpDM:pick>[^<]*<\/xmpDM:pick>\s*/',             '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*xmpDM:good\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<xmpDM:good>[^<]*<\/xmpDM:good>\s*/',             '', $patched) ?? $patched;
+        $patched = preg_replace('/[ \t]*flashView:Is(?:Picked|Rejected)\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
+        $patched = preg_replace('/<flashView:Is(?:Picked|Rejected)>[^<]*<\/flashView:Is(?:Picked|Rejected)>\s*/', '', $patched) ?? $patched;
+        // Verwaiste flashView-Namespace-Deklaration entfernen (Whitespace-Linie + Attribut)
+        $patched = preg_replace('/[ \t]*xmlns:flashView\s*=\s*(?:"[^"]*"|\'[^\']*\')/', '', $patched) ?? $patched;
 
         // Richtigen Block finden: der mit xmlns:xmp= oder xmlns:xap= Deklaration.
         // Bei Multi-Block-XMP (exiftool, FujiFilm etc.) sitzt xmp: oft nicht in Block 1.
-        [$targetBlock, $needsNsDecl, $prefix] = $this->findXmpBlock($patched);
+        [$targetBlock, $needsNsDecl, $needsPhotoshopNs, $needsXmpDmNs, $prefix] = $this->findXmpBlock($patched);
 
-        $ratingAttr = "\n      {$prefix}:Rating=\"{$rating}\"";
-        $labelAttr  = ($label !== null && $label !== '') ? "\n      {$prefix}:Label=\"{$label}\"" : '';
-        $nsDecl     = $needsNsDecl ? "\n      xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"" : '';
+        $hasLabel        = ($label !== null && $label !== '');
+        $hasPick         = ($pick !== null && $pick !== '' && $pick !== 'none');
+
+        $ratingAttr      = "\n      {$prefix}:Rating=\"{$rating}\"";
+        // xmp:Label wird ggf. lokalisiert (Bridge-/digiKam-EN vs LR-DE).
+        // photoshop:LabelColor bleibt unabhängig immer lowercase EN.
+        $localizedLabel  = $hasLabel ? XmpService::localizeLabel($label, $lang) : $label;
+        $labelAttr       = $hasLabel ? "\n      {$prefix}:Label=\"{$localizedLabel}\"" : '';
+        $photoshopAttr   = $hasLabel ? "\n      photoshop:LabelColor=\"" . strtolower($label) . "\"" : '';
+
+        // pick → xmpDM:pick="1" + xmpDM:good="true"
+        // reject → xmpDM:pick="-1" + xmpDM:good="false"
+        $pickAttr = '';
+        if ($hasPick) {
+            $pickNum  = $pick === 'pick' ? '1'    : '-1';
+            $goodVal  = $pick === 'pick' ? 'true' : 'false';
+            $pickAttr = "\n      xmpDM:pick=\"{$pickNum}\"\n      xmpDM:good=\"{$goodVal}\"";
+        }
+
+        $nsDecl          = $needsNsDecl ? "\n      xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"" : '';
+        $photoshopNsDecl = ($hasLabel && $needsPhotoshopNs)
+            ? "\n      xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\""
+            : '';
+        $xmpDmNsDecl     = ($hasPick && $needsXmpDmNs)
+            ? "\n      xmlns:xmpDM=\"http://ns.adobe.com/xmp/1.0/DynamicMedia/\""
+            : '';
 
         // In den gefundenen Block injizieren (limit=-1 damit der Callback alle Blöcke sieht,
         // aber nur den Zielblock modifiziert).
@@ -199,12 +261,15 @@ class ExifService
         $count    = 0;
         $injected = preg_replace_callback(
             '/(<rdf:Description\b[^>]*?)\s*(\/?>)/s',
-            static function (array $m) use ($ratingAttr, $labelAttr, $nsDecl, $targetBlock, &$seen): string {
+            static function (array $m) use ($ratingAttr, $labelAttr, $photoshopAttr, $pickAttr, $nsDecl, $photoshopNsDecl, $xmpDmNsDecl, $targetBlock, &$seen): string {
                 $seen++;
                 if ($seen !== $targetBlock) {
                     return $m[0];
                 }
-                return $m[1] . $nsDecl . $ratingAttr . $labelAttr . "\n    " . $m[2];
+                return $m[1]
+                    . $nsDecl . $photoshopNsDecl . $xmpDmNsDecl
+                    . $ratingAttr . $labelAttr . $photoshopAttr . $pickAttr
+                    . "\n    " . $m[2];
             },
             $patched,
             -1,
@@ -213,7 +278,7 @@ class ExifService
 
         // Fallback: kein rdf:Description gefunden oder Regex-Fehler → frisches XMP
         if ($injected === null || $count === 0) {
-            return $this->xmpService->buildXmpContent($rating, $label);
+            return $this->xmpService->buildXmpContent($rating, $label, $pick, $lang);
         }
 
         return $injected;
@@ -222,15 +287,15 @@ class ExifService
     // ─── XMP lesen ────────────────────────────────────────────────────────────
 
     /**
-     * Extrahiert xmp:Rating und xmp:Label aus dem JPEG-Inhalt.
+     * Extrahiert Rating, Label und Pick aus dem JPEG-Inhalt.
      *
-     * @return array{rating: int, label: string|null}
+     * @return array{rating: int, label: string|null, pick: string}
      */
     private function readXmpFromContent(string $content): array
     {
         $xmpBlock = $this->extractXmpBlock($content);
         if ($xmpBlock === null) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
 
         return $this->parseXmp($xmpBlock);
@@ -238,21 +303,21 @@ class ExifService
 
     /**
      * Liest EXIF-Rating als Fallback wenn kein XMP vorhanden (z.B. digiKam-Bilder).
-     * EXIF kennt kein Farb-Label — label bleibt immer null.
+     * EXIF kennt kein Farb-Label und kein Pick-Flag — beide bleiben Default.
      *
-     * @return array{rating: int, label: string|null}
+     * @return array{rating: int, label: string|null, pick: string}
      */
     private function readExifRatingFromContent(string $content): array
     {
         if (!function_exists('exif_read_data')) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
 
         // EXIF steht immer in den ersten Segmenten — 64 KB reichen aus.
         // php://memory vermeidet Tempfile auf der Festplatte.
         $tmp = fopen('php://memory', 'r+b');
         if ($tmp === false) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
 
         try {
@@ -264,15 +329,15 @@ class ExifService
         }
 
         if (!is_array($exif) || !isset($exif['Rating'])) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
 
         $rating = (int) $exif['Rating'];
         if ($rating < 0 || $rating > 5) {
-            return ['rating' => 0, 'label' => null];
+            return self::emptyResult();
         }
 
-        return ['rating' => $rating, 'label' => null];
+        return ['rating' => $rating, 'label' => null, 'pick' => 'none'];
     }
 
     /**
@@ -325,14 +390,16 @@ class ExifService
 
     /**
      * Merged vorhandene Daten mit neuen Werten (null = bestehenden Wert beibehalten).
+     * Für pick: 'none' und '' gelten als "entfernen", null als "unverändert".
      *
-     * @return array{rating: int, label: string|null}
+     * @return array{rating: int, label: string|null, pick: string}
      */
-    private function mergeXmpData(array $existing, ?int $rating, ?string $label): array
+    private function mergeXmpData(array $existing, ?int $rating, ?string $label, ?string $pick): array
     {
         return [
             'rating' => $rating !== null ? $rating : $existing['rating'],
-            'label'  => $label  !== null ? ($label === '' ? null : $label) : $existing['label'],
+            'label'  => $label  !== null ? ($label === '' ? null : $label) : ($existing['label'] ?? null),
+            'pick'   => $pick   !== null ? ($pick === '' ? 'none' : $pick) : ($existing['pick'] ?? 'none'),
         ];
     }
 
@@ -340,9 +407,9 @@ class ExifService
      * Baut ein vollständiges XMP-Paket als String.
      * Delegiert an XmpService::buildXmpContent().
      */
-    private function buildXmpPacket(int $rating, ?string $label): string
+    private function buildXmpPacket(int $rating, ?string $label, ?string $pick = null, string $lang = XmpService::LABEL_LANG_EN): string
     {
-        return $this->xmpService->buildXmpContent($rating, $label);
+        return $this->xmpService->buildXmpContent($rating, $label, $pick, $lang);
     }
 
     /**
@@ -415,12 +482,14 @@ class ExifService
     /**
      * Findet den rdf:Description-Block mit xmp:- oder xap:-Namespace-Deklaration.
      *
-     * Gibt [blockIndex (1-basiert), needsNsDecl, prefix] zurück:
-     *  - blockIndex:  welcher Block (1 = erster)
-     *  - needsNsDecl: true wenn kein Block xmlns:xmp deklariert → in Block 1 ergänzen
-     *  - prefix:      'xmp' oder 'xap' (konsistent mit dem was die Datei benutzt)
+     * Gibt [blockIndex (1-basiert), needsNsDecl, needsPhotoshopNs, needsXmpDmNs, prefix] zurück:
+     *  - blockIndex:        welcher Block (1 = erster)
+     *  - needsNsDecl:       true wenn kein Block xmlns:xmp deklariert → in Block 1 ergänzen
+     *  - needsPhotoshopNs:  true wenn der Zielblock xmlns:photoshop nicht deklariert
+     *  - needsXmpDmNs:      true wenn der Zielblock xmlns:xmpDM nicht deklariert
+     *  - prefix:            'xmp' oder 'xap' (konsistent mit dem was die Datei benutzt)
      *
-     * @return array{int, bool, string}
+     * @return array{int, bool, bool, bool, string}
      */
     private function findXmpBlock(string $xmp): array
     {
@@ -430,15 +499,19 @@ class ExifService
 
         foreach ($matches[1] as $i => $openingTag) {
             if (str_contains($openingTag, 'xmlns:xmp=')) {
-                return [$i + 1, false, 'xmp'];
+                $needsPhotoshop = !str_contains($openingTag, 'xmlns:photoshop=');
+                $needsXmpDm     = !str_contains($openingTag, 'xmlns:xmpDM=');
+                return [$i + 1, false, $needsPhotoshop, $needsXmpDm, 'xmp'];
             }
             if (str_contains($openingTag, 'xmlns:xap=')) {
-                return [$i + 1, false, 'xap'];
+                $needsPhotoshop = !str_contains($openingTag, 'xmlns:photoshop=');
+                $needsXmpDm     = !str_contains($openingTag, 'xmlns:xmpDM=');
+                return [$i + 1, false, $needsPhotoshop, $needsXmpDm, 'xap'];
             }
         }
 
-        // Kein Block mit xmp/xap-Namespace → Block 1, xmlns:xmp ergänzen
-        return [1, true, 'xmp'];
+        // Kein Block mit xmp/xap-Namespace → Block 1, alle Namespaces ergänzen
+        return [1, true, true, true, 'xmp'];
     }
 
     private function isJpeg(string $content): bool
@@ -448,7 +521,7 @@ class ExifService
             && $content[1] === "\xD8";
     }
 
-    private function validateInputs(?int $rating, ?string $label): void
+    private function validateInputs(?int $rating, ?string $label, ?string $pick = null): void
     {
         if ($rating !== null && ($rating < 0 || $rating > 5)) {
             throw new \InvalidArgumentException("Rating must be between 0 and 5, got: {$rating}");
@@ -457,6 +530,12 @@ class ExifService
         if ($label !== null && $label !== '' && !isset(self::LABEL_MAP[$label])) {
             throw new \InvalidArgumentException(
                 "Invalid label: {$label}. Allowed: " . implode(', ', array_keys(self::LABEL_MAP))
+            );
+        }
+
+        if ($pick !== null && $pick !== '' && !in_array($pick, XmpService::VALID_PICKS, true)) {
+            throw new \InvalidArgumentException(
+                "Invalid pick: {$pick}. Allowed: " . implode(', ', XmpService::VALID_PICKS)
             );
         }
     }

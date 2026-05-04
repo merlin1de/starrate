@@ -61,7 +61,8 @@ class RatingControllerTest extends TestCase
 
         // Default: write_xmp aktiv, comments_enabled aktiv
         $this->userSettings->method('getSettings')->willReturn([
-            'write_xmp'        => true,
+            'write_xmp'          => true,
+            'xmp_label_language' => 'en',
             'comments_enabled' => true,
         ]);
 
@@ -429,7 +430,8 @@ class RatingControllerTest extends TestCase
     {
         $this->userSettings = $this->createMock(UserSettings::class);
         $this->userSettings->method('getSettings')->willReturn([
-            'write_xmp'        => true,
+            'write_xmp'          => true,
+            'xmp_label_language' => 'en',
             'comments_enabled' => false,
         ]);
 
@@ -471,7 +473,8 @@ class RatingControllerTest extends TestCase
     {
         $this->userSettings = $this->createMock(UserSettings::class);
         $this->userSettings->method('getSettings')->willReturn([
-            'write_xmp'        => true,
+            'write_xmp'          => true,
+            'xmp_label_language' => 'en',
             'comments_enabled' => false,
         ]);
 
@@ -501,7 +504,8 @@ class RatingControllerTest extends TestCase
     {
         $this->userSettings = $this->createMock(UserSettings::class);
         $this->userSettings->method('getSettings')->willReturn([
-            'write_xmp'        => true,
+            'write_xmp'          => true,
+            'xmp_label_language' => 'en',
             'comments_enabled' => false,
         ]);
 
