@@ -113,14 +113,16 @@ class RatingController extends Controller
             $this->tagService->setMetadata($fileIdStr, $data);
 
             // 2. JPEG-XMP schreiben — nur wenn JPEG und in den Einstellungen aktiviert
-            $mime = $file->getMimeType();
-            if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
-                && $this->userSettings->getSettings($userId)['write_xmp']) {
+            $mime     = $file->getMimeType();
+            $settings = $this->userSettings->getSettings($userId);
+            if (in_array($mime, ['image/jpeg', 'image/jpg'], true) && $settings['write_xmp']) {
                 try {
                     $this->exifService->writeMetadata(
                         $file,
                         $data['rating'] ?? null,
                         array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
+                        array_key_exists('pick', $data)  ? $data['pick']           : null,
+                        $settings['xmp_label_language'],
                     );
                 } catch (\Exception $e) {
                     $this->logger->warning("StarRate: XMP write skipped for {$fileId}: " . $e->getMessage());
@@ -191,7 +193,9 @@ class RatingController extends Controller
         $xmpWritten = 0;
         $xmpSkipped = 0;
         $details    = [];
-        $writeXmp   = $this->userSettings->getSettings($userId)['write_xmp'];
+        $settings   = $this->userSettings->getSettings($userId);
+        $writeXmp   = $settings['write_xmp'];
+        $labelLang  = $settings['xmp_label_language'];
 
         foreach ($body['fileIds'] as $rawId) {
             $fileId = (int) $rawId;
@@ -215,6 +219,8 @@ class RatingController extends Controller
                             $file,
                             $data['rating'] ?? null,
                             array_key_exists('color', $data) ? ($data['color'] ?? '') : null,
+                            array_key_exists('pick', $data)  ? $data['pick']           : null,
+                            $labelLang,
                         );
                         $xmpWritten++;
                     } catch (\Exception $e) {
@@ -265,7 +271,7 @@ class RatingController extends Controller
             $mime = $file->getMimeType();
             if (in_array($mime, ['image/jpeg', 'image/jpg'], true)
                 && $this->userSettings->getSettings($userId)['write_xmp']) {
-                $this->exifService->writeMetadata($file, 0, '');
+                $this->exifService->writeMetadata($file, 0, '', 'none');
             }
 
             return new DataResponse(['ok' => true]);

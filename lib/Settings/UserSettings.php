@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Settings;
 
+use OCA\StarRate\Service\XmpService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\Settings\ISettings;
@@ -63,6 +64,11 @@ class UserSettings implements ISettings
             'grid_columns'             => $this->get($userId, 'grid_columns', 'auto'),
             'enable_pick_ui'           => $this->getBool($userId, 'enable_pick_ui', false),
             'write_xmp'                => $this->getBool($userId, 'write_xmp', true),
+            // XMP-Label-Sprache: 'de' = Lightroom DE-Lokalisierung (Rot/Gelb/…),
+            // 'en' = Bridge/digiKam/englische Tools (Red/Yellow/…). Default leitet
+            // sich aus der NC-UI-Sprache ab (de_* → de, sonst en) damit DE-User
+            // sofort funktionierende LR-DE-Imports bekommen, ohne Setting anzufassen.
+            'xmp_label_language'       => $this->get($userId, 'xmp_label_language', $this->defaultLabelLanguage($userId)),
             'comments_enabled'         => $this->getBool($userId, 'comments_enabled', false),
             // Recursive-View Defaults — werden beim Folder-Open als initiale
             // Werte verwendet; URL-Params können sie pro View überschreiben.
@@ -93,6 +99,7 @@ class UserSettings implements ISettings
             'show_color_overlay', 'grid_columns', 'enable_pick_ui', 'write_xmp', 'comments_enabled',
             'recursion_enabled', 'recursive_default', 'recursive_default_depth',
             'slideshow_interval',
+            'xmp_label_language',
         ];
 
         foreach ($data as $key => $value) {
@@ -138,10 +145,24 @@ class UserSettings implements ISettings
             'grid_columns' => $this->assertIn($key, $value, ['auto', '2', '3', '4', '5', '6', '8']),
             'recursive_default_depth' => $this->assertIntRange($key, $value, 0, 4),
             'slideshow_interval' => $this->assertIn($key, (int) $value, self::SLIDESHOW_INTERVALS),
+            'xmp_label_language' => $this->assertIn($key, $value, XmpService::VALID_LABEL_LANGS),
             'show_filename', 'show_rating_overlay', 'show_color_overlay',
             'enable_pick_ui', 'write_xmp', 'comments_enabled',
             'recursion_enabled', 'recursive_default' => null,
         };
+    }
+
+    /**
+     * Leitet die Default-Label-Sprache aus der NC-UI-Sprache des Users ab.
+     * de_* → 'de' (LR DE-Lokalisierung), sonst → 'en' (Bridge/digiKam-Standard).
+     */
+    private function defaultLabelLanguage(string $userId): string
+    {
+        if ($userId === '') {
+            return XmpService::LABEL_LANG_EN;
+        }
+        $lang = $this->config->getUserValue($userId, 'core', 'lang', '');
+        return str_starts_with($lang, 'de') ? XmpService::LABEL_LANG_DE : XmpService::LABEL_LANG_EN;
     }
 
     private function assertIntRange(string $key, mixed $value, int $min, int $max): void
