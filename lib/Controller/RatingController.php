@@ -73,11 +73,26 @@ class RatingController extends Controller
             $settings = $this->userSettings->getSettings($userId);
             if ($settings['write_xmp'] && in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
                 try {
-                    $xmp  = $this->exifService->readMetadata($file);
+                    $xmp = $this->exifService->readMetadata($file);
+
+                    // Konservative Heuristik: nur synchen, wenn das XMP tatsächlich etwas
+                    // enthält. Reines "alles leer" interpretieren wir als "Datei hat keine
+                    // StarRate-Metadaten" — sonst würden wir DB-Tags löschen, wenn LR keine
+                    // XMP geschrieben hat (z.B. "Automatically write changes into XMP" aus),
+                    // die Datei unlesbar war oder unser Parser ein LR-spezifisches Layout
+                    // nicht findet.
+                    // Trade-off: ein in LR explizit auf 0★/kein-Label/kein-Pick gesetztes
+                    // Bild propagiert nicht zurück. Akzeptabel — Datenverlust ist das
+                    // schlimmere Risiko.
+                    $xmpHasData = $xmp['rating'] > 0
+                               || $xmp['label']  !== null
+                               || $xmp['pick']   !== 'none';
+
                     $diff = $xmp['rating'] !== $db['rating']
                          || $xmp['label']  !== $db['color']
                          || $xmp['pick']   !== $db['pick'];
-                    if ($diff) {
+
+                    if ($xmpHasData && $diff) {
                         $synced = [
                             'rating' => $xmp['rating'],
                             'color'  => $xmp['label'],

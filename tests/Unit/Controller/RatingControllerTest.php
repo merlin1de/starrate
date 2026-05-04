@@ -184,6 +184,29 @@ class RatingControllerTest extends TestCase
         $this->assertSame('Yellow', $data['color']);
     }
 
+    public function testGetDoesNotClearTagsWhenXmpIsEmpty(): void
+    {
+        // DB hat User-Werte, aber XMP ist leer (z.B. weil LR keine XMP geschrieben hat,
+        // Datei unlesbar war oder unser Parser ein LR-spezifisches Layout nicht findet).
+        // Konservative Heuristik: KEIN Sync → DB-Werte bleiben erhalten.
+        $this->mockFileById(self::FILE_ID);
+        $this->tagService->method('getMetadata')
+            ->willReturn(['rating' => 5, 'color' => 'Red', 'pick' => 'pick']);
+        // exif liefert "leer" → interpretieren als "Datei hat keine StarRate-Metadaten"
+        $this->exifService->method('readMetadata')
+            ->willReturn(['rating' => 0, 'label' => null, 'pick' => 'none']);
+        // setMetadata DARF NICHT gerufen werden — sonst würden wir User-Tags löschen
+        $this->tagService->expects($this->never())->method('setMetadata');
+
+        $response = $this->controller->get(self::FILE_ID);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $data = $response->getData();
+        $this->assertSame(5,      $data['rating']);
+        $this->assertSame('Red',  $data['color']);
+        $this->assertSame('pick', $data['pick']);
+    }
+
     public function testGetSkipsSelfHealForNonJpeg(): void
     {
         // RAW oder PNG → Self-healing nur bei JPEG
