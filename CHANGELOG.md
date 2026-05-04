@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.4
+
+Documentation polish for the Store description and changelog before promoting to stable. No functional change vs. 1.3.3.
+
+### EN
+
+- App Store description now highlights recursive folder view, slideshow mode, and Lightroom round-trip as headline features alongside the existing rating/sharing toolset.
+- Backfilled changelog entries for the 1.3.0–1.3.2 nightly releases that were not user-visible before (recursive view, slideshow, virtualized grid).
+
+### DE
+
+- App-Store-Beschreibung hebt jetzt rekursive Ordneransicht, Diashow-Modus und Lightroom-Round-Trip als Hauptmerkmale neben den bestehenden Bewertungs- und Sharing-Funktionen hervor.
+- Changelog-Einträge für die 1.3.0–1.3.2 Nightly-Releases nachgetragen, die zuvor nicht user-sichtbar waren (rekursive Ansicht, Diashow, virtualisiertes Grid).
+
 ## 1.3.3
 
 ### EN
@@ -25,6 +39,82 @@
 - **LR re-importiert die falsche Farbe nach Änderung in StarRate** (#70) — Lightroom Classic 7+ liest `photoshop:LabelColor` (lowercase EN) mit Priorität über `xmp:Label`, um den Farbstreifen abzuleiten. StarRate hat bisher nur `xmp:Label` geschrieben, und der Patch-Pfad hat ein von LR hinterlassenes `photoshop:LabelColor` nicht entfernt — beim Re-Import in LR wurde die alte Farbe angezeigt, unsere Änderung ignoriert. StarRate schreibt jetzt beide Felder parallel und räumt ein stale `photoshop:LabelColor` vor dem Re-Inject weg.
 - **Grid füllt nur 2/3 der Bildschirmhöhe nach Wechsel in einen Unterordner** (#71) — bei SPA-Navigation zwischen Ordnern änderte sich der Header oberhalb des Grids (Subfolder-Pills tauchten auf oder verschwanden), das Grid wurde vertikal verschoben, behielt aber seine eigene Größe. Der bestehende `ResizeObserver` auf dem Grid feuerte daher nicht und die gecachte `max-height` war für das neue Layout falsch — ein manueller Reload war nötig. Der Observer beobachtet jetzt zusätzlich das Wrap-Parent-Element, sodass jede Header-Größenänderung die Höhenberechnung neu auslöst.
 - **XMP-Read lieferte leer in Nextclouds gestapelter Storage** (#72) — `fopen('rb') + fread($h, 256_000)` lieferte in NCs Storage-Stack (z.B. `Files_Trashbin` Wrapper) nur den ersten 8 KB-Block zurück, nicht die angeforderte Header-Größe. Da LR-geschriebenes XMP typischerweise bei Offset 15–25 KB nach dem EXIF-Block sitzt, hat unser Parser es nie gesehen. Auf `stream_get_contents` umgestellt — schleift intern bis Limit oder EOF; Self-healing findet jetzt LR/Bridge/digiKam-XMP zuverlässig.
+
+## 1.3.2
+
+### EN
+
+**New features**
+- **Slideshow mode in the loupe** (#67) — toggle with `S` to auto-advance through filtered images. Loops at the end. Per-user interval setting (1/2/3/4/5/7/10/15/30 s, default 4 s). Useful for client presentations: pre-filter to ★★★+, hand over the keyboard, walk away.
+- **Logical scroll mapping for huge grids** (#68) — virtualized grid now stays smooth at 25 000+ images per folder; previously the browser scrollbar got jittery and Loupe-open could lag noticeably. Scroll position is now mapped logically, independent of physical row count.
+
+**Bug fixes**
+- **Reverse iteration in re-enqueue paths** — error'd thumbnails are now retried from top to bottom of the visible range, so the items the user actually sees come back first.
+
+### DE
+
+**Neue Features**
+- **Diashow-Modus in der Loupe** (#67) — mit `S` umschalten, läuft automatisch durch die gefilterten Bilder. Loop am Ende. Pro-User-Intervall (1/2/3/4/5/7/10/15/30 s, Default 4 s). Nützlich für Kundenpräsentationen: auf ★★★+ vorfiltern, Tastatur übergeben, Raum verlassen.
+- **Logical scroll mapping für riesige Grids** (#68) — das virtualisierte Grid bleibt jetzt auch bei 25 000+ Bildern pro Ordner flüssig; vorher zitterte der Browser-Scrollbar und das Loupe-Öffnen konnte spürbar laggen. Die Scroll-Position wird jetzt logisch gemappt, unabhängig von der physischen Reihenanzahl.
+
+**Bugfixes**
+- **Reverse-Iteration in Re-Enqueue-Pfaden** — fehlgeschlagene Thumbnails werden jetzt von oben nach unten im sichtbaren Bereich neu probiert, sodass die Items, die der User tatsächlich sieht, zuerst zurückkommen.
+
+## 1.3.1
+
+### EN
+
+**New features**
+- **Edit existing shares** — share dialog opens in edit mode when invoked on an existing share, lets you change password, expiry, or per-share permissions (rate, pick, export, comments) without recreating the link.
+- **Per-share recursive view** — guest galleries can be configured to show all images from subfolders too, not just the share's root folder.
+- **Per-folder recursive memory** — the recursive toggle and depth selector are remembered per folder in localStorage; revisiting a folder restores your last setting.
+
+**Bug fixes**
+- **Filter bar option text now legible in dark theme** — depth dropdown options were hard to read against the dark background; now use proper foreground color.
+- **Mobile depth dropdown shows actual value** — overlay-span now displays the selected depth on mobile where the native select renders empty.
+- **Filter bar recursive cluster vertically centered** — the recursive toggle group used to drift relative to its row.
+
+### DE
+
+**Neue Features**
+- **Bestehende Shares bearbeiten** — der Share-Dialog öffnet sich im Edit-Modus, wenn er auf einem bestehenden Share aufgerufen wird; Passwort, Ablauf oder pro-Share-Berechtigungen (Bewerten, Pick, Export, Kommentare) ändern ohne den Link neu zu erstellen.
+- **Pro-Share rekursive Ansicht** — Gast-Galerien können so konfiguriert werden, dass auch Bilder aus Unterordnern gezeigt werden, nicht nur aus dem Share-Root.
+- **Pro-Ordner rekursiver Memory** — Recursive-Toggle und Tiefen-Selector werden pro Ordner in localStorage gemerkt; beim Wiederbesuch ist die letzte Einstellung wieder da.
+
+**Bugfixes**
+- **Filterleisten-Optionstext im Dark-Theme jetzt lesbar** — Tiefe-Dropdown-Optionen waren auf dem dunklen Hintergrund schlecht lesbar; jetzt korrekte Vordergrundfarbe.
+- **Mobile-Tiefe-Dropdown zeigt echten Wert** — Overlay-Span zeigt jetzt die ausgewählte Tiefe auf Mobile, wo das native Select leer rendert.
+- **Filterleiste-Recursive-Cluster vertikal zentriert** — die Recursive-Toggle-Gruppe lief früher relativ zu ihrer Zeile aus dem Ruder.
+
+## 1.3.0
+
+### EN
+
+**Big new feature**
+- **Recursive folder view** (#35) — toggle in the filter bar to flatten an entire folder tree into a single view. Pick a depth (0 = flat stream, 1–4 = grouped by N path segments). Personal opt-in setting (Default off). When enabled, you also get an in-context recursive toggle and depth selector right in the filter bar, plus URL-state-wiring for shareable bookmarks. Hover a tile to see the relative folder path as a dynamic breadcrumb tail. Defaults to off because recursive on huge libraries can be slow — see the Performance section for guardrails.
+
+**Performance**
+- **Virtualized grid** — folders with 1 000+ thumbnails no longer render every tile to the DOM. Only the ~100 tiles in or near the viewport are mounted, the rest is reserved as scroll space. Scroll-jank gone, Loupe-Open is instant again, batch-rate stays smooth.
+- **Cancel-resistant thumbnail loading** — if you scroll fast, in-flight thumb requests for tiles you've passed are cancelled cleanly instead of fighting for bandwidth with the new visible range.
+- **Recursive view OOM-/SQL-Limit-/Duplicate-Call protection** — the backend chunks tag queries and de-duplicates result paths; deep recursive scans don't exhaust PHP memory or trigger MySQL `LIMIT` errors.
+
+**UX**
+- **Dynamic breadcrumb tail** — in recursive mode, hovering a tile shows where it lives in the folder tree, without per-tile clutter.
+- **Faster ESC out of the loupe** — perceived close time tightened.
+
+### DE
+
+**Großes neues Feature**
+- **Rekursive Ordneransicht** (#35) — Toggle in der Filterleiste, um einen ganzen Ordnerbaum zu einer Ansicht zusammenzufassen. Tiefe wählen (0 = flacher Stream, 1–4 = nach N Pfad-Segmenten gruppiert). Opt-in pro User (Default aus). Wenn aktiviert, gibt's außerdem einen in-context Recursive-Toggle und Tiefen-Selector direkt in der Filterleiste plus URL-State-Wiring für teilbare Bookmarks. Hover über eine Kachel zeigt den relativen Ordnerpfad als dynamischen Breadcrumb-Tail. Default aus, weil Recursive auf großen Bibliotheken langsam sein kann — siehe Performance-Section für Schutzplanken.
+
+**Performance**
+- **Virtualisiertes Grid** — Ordner mit 1 000+ Thumbnails rendern nicht mehr jede Kachel ins DOM. Nur die ~100 Kacheln im oder nahe dem Viewport werden gemountet, der Rest wird als Scroll-Space reserviert. Scroll-Jank weg, Loupe-Open ist wieder instant, Batch-Rate bleibt flüssig.
+- **Cancel-resistentes Thumbnail-Laden** — beim schnellen Scrollen werden in-flight Thumb-Requests für vorbeigegangene Kacheln sauber abgebrochen statt mit dem neuen sichtbaren Bereich um Bandbreite zu kämpfen.
+- **Recursive-View OOM-/SQL-Limit-/Duplicate-Call-Schutz** — das Backend chunkt Tag-Queries und de-duplikiert Result-Pfade; tiefe rekursive Scans erschöpfen PHP-Memory nicht und triggern keine MySQL-`LIMIT`-Fehler.
+
+**UX**
+- **Dynamischer Breadcrumb-Tail** — im Recursive-Modus zeigt der Hover über eine Kachel, wo sie im Ordnerbaum lebt, ohne pro-Kachel-Geklütter.
+- **Schnelleres ESC aus der Loupe** — gefühlte Schließzeit knapper.
 
 ## 1.2.11
 
