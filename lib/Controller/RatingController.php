@@ -41,6 +41,15 @@ class RatingController extends Controller
     /**
      * Liest Rating, Color und Pick-Status einer Datei.
      *
+     * Self-healing XMP read: bei aktivem `write_xmp` Setting und JPEG-Datei wird
+     * zusätzlich das XMP der Datei gelesen. Weicht es vom DB-Tag ab, gewinnt das
+     * File und der Tag wird angeglichen — so heilt sich ein in Lightroom/digiKam
+     * extern bearbeitetes Bild beim nächsten Loupe-Open selbst, ohne manuellen
+     * `occ starrate:import-xmp`-Lauf.
+     *
+     * Fail-soft: lesefehler (Permission, korrupt, Storage offline) → DB-Antwort,
+     * kein 500.
+     *
      * @return DataResponse<array{rating: int, color: string|null, pick: string}>
      */
     #[NoAdminRequired]
@@ -56,8 +65,49 @@ class RatingController extends Controller
         }
 
         try {
-            $meta = $this->tagService->getMetadata((string) $fileId);
-            return new DataResponse($meta);
+            $fileIdStr = (string) $fileId;
+            $db        = $this->tagService->getMetadata($fileIdStr);
+
+            // Self-healing nur bei JPEG + write_xmp setting on (User hat XMP-as-master akzeptiert)
+            $mime     = $file->getMimeType();
+            $settings = $this->userSettings->getSettings($userId);
+            if ($settings['write_xmp'] && in_array($mime, ['image/jpeg', 'image/jpg'], true)) {
+                try {
+                    $xmp = $this->exifService->readMetadata($file);
+
+                    // Konservative Heuristik: nur synchen, wenn das XMP tatsächlich etwas
+                    // enthält. Reines "alles leer" interpretieren wir als "Datei hat keine
+                    // StarRate-Metadaten" — sonst würden wir DB-Tags löschen, wenn LR keine
+                    // XMP geschrieben hat (z.B. "Automatically write changes into XMP" aus),
+                    // die Datei unlesbar war oder unser Parser ein LR-spezifisches Layout
+                    // nicht findet.
+                    // Trade-off: ein in LR explizit auf 0★/kein-Label/kein-Pick gesetztes
+                    // Bild propagiert nicht zurück. Akzeptabel — Datenverlust ist das
+                    // schlimmere Risiko.
+                    $xmpHasData = $xmp['rating'] > 0
+                               || $xmp['label']  !== null
+                               || $xmp['pick']   !== 'none';
+
+                    $diff = $xmp['rating'] !== $db['rating']
+                         || $xmp['label']  !== $db['color']
+                         || $xmp['pick']   !== $db['pick'];
+
+                    if ($xmpHasData && $diff) {
+                        $synced = [
+                            'rating' => $xmp['rating'],
+                            'color'  => $xmp['label'],
+                            'pick'   => $xmp['pick'],
+                        ];
+                        $this->tagService->setMetadata($fileIdStr, $synced);
+                        return new DataResponse($synced);
+                    }
+                } catch (\Exception $e) {
+                    // Lesen fehlgeschlagen → DB-Antwort, kein 500.
+                    $this->logger->debug("StarRate self-heal XMP skipped for {$fileId}: " . $e->getMessage());
+                }
+            }
+
+            return new DataResponse($db);
         } catch (\Exception $e) {
             $this->logger->error("StarRate RatingController::get – {$e->getMessage()}");
             return new DataResponse(['error' => 'Internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR);

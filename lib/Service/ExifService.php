@@ -91,7 +91,11 @@ class ExifService
             if ($handle === false) {
                 return self::emptyResult();
             }
-            $header = fread($handle, self::READ_HEADER_SIZE);
+            // stream_get_contents schleift intern bis Limit oder EOF erreicht ist.
+            // Direktes fread() liefert in NC's Storage-Stack (z.B. Files_Trashbin
+            // Wrapper) oft nur einen 8 KB-Block zurück — das XMP-APP1-Segment liegt
+            // typischerweise bei Offset 15–25 KB (nach EXIF), wäre damit unsichtbar.
+            $header = stream_get_contents($handle, self::READ_HEADER_SIZE);
             fclose($handle);
 
             if ($header === false || !$this->isJpeg($header)) {
