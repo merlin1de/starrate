@@ -994,6 +994,15 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   /* max-height unabhängig von der Elternkette – NC-Header 50px + Breadcrumb ~36px + Filterbar ~62px + Puffer */
   max-height: calc(100vh - 160px);
   overflow-y: auto;
+  /* Scroll-Anchoring deaktivieren: Bei aktiver Compression-Map (MAX_PHYSICAL_HEIGHT)
+     ändert sich topSpacer mit jedem Scroll-Pixel. Der Browser interpretiert das als
+     Layout-Shift und korrigiert scrollTop zurück, um visuelle Stabilität zu wahren —
+     auf Mobile sichtbar als ruckartiges Zurückspringen während sanftem Touch-Scroll. */
+  overflow-anchor: none;
+}
+
+.sr-grid > * {
+  overflow-anchor: none;
 }
 
 /* Android Nav-Bar (|||  O  <): sicherstellen dass letzte Zeile nicht verdeckt wird */

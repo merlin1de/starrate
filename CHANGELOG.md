@@ -2,15 +2,21 @@
 
 ## 1.3.4
 
-Documentation polish for the Store description and changelog before promoting to stable. No functional change vs. 1.3.3.
-
 ### EN
 
+**Bug fixes**
+- **Mobile: smooth scroll in huge grids jumped back during touch flick** — at 7 000+ images, the virtualized grid hits its compression-map (a logical scroll mapping that kicks in when the rendered container would exceed 350 000 px). In that mode the top spacer recomputes on every scroll pixel, which the browser interpreted as content shifting near the viewport and "corrected" by snapping `scrollTop` back. Result: a sanft Touch-Flick visibly stuttered/rubber-banded. Disabled scroll-anchoring on the grid container with `overflow-anchor: none`.
+
+**Documentation**
 - App Store description now highlights recursive folder view, slideshow mode, and Lightroom round-trip as headline features alongside the existing rating/sharing toolset.
 - Backfilled changelog entries for the 1.3.0–1.3.2 nightly releases that were not user-visible before (recursive view, slideshow, virtualized grid).
 
 ### DE
 
+**Bugfixes**
+- **Mobile: sanftes Scrollen in großen Grids sprang während Touch-Flick zurück** — bei 7 000+ Bildern greift im virtualisierten Grid die Compression-Map (logisches Scroll-Mapping, das einsetzt sobald der gerenderte Container 350 000 px überschreiten würde). In diesem Modus rechnet sich der obere Spacer mit jedem Scroll-Pixel neu — der Browser hat das als Layout-Shift im sichtbaren Bereich interpretiert und scrollTop zurückkorrigiert, um „visuelle Stabilität" zu erhalten. Resultat: sanftes Touch-Flicken stockte/sprang sichtbar zurück. Scroll-Anchoring auf dem Grid-Container mit `overflow-anchor: none` deaktiviert.
+
+**Dokumentation**
 - App-Store-Beschreibung hebt jetzt rekursive Ordneransicht, Diashow-Modus und Lightroom-Round-Trip als Hauptmerkmale neben den bestehenden Bewertungs- und Sharing-Funktionen hervor.
 - Changelog-Einträge für die 1.3.0–1.3.2 Nightly-Releases nachgetragen, die zuvor nicht user-sichtbar waren (rekursive Ansicht, Diashow, virtualisiertes Grid).
 
