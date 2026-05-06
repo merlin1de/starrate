@@ -232,6 +232,16 @@ const thumbCache = ref({})
 //
 // data-index bleibt der absolute Index — Thumbnail-Observer und Focus-Logik
 // arbeiten weiter mit Original-Indizes.
+//
+// Zwei Modi koexistieren, getriggert durch compressionRatio:
+//   ratio = 1  (kleine/mittlere Listen, fullLogicalHeight ≤ MAX_PHYSICAL_HEIGHT):
+//              klassische Spacer-Höhen via spacerHeightForRows(); scrollTop läuft
+//              1:1 zur Bild-Position, der Container ist exakt totalHeight hoch.
+//   ratio > 1 (große Listen, Container würde sonst Chromes Tile-Cache überschreiten):
+//              physicalScrollHeight = fullLogicalHeight / ratio; topSpacer folgt
+//              kontinuierlich dem scrollTop minus rowOffset (siehe topSpacer-Formel),
+//              Inhalt bewegt sich pro 1 px Scroll um `ratio` px relativ zum Viewport,
+//              glatt und ohne Row-Tick-Sprung.
 
 const VIRTUAL_BUFFER_ROWS = 2     // extra Reihen oberhalb/unterhalb des Viewports
 const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
@@ -409,6 +419,11 @@ const bottomSpacerHeight = computed(() => {
 // ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
 const THUMB_CONCURRENCY = 5
+// Vorlauf-Margin für Thumbnail-Preload: Items innerhalb dieser Distanz zum
+// Viewport (oben/unten) starten ihren Load, bevor sie sichtbar werden. Wert
+// gemeinsam genutzt von IO rootMargin und observeAllItems-Safety-Net, damit
+// beide Pfade konsistent dieselbe Schwelle anwenden.
+const THUMB_PRELOAD_MARGIN_PX = 400
 let thumbObserver = null
 // Set der aktuell ladenden Image-Objekte. Wir tracken die echte In-Flight-
 // Menge statt eines Zählers, weil Virtualisierung Items mid-load unmounten
@@ -444,7 +459,7 @@ function setupThumbObserver() {
       }
       thumbObserver.unobserve(entry.target)
     }
-  }, { rootMargin: '400px 0px' })
+  }, { rootMargin: `${THUMB_PRELOAD_MARGIN_PX}px 0px` })
 }
 
 function observeAllItems() {
@@ -462,7 +477,7 @@ function observeAllItems() {
       // Sichtbare Items sofort manuell enqueuen; bereits-queued-Check läuft in
       // enqueueThumb.
       const rect = el.getBoundingClientRect()
-      if (rect.bottom > 0 && rect.top < vh + 400) {
+      if (rect.bottom > 0 && rect.top < vh + THUMB_PRELOAD_MARGIN_PX) {
         const inViewport = rect.bottom > 0 && rect.top < vh
         if (thumbCache.value[img.id]) {
           img.thumbUrl    = thumbCache.value[img.id]
@@ -795,8 +810,10 @@ function moveFocus(delta, extend = false) {
 }
 
 function columnsEstimate() {
-  if (!gridEl.value) return 4
-  return Math.max(1, Math.floor(gridEl.value.offsetWidth / THUMB_SIZE))
+  // Auf Mobile greift in columnsCount die min(THUMB_SIZE, 50vw-16)-Logik für
+  // garantierte 2 Spalten — eine eigene Schätzung über offsetWidth/THUMB_SIZE
+  // würde 1 liefern und ↑/↓ falsch um eine Spalte statt um eine Reihe bewegen.
+  return columnsCount.value || 4
 }
 
 function scrollItemIntoView(index, behavior = 'smooth') {
@@ -1007,10 +1024,12 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   /* max-height unabhängig von der Elternkette – NC-Header 50px + Breadcrumb ~36px + Filterbar ~62px + Puffer */
   max-height: calc(100vh - 160px);
   overflow-y: auto;
-  /* Scroll-Anchoring deaktivieren: Bei aktiver Compression-Map (MAX_PHYSICAL_HEIGHT)
-     ändert sich topSpacer mit jedem Scroll-Pixel. Der Browser interpretiert das als
-     Layout-Shift und korrigiert scrollTop zurück, um visuelle Stabilität zu wahren —
-     auf Mobile sichtbar als ruckartiges Zurückspringen während sanftem Touch-Scroll. */
+  /* Scroll-Anchoring deaktivieren: Defense-in-Depth gegen Browser-Versuche, scrollTop
+     zu korrigieren, wenn topSpacer / Items im Render-Range neu erscheinen. Im
+     Compression-Mode wandert topSpacer kontinuierlich mit dem Scroll (siehe topSpacer-
+     Formel im JS); manche Mobile-Browser interpretieren auch gewollte Sub-Pixel-
+     Shifts als Layout-Bewegung und schnappen zurück. Auf Spacer + Items als direkte
+     Kinder gesetzt, damit auch tiefer liegende Elemente nicht als Anker gewählt werden. */
   overflow-anchor: none;
 }
 
