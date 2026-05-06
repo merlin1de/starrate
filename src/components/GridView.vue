@@ -238,43 +238,23 @@ const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
 
-// Range-Snap: Statt bei jeder einzelnen Reihe Scroll den Render-Range anzupassen,
-// wird er auf Vielfache von RANGE_SNAP_ROWS gerundet — der Range bleibt also für
-// SNAP×rowStride Pixel Scroll konstant.
-//
-// Warum: ohne Snap feuert Vue bei jedem rowStride Pixeln einen DOM-Diff
-// (Items rein/raus, Spacer-Höhe ändert sich). Das reißt den Browser aus dem
-// Compositor-only Scroll und lässt die Bitmap statt pixelweise in Reihen-
-// schritten weiterschnappen — der „grid-zeilenweise" statt „pixelweise" Effekt
-// auf Mobile.
-//
-// Mit Snap=4: Innerhalb eines Chunks ist die DOM komplett stabil → Browser
-// bleibt auf dem GPU-Pfad, Touch-Scroll moves bitmap pixel-for-pixel. Am
-// Chunk-Übergang ein einzelner größerer Render (4 Reihen rein, 4 raus statt
-// 1+1), der seltener feuert und sich beim Touch-Momentum mit dem natürlichen
-// Frame-Coalescing besser verbergen lässt.
-//
-// Cost: rendered DOM ist im Mittel ~SNAP/2 Reihen größer; bei 2-12 Spalten
-// vernachlässigbar.
-const RANGE_SNAP_ROWS = 4
-
 // Cap der physischen Container-Höhe in px. Wenn die rechnerische Container-Höhe
 // diesen Wert überschreitet, wird der Scroll logisch komprimiert: scrollTop
 // 0..MAX mappt linear auf alle Items.
 //
-// Cost: in komprimiertem Modus ist topSpacer direkt an scrollTop gebunden. Dadurch
-// bleibt der Inhalt während Sub-Row-Scrolls visuell stehen (Items shiften 1:1 mit
-// scrollTop) und springt am Row-Tick um eine ganze Zeile (rowStride - rowStride/ratio)
-// auf einmal — auf Mobile als „Festbeißen + Zucken" sichtbar, auch bei kleinen Ratios.
+// Warum: Chrome auf Android (und ähnlich andere mobile Browser) hält bei
+// Scroll-Containern den GPU-Tile-Cache nur für eine begrenzte Container-Höhe
+// vor. Bei 7000 Items × Mobile-Layout (≈ 570k px) verlässt der User schon ab
+// Page 2 den vorgerechneten Tile-Bereich; Chrome muss nachrasterisieren, der
+// Compositor-Scroll fällt zurück auf Main-Thread, sichtbar als „Bitmap rückt
+// in Zeilenschritten statt pixelweise". Bei 1200 Items (≈ 100k) passt das in
+// den Cache, dort scrollt es smooth.
 //
-// Cap absichtlich hoch, damit Compression bei realistischen Bildmengen NICHT greift:
-//   2 Mio. px deckt 7k Bilder × Mobile (≈ 580k), 25k × Mobile (≈ 2,1M, knapp drüber),
-//   sowie alle Desktop-Spalten-Layouts ab. Browser (Chrome/Edge/Firefox) verarbeiten
-//   2 Mio. px Container problemlos. Die ursprüngliche 350k-Grenze stammte aus einer
-//   Scrollbar-Drag-Beobachtung auf Windows-Desktop (Drag stoppt unterhalb des echten
-//   Endes); das ist eine Scrollbar-Präzisionsfrage, kein Scroll-Limit. Touch-Scroll
-//   und Mausrad reichen auch bei mehreren Millionen px sauber bis zum Ende.
-const MAX_PHYSICAL_HEIGHT = 2000000
+// 350k px ist der empirisch saubere Sweet-Spot: deckt den Cache-Bereich auf
+// gängigen Mobile-Geräten ab und beschneidet erst große Ordner (>5k Bilder
+// auf Mobile, >15k auf Desktop). Compression-Mode greift dort und nutzt
+// kontinuierliches Sub-Row-Mapping für smoothes Scrollen (siehe topSpacer).
+const MAX_PHYSICAL_HEIGHT = 350000
 
 const scrollTop      = ref(0)
 const containerWidth = ref(0)
@@ -368,31 +348,18 @@ const compressionRatio  = computed(() =>
 const physicalScrollHeight = computed(() => fullLogicalHeight.value / compressionRatio.value)
 const logicalScrollTop = computed(() => scrollTop.value * compressionRatio.value)
 
-// Anker auf Vielfaches von RANGE_SNAP_ROWS — bleibt für SNAP×rowStride Pixel
-// Scroll konstant, dadurch keine Range-Änderung und kein Render zwischen Snaps.
-const chunkAnchorRow = computed(() => {
-  if (!virtualEnabled.value) return 0
-  const viewportTopRow = Math.floor(logicalScrollTop.value / rowStride.value)
-  return Math.floor(viewportTopRow / RANGE_SNAP_ROWS) * RANGE_SNAP_ROWS
-})
-
-const viewportRowCount = computed(() => {
-  if (rowStride.value === 0) return 0
-  return Math.ceil(viewportHeight.value / rowStride.value)
-})
-
 const visibleStartRow = computed(() => {
   if (!virtualEnabled.value) return 0
-  return Math.max(0, chunkAnchorRow.value - VIRTUAL_BUFFER_ROWS)
+  return Math.max(0, Math.floor(logicalScrollTop.value / rowStride.value) - VIRTUAL_BUFFER_ROWS)
 })
 
 const visibleEndRow = computed(() => {
   if (!virtualEnabled.value) return totalRows.value
-  // Range muss den ganzen Chunk-Scroll-Bereich abdecken: Anker + SNAP Reihen
-  // (innerhalb derer der Anker konstant bleibt) + sichtbare Reihen + Buffer.
+  // Items haben physische volle Größe — der sichtbare Bereich umfasst
+  // viewportHeight/rowStride physische Reihen, unabhängig vom Mapping.
   return Math.min(
     totalRows.value,
-    chunkAnchorRow.value + RANGE_SNAP_ROWS + viewportRowCount.value + VIRTUAL_BUFFER_ROWS,
+    Math.ceil((logicalScrollTop.value + viewportHeight.value) / rowStride.value) + VIRTUAL_BUFFER_ROWS,
   )
 })
 
@@ -406,9 +373,7 @@ const renderedImages = computed(() => {
 
 // Spacer-Höhen: bei kleinen Listen (compressionRatio=1) klassisch — N Reihen
 // × rowHeight + (N-1) × GRID_GAP, damit Items exakt an Reihen-Grenzen sitzen.
-// Bei Compression Anchor-zu-scrollTop: Item bei `visibleStartRow + BUFFER`
-// (= logische Reihe am Viewport-Top) wird physisch bei scrollTop positioniert,
-// topSpacer/bottomSpacer summieren auf physicalScrollHeight.
+// Bei Compression: kontinuierliches Sub-Row-Mapping — siehe topSpacer-Formel.
 function spacerHeightForRows(n) {
   if (n <= 0) return 0
   return n * rowHeight.value + (n - 1) * GRID_GAP
@@ -420,7 +385,16 @@ const topSpacerHeight = computed(() => {
     return spacerHeightForRows(visibleStartRow.value)
   }
   if (visibleStartRow.value === 0) return 0
-  return Math.max(0, scrollTop.value - VIRTUAL_BUFFER_ROWS * rowStride.value)
+  // Kontinuierliche Compression: die erste sichtbare Reihe (logische Reihe
+  // visibleStartRow+BUFFER) wird so platziert, dass ihre Top-Kante genau
+  // `rowOffset` Pixel über der Viewport-Oberkante liegt — wobei rowOffset =
+  // (logicalScrollTop mod rowStride). Ergebnis: pro 1 px scrollTop bewegt sich
+  // der Inhalt `compressionRatio` px relativ zum Viewport, glatt und linear,
+  // ohne „Festbeißen + Sprung am Row-Tick" wie in der naiven scrollTop-1:1-
+  // Formel. Am Row-Tick verschwindet ein Item oben aus dem DOM und ein neues
+  // taucht unten auf — visuell ohne Diskontinuität.
+  const rowOffset = logicalScrollTop.value % rowStride.value
+  return Math.max(0, scrollTop.value - rowOffset - VIRTUAL_BUFFER_ROWS * rowStride.value)
 })
 
 const bottomSpacerHeight = computed(() => {
