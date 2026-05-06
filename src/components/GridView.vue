@@ -233,7 +233,11 @@ const thumbCache = ref({})
 // data-index bleibt der absolute Index — Thumbnail-Observer und Focus-Logik
 // arbeiten weiter mit Original-Indizes.
 
-const VIRTUAL_BUFFER_ROWS = 2     // extra Reihen oberhalb/unterhalb des Viewports
+// Buffer-Reihen oberhalb/unterhalb des Viewports. Größerer Buffer:
+//   + Thumbs laden früher → weniger „Placeholder-Aufblitzen" beim flüssigen Scroll
+//   + Bei normalem Scroll (≤ rowStride/Frame) bleibt der nächste Tick im Buffer-Range
+//   - Mehr DOM-Nodes (linear, aber bei 4 Reihen × 2-12 Spalten weiterhin <50 Items)
+const VIRTUAL_BUFFER_ROWS = 4
 const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
@@ -401,7 +405,10 @@ const bottomSpacerHeight = computed(() => {
 
 // ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
-const THUMB_CONCURRENCY = 5
+// HTTP/2 multiplext mehrere parallele Streams sauber; PHP-FPM auf NC verkraftet
+// 8 parallele Preview-Requests. 5 → 8 reduziert die spürbare Lag beim schnellen
+// Scrollen durch unbekannte Bereiche, ohne Connection-Stau zu provozieren.
+const THUMB_CONCURRENCY = 8
 let thumbObserver = null
 // Set der aktuell ladenden Image-Objekte. Wir tracken die echte In-Flight-
 // Menge statt eines Zählers, weil Virtualisierung Items mid-load unmounten
@@ -437,7 +444,7 @@ function setupThumbObserver() {
       }
       thumbObserver.unobserve(entry.target)
     }
-  }, { rootMargin: '400px 0px' })
+  }, { rootMargin: '800px 0px' })
 }
 
 function observeAllItems() {
@@ -455,7 +462,7 @@ function observeAllItems() {
       // Sichtbare Items sofort manuell enqueuen; bereits-queued-Check läuft in
       // enqueueThumb.
       const rect = el.getBoundingClientRect()
-      if (rect.bottom > 0 && rect.top < vh + 400) {
+      if (rect.bottom > 0 && rect.top < vh + 800) {
         const inViewport = rect.bottom > 0 && rect.top < vh
         if (thumbCache.value[img.id]) {
           img.thumbUrl    = thumbCache.value[img.id]
