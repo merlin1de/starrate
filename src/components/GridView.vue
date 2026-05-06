@@ -292,23 +292,49 @@ function onScroll() {
   scrollEndTimer = setTimeout(resyncRenderedThumbs, 200)
 }
 
+// Items im Render-Range mit Viewport-Priorität enqueuen:
+//   1. Viewport-Reihen zuerst (priority=true, unshift) — User sieht die sofort
+//   2. Buffer-unten dahinter (priority=false, push) — was bei Scroll-Down
+//      als nächstes kommt
+//   3. Buffer-oben zuletzt (priority=false, push) — am wenigsten dringend
+// Bereits geladene oder gerade ladende Items werden übersprungen; cached
+// Items kriegen ihre URL direkt zugewiesen ohne Queue-Roundtrip. Die naive
+// "alles priority=true im Reverse" Variante schob die BUFFER Reihen oberhalb
+// des Viewports vor die echten Viewport-Items in die Queue → bei kalter
+// Cache (großes Shooting frisch geöffnet) sah man die ersten ~4 Slots mit
+// Buffer-Above-Items belegt, bevor die sichtbaren Bilder dran waren.
+function enqueueRenderedRange() {
+  if (!virtualEnabled.value || rowStride.value === 0) return
+  const cols = columnsCount.value || 1
+  const vpTopRow = Math.max(0, Math.floor(logicalScrollTop.value / rowStride.value))
+  const vpRowCount = Math.ceil(viewportHeight.value / rowStride.value)
+  const vpStart = Math.max(renderStartIdx.value, vpTopRow * cols)
+  const vpEnd   = Math.min(renderEndIdx.value, (vpTopRow + vpRowCount) * cols)
+
+  const tryEnqueue = (i, priority) => {
+    const img = props.images[i]
+    if (!img || img.thumbLoaded || img.thumbLoading) return
+    if (thumbCache.value[img.id]) {
+      img.thumbUrl    = thumbCache.value[img.id]
+      img.thumbLoaded = true
+      return
+    }
+    enqueueThumb(img, priority)
+  }
+
+  // 1. Viewport — Reverse-Iter, damit unshift die Top-of-Viewport vorne lässt
+  for (let i = vpEnd - 1; i >= vpStart; i--) tryEnqueue(i, true)
+  // 2. Buffer unten (next bei Scroll-Down) — push behält Top-Down-Order
+  for (let i = vpEnd; i < renderEndIdx.value; i++) tryEnqueue(i, false)
+  // 3. Buffer oben (least likely) — push ans Ende
+  for (let i = renderStartIdx.value; i < vpStart; i++) tryEnqueue(i, false)
+}
+
 function resyncRenderedThumbs() {
   scrollEndTimer = null
   if (!virtualEnabled.value) return
   pruneCancelledLoads()
-  // Reverse-Iteration kombiniert mit enqueueThumb's unshift gibt am Ende
-  // Forward-Order in der Queue (top-of-range zuerst). Forward-Iteration
-  // mit unshift kehrt die Reihenfolge um und lädt Bottom-Items zuerst.
-  for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
-    const img = props.images[i]
-    if (!img || img.thumbLoaded || img.thumbLoading) continue
-    if (thumbCache.value[img.id]) {
-      img.thumbUrl    = thumbCache.value[img.id]
-      img.thumbLoaded = true
-    } else {
-      enqueueThumb(img, true)
-    }
-  }
+  enqueueRenderedRange()
   drainQueue()
 }
 
@@ -987,23 +1013,8 @@ watch([renderStartIdx, renderEndIdx], () => {
   loadQueue.length = 0
   observeAllItems()
   nextTick(() => {
-    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
-    // Bottom-Up-Order. Mit Reverse landet das oberste Item ganz vorne in der
-    // Queue und drainQueue bedient es zuerst — Viewport-Items haben Vorrang.
-    for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
-      const img = props.images[i]
-      if (!img || img.thumbLoaded || img.thumbLoading) continue
-      if (thumbCache.value[img.id]) {
-        img.thumbUrl    = thumbCache.value[img.id]
-        img.thumbLoaded = true
-      } else {
-        // Alle gerenderten Items sind per Buffer-Definition im sichtbaren
-        // Bereich oder direkt davor/dahinter — als Priority enqueuen, damit
-        // sie vor älteren, bereits gescrollten Resten in der Queue stehen.
-        enqueueThumb(img, true)
-      }
-    }
-    drainQueue()  // Queue treiben, falls pruneCancelledLoads Slots freigegeben hat
+    enqueueRenderedRange()
+    drainQueue()
   })
 }, { immediate: true })
 
