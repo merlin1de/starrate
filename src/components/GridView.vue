@@ -238,6 +238,26 @@ const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
 
+// Range-Snap: Statt bei jeder einzelnen Reihe Scroll den Render-Range anzupassen,
+// wird er auf Vielfache von RANGE_SNAP_ROWS gerundet — der Range bleibt also für
+// SNAP×rowStride Pixel Scroll konstant.
+//
+// Warum: ohne Snap feuert Vue bei jedem rowStride Pixeln einen DOM-Diff
+// (Items rein/raus, Spacer-Höhe ändert sich). Das reißt den Browser aus dem
+// Compositor-only Scroll und lässt die Bitmap statt pixelweise in Reihen-
+// schritten weiterschnappen — der „grid-zeilenweise" statt „pixelweise" Effekt
+// auf Mobile.
+//
+// Mit Snap=4: Innerhalb eines Chunks ist die DOM komplett stabil → Browser
+// bleibt auf dem GPU-Pfad, Touch-Scroll moves bitmap pixel-for-pixel. Am
+// Chunk-Übergang ein einzelner größerer Render (4 Reihen rein, 4 raus statt
+// 1+1), der seltener feuert und sich beim Touch-Momentum mit dem natürlichen
+// Frame-Coalescing besser verbergen lässt.
+//
+// Cost: rendered DOM ist im Mittel ~SNAP/2 Reihen größer; bei 2-12 Spalten
+// vernachlässigbar.
+const RANGE_SNAP_ROWS = 4
+
 // Cap der physischen Container-Höhe in px. Wenn die rechnerische Container-Höhe
 // diesen Wert überschreitet, wird der Scroll logisch komprimiert: scrollTop
 // 0..MAX mappt linear auf alle Items.
@@ -348,18 +368,31 @@ const compressionRatio  = computed(() =>
 const physicalScrollHeight = computed(() => fullLogicalHeight.value / compressionRatio.value)
 const logicalScrollTop = computed(() => scrollTop.value * compressionRatio.value)
 
+// Anker auf Vielfaches von RANGE_SNAP_ROWS — bleibt für SNAP×rowStride Pixel
+// Scroll konstant, dadurch keine Range-Änderung und kein Render zwischen Snaps.
+const chunkAnchorRow = computed(() => {
+  if (!virtualEnabled.value) return 0
+  const viewportTopRow = Math.floor(logicalScrollTop.value / rowStride.value)
+  return Math.floor(viewportTopRow / RANGE_SNAP_ROWS) * RANGE_SNAP_ROWS
+})
+
+const viewportRowCount = computed(() => {
+  if (rowStride.value === 0) return 0
+  return Math.ceil(viewportHeight.value / rowStride.value)
+})
+
 const visibleStartRow = computed(() => {
   if (!virtualEnabled.value) return 0
-  return Math.max(0, Math.floor(logicalScrollTop.value / rowStride.value) - VIRTUAL_BUFFER_ROWS)
+  return Math.max(0, chunkAnchorRow.value - VIRTUAL_BUFFER_ROWS)
 })
 
 const visibleEndRow = computed(() => {
   if (!virtualEnabled.value) return totalRows.value
-  // Items haben physische volle Größe — der sichtbare Bereich umfasst
-  // viewportHeight/rowStride physische Reihen, unabhängig vom Mapping.
+  // Range muss den ganzen Chunk-Scroll-Bereich abdecken: Anker + SNAP Reihen
+  // (innerhalb derer der Anker konstant bleibt) + sichtbare Reihen + Buffer.
   return Math.min(
     totalRows.value,
-    Math.ceil((logicalScrollTop.value + viewportHeight.value) / rowStride.value) + VIRTUAL_BUFFER_ROWS,
+    chunkAnchorRow.value + RANGE_SNAP_ROWS + viewportRowCount.value + VIRTUAL_BUFFER_ROWS,
   )
 })
 
