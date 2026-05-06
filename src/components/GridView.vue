@@ -492,26 +492,21 @@ function observeAllItems() {
   nextTick(() => {
     if (!gridEl.value || !thumbObserver) return
     const items = gridEl.value.querySelectorAll('.sr-grid__item[data-index]')
-    const vh = window.innerHeight || document.documentElement.clientHeight
     items.forEach(el => {
       const idx = parseInt(el.dataset.index, 10)
       const img = props.images[idx]
       if (!img || img.thumbLoaded) return
       thumbObserver.observe(el)
-      // Safety-Net: IntersectionObserver feuert sein initiales Callback manchmal
-      // nicht zuverlässig (Layout noch nicht stabil, Ordner-Wechsel, etc.).
-      // Sichtbare Items sofort manuell enqueuen; bereits-queued-Check läuft in
-      // enqueueThumb.
-      const rect = el.getBoundingClientRect()
-      if (rect.bottom > 0 && rect.top < vh + THUMB_PRELOAD_MARGIN_PX) {
-        const inViewport = rect.bottom > 0 && rect.top < vh
-        if (thumbCache.value[img.id]) {
-          img.thumbUrl    = thumbCache.value[img.id]
-          img.thumbLoaded = true
-          thumbObserver.unobserve(el)
-        } else {
-          enqueueThumb(img, inViewport)
-        }
+      // Cache-Hit: thumb direkt setzen, kein Queue-Roundtrip nötig.
+      // Echtes Enqueueing läuft zentral über enqueueRenderedRange() im
+      // renderStartIdx/EndIdx-Watch — sonst würde dieses Safety-Net mit
+      // seiner DOM-Order-forEach die Viewport-Priorität wieder zerstören
+      // (Items landen vor enqueueRenderedRange in der Queue, dessen
+      // Priority-Argument greift dann nicht mehr).
+      if (thumbCache.value[img.id]) {
+        img.thumbUrl    = thumbCache.value[img.id]
+        img.thumbLoaded = true
+        thumbObserver.unobserve(el)
       }
     })
   })
@@ -615,6 +610,15 @@ watch(() => props.images, () => {
   loadingItems.clear()
   thumbObserver?.disconnect()
   observeAllItems()
+  // Falls renderStartIdx/EndIdx beim Image-Wechsel numerisch identisch bleiben
+  // (z.B. visibleStart=0 und neuer Range hat zufällig dieselbe Endgrenze),
+  // feuert der renderStartIdx/EndIdx-Watch nicht — dann würde die Queue leer
+  // bleiben, weil observeAllItems nicht mehr selbst enqueued. Hier explizit
+  // anstoßen.
+  nextTick(() => {
+    enqueueRenderedRange()
+    drainQueue()
+  })
 })
 
 // ─── Auswahl ──────────────────────────────────────────────────────────────────
