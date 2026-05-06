@@ -5,7 +5,7 @@
 ### EN
 
 **Bug fixes**
-- **Mobile: smooth scroll in huge grids jumped back during touch flick** — at 7 000+ images, the virtualized grid hits its compression-map (a logical scroll mapping that kicks in when the rendered container would exceed 350 000 px). In that mode the top spacer recomputes on every scroll pixel, which the browser interpreted as content shifting near the viewport and "corrected" by snapping `scrollTop` back. Result: a sanft Touch-Flick visibly stuttered/rubber-banded. Disabled scroll-anchoring on the grid container with `overflow-anchor: none`.
+- **Mobile: smooth scroll in huge grids stuttered and rubber-banded** — at 7 000+ images, the virtualized grid hit its compression-map (a logical scroll mapping that kicks in when the rendered container would exceed the physical-height cap). In that mode the top spacer was bound 1:1 to `scrollTop`, which made content stay visually pinned during sub-row scrolls and then jump a whole row at once at row-tick boundaries — sticking to a row, then snapping. Raised the cap from 350 000 px to 2 000 000 px so compression no longer engages at realistic image counts (the original cap was derived from a Windows desktop scrollbar-drag observation, not an actual scroll limit; touch and wheel reach the bottom of multi-million-pixel containers fine). Also disabled scroll-anchoring (`overflow-anchor: none`) as a defense-in-depth.
 
 **Documentation**
 - App Store description now highlights recursive folder view, slideshow mode, and Lightroom round-trip as headline features alongside the existing rating/sharing toolset.
@@ -14,7 +14,7 @@
 ### DE
 
 **Bugfixes**
-- **Mobile: sanftes Scrollen in großen Grids sprang während Touch-Flick zurück** — bei 7 000+ Bildern greift im virtualisierten Grid die Compression-Map (logisches Scroll-Mapping, das einsetzt sobald der gerenderte Container 350 000 px überschreiten würde). In diesem Modus rechnet sich der obere Spacer mit jedem Scroll-Pixel neu — der Browser hat das als Layout-Shift im sichtbaren Bereich interpretiert und scrollTop zurückkorrigiert, um „visuelle Stabilität" zu erhalten. Resultat: sanftes Touch-Flicken stockte/sprang sichtbar zurück. Scroll-Anchoring auf dem Grid-Container mit `overflow-anchor: none` deaktiviert.
+- **Mobile: sanftes Scrollen in großen Grids stockte und zuckte zurück** — bei 7 000+ Bildern greift im virtualisierten Grid die Compression-Map (logisches Scroll-Mapping, das einsetzt sobald der gerenderte Container den physischen Höhen-Cap überschreiten würde). In diesem Modus war der obere Spacer 1:1 an `scrollTop` gebunden; dadurch blieb der Inhalt während Sub-Row-Scrolls visuell stehen und sprang am Row-Tick um eine ganze Zeile auf einmal — „beißt sich an einer Zeile fest, dann zuckt es zurück". Cap von 350 000 px auf 2 000 000 px angehoben, damit die Compression bei realistischen Bildmengen gar nicht mehr greift (die ursprüngliche Grenze stammte aus einer Scrollbar-Drag-Beobachtung auf Windows-Desktop, nicht aus einem echten Scroll-Limit; Touch und Mausrad erreichen auch bei mehreren Millionen px sauber das Ende). Zusätzlich Scroll-Anchoring (`overflow-anchor: none`) als Defense-in-Depth deaktiviert.
 
 **Dokumentation**
 - App-Store-Beschreibung hebt jetzt rekursive Ordneransicht, Diashow-Modus und Lightroom-Round-Trip als Hauptmerkmale neben den bestehenden Bewertungs- und Sharing-Funktionen hervor.

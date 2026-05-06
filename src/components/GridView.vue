@@ -238,17 +238,23 @@ const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
 
-// Cap der physischen Container-Höhe in px. Browser (Chrome/Edge auf Windows)
-// haben ein internes Limit für scroll-position-mapping bei sehr hohen
-// Containern — wir haben das bei 7345 Items × ~250px = 459k empirisch bei
-// ~378k beobachtet (User-Drag stoppt unterhalb des echten Endes).
+// Cap der physischen Container-Höhe in px. Wenn die rechnerische Container-Höhe
+// diesen Wert überschreitet, wird der Scroll logisch komprimiert: scrollTop
+// 0..MAX mappt linear auf alle Items.
 //
-// Wenn die rechnerische Container-Höhe diesen Wert überschreitet, wird der
-// Scroll logisch komprimiert: scrollTop 0..MAX mappt linear auf alle Items.
-// Cost: an Reihen-Grenzen schiebt sich der sichtbare Content um eine Reihe
-// während des Scrollens (kein 1:1 Pixel-zu-Pixel-Mapping mehr). Bei kleinen
-// Compression-Ratios (<1.5) ist der Effekt subtil, bei großen Ratios spürbar.
-const MAX_PHYSICAL_HEIGHT = 350000
+// Cost: in komprimiertem Modus ist topSpacer direkt an scrollTop gebunden. Dadurch
+// bleibt der Inhalt während Sub-Row-Scrolls visuell stehen (Items shiften 1:1 mit
+// scrollTop) und springt am Row-Tick um eine ganze Zeile (rowStride - rowStride/ratio)
+// auf einmal — auf Mobile als „Festbeißen + Zucken" sichtbar, auch bei kleinen Ratios.
+//
+// Cap absichtlich hoch, damit Compression bei realistischen Bildmengen NICHT greift:
+//   2 Mio. px deckt 7k Bilder × Mobile (≈ 580k), 25k × Mobile (≈ 2,1M, knapp drüber),
+//   sowie alle Desktop-Spalten-Layouts ab. Browser (Chrome/Edge/Firefox) verarbeiten
+//   2 Mio. px Container problemlos. Die ursprüngliche 350k-Grenze stammte aus einer
+//   Scrollbar-Drag-Beobachtung auf Windows-Desktop (Drag stoppt unterhalb des echten
+//   Endes); das ist eine Scrollbar-Präzisionsfrage, kein Scroll-Limit. Touch-Scroll
+//   und Mausrad reichen auch bei mehreren Millionen px sauber bis zum Ende.
+const MAX_PHYSICAL_HEIGHT = 2000000
 
 const scrollTop      = ref(0)
 const containerWidth = ref(0)
