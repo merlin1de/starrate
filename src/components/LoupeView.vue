@@ -1106,6 +1106,14 @@ watch(() => props.initialIndex, idx => {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Browser-Touch-Handling komplett deaktivieren — Pinch-Zoom, Pan und
+     Swipe-Navigation laufen alle in JS (touchstart/move/end-Handler).
+     Wichtig auf Chrome Android: ohne `none` interpretiert der Browser eine
+     Pinch-Geste, bei der der untere Finger zuerst registriert wird, häufig
+     fälschlich als Pull-to-Refresh und lädt die Seite neu, statt zu zoomen.
+     touch-action:none unterbindet alle Browser-Default-Gesten (Scroll, Pinch,
+     Pull-to-Refresh, Double-Tap-Zoom) auf dem Loupe-Container. */
+  touch-action: none;
 }
 
 /* ── Stage & Bild ─────────────────────────────────────────────────────────── */

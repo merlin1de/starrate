@@ -2,15 +2,21 @@
 
 ## 1.3.4
 
-Documentation polish for the Store description and changelog before promoting to stable. No functional change vs. 1.3.3.
-
 ### EN
 
+**Bug fixes**
+- **Mobile: scroll seized after page 1 in huge grids** — at 7 000+ images, the virtualized grid container reached ~570 k px tall on a 2-column mobile layout, far past Chrome on Android's GPU tile cache. Past page 1 the user dragged into a region that wasn't pre-rasterized; Chrome had to rasterize tiles on demand, the compositor scroll fell back to the main thread, and the bitmap moved in row-sized jumps instead of pixel-by-pixel. Re-enabled the compression map at a 350 000 px cap so the scrollable container fits the cache; rewrote the top-spacer math with a continuous sub-row offset (`scrollTop − (logicalScrollTop mod rowStride) − BUFFER × rowStride`) so the visible content advances smoothly as `compressionRatio × scrollTop` instead of sticking at row boundaries and jumping at row ticks. At 7 000 images on mobile this gives a ratio of ~1.6 — content travels 1.6 px per finger pixel, which feels like normal flick-scroll momentum rather than the previous seize-and-jump pattern. Below the 350 k threshold (≤ ~5 k images on mobile, ≤ ~15 k on desktop) compression doesn't engage at all and scroll stays exactly 1:1.
+
+**Documentation**
 - App Store description now highlights recursive folder view, slideshow mode, and Lightroom round-trip as headline features alongside the existing rating/sharing toolset.
 - Backfilled changelog entries for the 1.3.0–1.3.2 nightly releases that were not user-visible before (recursive view, slideshow, virtualized grid).
 
 ### DE
 
+**Bugfixes**
+- **Mobile: Scroll im großen Grid hakte ab Page 1** — bei 7 000+ Bildern wurde der virtualisierte Container im 2-Spalten-Mobile-Layout ~570 k px hoch, weit über Chromes GPU-Tile-Cache auf Android. Ab Page 2 ziehst du in einen Bereich, der nicht vorrasterisiert ist; Chrome muss Tiles on-demand rendern, der Compositor-Scroll fällt zurück auf den Main-Thread, und die Bitmap rückt in Zeilen-Sprüngen statt pixelweise. Compression-Map mit 350 000 px Cap reaktiviert, damit der Container in den Cache passt; topSpacer-Mathe mit kontinuierlichem Sub-Row-Offset neu geschrieben (`scrollTop − (logicalScrollTop mod rowStride) − BUFFER × rowStride`), sodass der sichtbare Inhalt linear mit `compressionRatio × scrollTop` läuft — nicht mehr „bleibt bei einer Zeile kleben und springt am Tick". Bei 7 000 Bildern auf Mobile ergibt das eine Ratio von ~1,6 — der Inhalt wandert 1,6 px pro Finger-Pixel, fühlt sich an wie normales Flick-Scroll-Momentum statt des vorherigen Hak-und-Spring-Musters. Unter der 350-k-Schwelle (≤ ~5 k Bilder Mobile, ≤ ~15 k Desktop) greift die Compression gar nicht erst, Scroll bleibt 1:1.
+
+**Dokumentation**
 - App-Store-Beschreibung hebt jetzt rekursive Ordneransicht, Diashow-Modus und Lightroom-Round-Trip als Hauptmerkmale neben den bestehenden Bewertungs- und Sharing-Funktionen hervor.
 - Changelog-Einträge für die 1.3.0–1.3.2 Nightly-Releases nachgetragen, die zuvor nicht user-sichtbar waren (rekursive Ansicht, Diashow, virtualisiertes Grid).
 

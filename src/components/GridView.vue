@@ -232,22 +232,38 @@ const thumbCache = ref({})
 //
 // data-index bleibt der absolute Index — Thumbnail-Observer und Focus-Logik
 // arbeiten weiter mit Original-Indizes.
+//
+// Zwei Modi koexistieren, getriggert durch compressionRatio:
+//   ratio = 1  (kleine/mittlere Listen, fullLogicalHeight ≤ MAX_PHYSICAL_HEIGHT):
+//              klassische Spacer-Höhen via spacerHeightForRows(); scrollTop läuft
+//              1:1 zur Bild-Position, der Container ist exakt totalHeight hoch.
+//   ratio > 1 (große Listen, Container würde sonst Chromes Tile-Cache überschreiten):
+//              physicalScrollHeight = fullLogicalHeight / ratio; topSpacer folgt
+//              kontinuierlich dem scrollTop minus rowOffset (siehe topSpacer-Formel),
+//              Inhalt bewegt sich pro 1 px Scroll um `ratio` px relativ zum Viewport,
+//              glatt und ohne Row-Tick-Sprung.
 
 const VIRTUAL_BUFFER_ROWS = 2     // extra Reihen oberhalb/unterhalb des Viewports
 const INFO_BAR_HEIGHT     = 26    // ~ min-height der .sr-grid__info Bar
 const TILE_ASPECT         = 0.75  // padding-top: 75% (4:3)
 const GRID_GAP            = 6     // gap: 6px aus CSS
 
-// Cap der physischen Container-Höhe in px. Browser (Chrome/Edge auf Windows)
-// haben ein internes Limit für scroll-position-mapping bei sehr hohen
-// Containern — wir haben das bei 7345 Items × ~250px = 459k empirisch bei
-// ~378k beobachtet (User-Drag stoppt unterhalb des echten Endes).
+// Cap der physischen Container-Höhe in px. Wenn die rechnerische Container-Höhe
+// diesen Wert überschreitet, wird der Scroll logisch komprimiert: scrollTop
+// 0..MAX mappt linear auf alle Items.
 //
-// Wenn die rechnerische Container-Höhe diesen Wert überschreitet, wird der
-// Scroll logisch komprimiert: scrollTop 0..MAX mappt linear auf alle Items.
-// Cost: an Reihen-Grenzen schiebt sich der sichtbare Content um eine Reihe
-// während des Scrollens (kein 1:1 Pixel-zu-Pixel-Mapping mehr). Bei kleinen
-// Compression-Ratios (<1.5) ist der Effekt subtil, bei großen Ratios spürbar.
+// Warum: Chrome auf Android (und ähnlich andere mobile Browser) hält bei
+// Scroll-Containern den GPU-Tile-Cache nur für eine begrenzte Container-Höhe
+// vor. Bei 7000 Items × Mobile-Layout (≈ 570k px) verlässt der User schon ab
+// Page 2 den vorgerechneten Tile-Bereich; Chrome muss nachrasterisieren, der
+// Compositor-Scroll fällt zurück auf Main-Thread, sichtbar als „Bitmap rückt
+// in Zeilenschritten statt pixelweise". Bei 1200 Items (≈ 100k) passt das in
+// den Cache, dort scrollt es smooth.
+//
+// 350k px ist der empirisch saubere Sweet-Spot: deckt den Cache-Bereich auf
+// gängigen Mobile-Geräten ab und beschneidet erst große Ordner (>5k Bilder
+// auf Mobile, >15k auf Desktop). Compression-Mode greift dort und nutzt
+// kontinuierliches Sub-Row-Mapping für smoothes Scrollen (siehe topSpacer).
 const MAX_PHYSICAL_HEIGHT = 350000
 
 const scrollTop      = ref(0)
@@ -276,23 +292,49 @@ function onScroll() {
   scrollEndTimer = setTimeout(resyncRenderedThumbs, 200)
 }
 
+// Items im Render-Range mit Viewport-Priorität enqueuen:
+//   1. Viewport-Reihen zuerst (priority=true, unshift) — User sieht die sofort
+//   2. Buffer-unten dahinter (priority=false, push) — was bei Scroll-Down
+//      als nächstes kommt
+//   3. Buffer-oben zuletzt (priority=false, push) — am wenigsten dringend
+// Bereits geladene oder gerade ladende Items werden übersprungen; cached
+// Items kriegen ihre URL direkt zugewiesen ohne Queue-Roundtrip. Die naive
+// "alles priority=true im Reverse" Variante schob die BUFFER Reihen oberhalb
+// des Viewports vor die echten Viewport-Items in die Queue → bei kalter
+// Cache (großes Shooting frisch geöffnet) sah man die ersten ~4 Slots mit
+// Buffer-Above-Items belegt, bevor die sichtbaren Bilder dran waren.
+function enqueueRenderedRange() {
+  if (!virtualEnabled.value || rowStride.value === 0) return
+  const cols = columnsCount.value || 1
+  const vpTopRow = Math.max(0, Math.floor(logicalScrollTop.value / rowStride.value))
+  const vpRowCount = Math.ceil(viewportHeight.value / rowStride.value)
+  const vpStart = Math.max(renderStartIdx.value, vpTopRow * cols)
+  const vpEnd   = Math.min(renderEndIdx.value, (vpTopRow + vpRowCount) * cols)
+
+  const tryEnqueue = (i, priority) => {
+    const img = props.images[i]
+    if (!img || img.thumbLoaded || img.thumbLoading) return
+    if (thumbCache.value[img.id]) {
+      img.thumbUrl    = thumbCache.value[img.id]
+      img.thumbLoaded = true
+      return
+    }
+    enqueueThumb(img, priority)
+  }
+
+  // 1. Viewport — Reverse-Iter, damit unshift die Top-of-Viewport vorne lässt
+  for (let i = vpEnd - 1; i >= vpStart; i--) tryEnqueue(i, true)
+  // 2. Buffer unten (next bei Scroll-Down) — push behält Top-Down-Order
+  for (let i = vpEnd; i < renderEndIdx.value; i++) tryEnqueue(i, false)
+  // 3. Buffer oben (least likely) — push ans Ende
+  for (let i = renderStartIdx.value; i < vpStart; i++) tryEnqueue(i, false)
+}
+
 function resyncRenderedThumbs() {
   scrollEndTimer = null
   if (!virtualEnabled.value) return
   pruneCancelledLoads()
-  // Reverse-Iteration kombiniert mit enqueueThumb's unshift gibt am Ende
-  // Forward-Order in der Queue (top-of-range zuerst). Forward-Iteration
-  // mit unshift kehrt die Reihenfolge um und lädt Bottom-Items zuerst.
-  for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
-    const img = props.images[i]
-    if (!img || img.thumbLoaded || img.thumbLoading) continue
-    if (thumbCache.value[img.id]) {
-      img.thumbUrl    = thumbCache.value[img.id]
-      img.thumbLoaded = true
-    } else {
-      enqueueThumb(img, true)
-    }
-  }
+  enqueueRenderedRange()
   drainQueue()
 }
 
@@ -367,9 +409,7 @@ const renderedImages = computed(() => {
 
 // Spacer-Höhen: bei kleinen Listen (compressionRatio=1) klassisch — N Reihen
 // × rowHeight + (N-1) × GRID_GAP, damit Items exakt an Reihen-Grenzen sitzen.
-// Bei Compression Anchor-zu-scrollTop: Item bei `visibleStartRow + BUFFER`
-// (= logische Reihe am Viewport-Top) wird physisch bei scrollTop positioniert,
-// topSpacer/bottomSpacer summieren auf physicalScrollHeight.
+// Bei Compression: kontinuierliches Sub-Row-Mapping — siehe topSpacer-Formel.
 function spacerHeightForRows(n) {
   if (n <= 0) return 0
   return n * rowHeight.value + (n - 1) * GRID_GAP
@@ -381,7 +421,16 @@ const topSpacerHeight = computed(() => {
     return spacerHeightForRows(visibleStartRow.value)
   }
   if (visibleStartRow.value === 0) return 0
-  return Math.max(0, scrollTop.value - VIRTUAL_BUFFER_ROWS * rowStride.value)
+  // Kontinuierliche Compression: die erste sichtbare Reihe (logische Reihe
+  // visibleStartRow+BUFFER) wird so platziert, dass ihre Top-Kante genau
+  // `rowOffset` Pixel über der Viewport-Oberkante liegt — wobei rowOffset =
+  // (logicalScrollTop mod rowStride). Ergebnis: pro 1 px scrollTop bewegt sich
+  // der Inhalt `compressionRatio` px relativ zum Viewport, glatt und linear,
+  // ohne „Festbeißen + Sprung am Row-Tick" wie in der naiven scrollTop-1:1-
+  // Formel. Am Row-Tick verschwindet ein Item oben aus dem DOM und ein neues
+  // taucht unten auf — visuell ohne Diskontinuität.
+  const rowOffset = logicalScrollTop.value % rowStride.value
+  return Math.max(0, scrollTop.value - rowOffset - VIRTUAL_BUFFER_ROWS * rowStride.value)
 })
 
 const bottomSpacerHeight = computed(() => {
@@ -396,6 +445,11 @@ const bottomSpacerHeight = computed(() => {
 // ─── Thumbnail-Loading: IntersectionObserver + Concurrency-Queue ─────────────
 
 const THUMB_CONCURRENCY = 5
+// Vorlauf-Margin für Thumbnail-Preload: Items innerhalb dieser Distanz zum
+// Viewport (oben/unten) starten ihren Load, bevor sie sichtbar werden. Wert
+// gemeinsam genutzt von IO rootMargin und observeAllItems-Safety-Net, damit
+// beide Pfade konsistent dieselbe Schwelle anwenden.
+const THUMB_PRELOAD_MARGIN_PX = 400
 let thumbObserver = null
 // Set der aktuell ladenden Image-Objekte. Wir tracken die echte In-Flight-
 // Menge statt eines Zählers, weil Virtualisierung Items mid-load unmounten
@@ -431,33 +485,28 @@ function setupThumbObserver() {
       }
       thumbObserver.unobserve(entry.target)
     }
-  }, { rootMargin: '400px 0px' })
+  }, { rootMargin: `${THUMB_PRELOAD_MARGIN_PX}px 0px` })
 }
 
 function observeAllItems() {
   nextTick(() => {
     if (!gridEl.value || !thumbObserver) return
     const items = gridEl.value.querySelectorAll('.sr-grid__item[data-index]')
-    const vh = window.innerHeight || document.documentElement.clientHeight
     items.forEach(el => {
       const idx = parseInt(el.dataset.index, 10)
       const img = props.images[idx]
       if (!img || img.thumbLoaded) return
       thumbObserver.observe(el)
-      // Safety-Net: IntersectionObserver feuert sein initiales Callback manchmal
-      // nicht zuverlässig (Layout noch nicht stabil, Ordner-Wechsel, etc.).
-      // Sichtbare Items sofort manuell enqueuen; bereits-queued-Check läuft in
-      // enqueueThumb.
-      const rect = el.getBoundingClientRect()
-      if (rect.bottom > 0 && rect.top < vh + 400) {
-        const inViewport = rect.bottom > 0 && rect.top < vh
-        if (thumbCache.value[img.id]) {
-          img.thumbUrl    = thumbCache.value[img.id]
-          img.thumbLoaded = true
-          thumbObserver.unobserve(el)
-        } else {
-          enqueueThumb(img, inViewport)
-        }
+      // Cache-Hit: thumb direkt setzen, kein Queue-Roundtrip nötig.
+      // Echtes Enqueueing läuft zentral über enqueueRenderedRange() im
+      // renderStartIdx/EndIdx-Watch — sonst würde dieses Safety-Net mit
+      // seiner DOM-Order-forEach die Viewport-Priorität wieder zerstören
+      // (Items landen vor enqueueRenderedRange in der Queue, dessen
+      // Priority-Argument greift dann nicht mehr).
+      if (thumbCache.value[img.id]) {
+        img.thumbUrl    = thumbCache.value[img.id]
+        img.thumbLoaded = true
+        thumbObserver.unobserve(el)
       }
     })
   })
@@ -561,6 +610,15 @@ watch(() => props.images, () => {
   loadingItems.clear()
   thumbObserver?.disconnect()
   observeAllItems()
+  // Falls renderStartIdx/EndIdx beim Image-Wechsel numerisch identisch bleiben
+  // (z.B. visibleStart=0 und neuer Range hat zufällig dieselbe Endgrenze),
+  // feuert der renderStartIdx/EndIdx-Watch nicht — dann würde die Queue leer
+  // bleiben, weil observeAllItems nicht mehr selbst enqueued. Hier explizit
+  // anstoßen.
+  nextTick(() => {
+    enqueueRenderedRange()
+    drainQueue()
+  })
 })
 
 // ─── Auswahl ──────────────────────────────────────────────────────────────────
@@ -782,8 +840,10 @@ function moveFocus(delta, extend = false) {
 }
 
 function columnsEstimate() {
-  if (!gridEl.value) return 4
-  return Math.max(1, Math.floor(gridEl.value.offsetWidth / THUMB_SIZE))
+  // Auf Mobile greift in columnsCount die min(THUMB_SIZE, 50vw-16)-Logik für
+  // garantierte 2 Spalten — eine eigene Schätzung über offsetWidth/THUMB_SIZE
+  // würde 1 liefern und ↑/↓ falsch um eine Spalte statt um eine Reihe bewegen.
+  return columnsCount.value || 4
 }
 
 function scrollItemIntoView(index, behavior = 'smooth') {
@@ -838,10 +898,12 @@ watch(focusedIndex, idx => {
 // wandert der DOM-Fokus beim Loupe-Unmount zur document.body — Cursor-
 // Tasten scrollen dann den Body statt durchs Grid zu navigieren.
 //
-// Außerdem: Errored Thumbs im Render-Range neu enqueuen. Loupe-Visit hat NC
-// gezwungen, Previews zu generieren (mindestens für das fokussierte Bild + ←/→-
-// Nachbarn). Diese Items haben jetzt einen Server-side Cache und liefern beim
-// Retry instant. Items die NC immer noch nicht hat, scheitern halt wieder.
+// Außerdem: Errored Thumbs im Render-Range zurücksetzen, damit
+// enqueueRenderedRange() sie wieder als unloaded sieht und mit Viewport-
+// Priorität re-queued. Loupe-Visit hat NC gezwungen, Previews zu generieren
+// (mindestens für das fokussierte Bild + ←/→-Nachbarn). Diese Items haben
+// jetzt einen Server-side Cache und liefern beim Retry instant. Items die
+// NC immer noch nicht hat, scheitern halt wieder.
 watch(() => props.active, isActive => {
   if (!isActive) return
   const idx = focusedIndex.value >= 0 ? focusedIndex.value : props.currentIndex
@@ -852,16 +914,14 @@ watch(() => props.active, isActive => {
     gridEl.value?.focus({ preventScroll: true })
     const start = virtualEnabled.value ? renderStartIdx.value : 0
     const end   = virtualEnabled.value ? renderEndIdx.value   : props.images.length
-    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
-    // Bottom-Up-Order — Items oben (oft im Viewport) würden hinten landen.
-    for (let i = end - 1; i >= start; i--) {
+    for (let i = start; i < end; i++) {
       const img = props.images[i]
       if (!img || !img.thumbError || img.thumbLoading) continue
       img.thumbError   = false
       img.thumbRetries = 0
       img.thumbUrl     = ''
-      enqueueThumb(img, true)
     }
+    enqueueRenderedRange()
     drainQueue()
   })
 })
@@ -940,10 +1000,14 @@ onUnmounted(() => {
 // Sprung-Scroll nie luden, bis der Nutzer den Viewport durch erneutes
 // hoch/runter scrollen "anstößt". Bei aktiver Virtualisierung wissen wir
 // deterministisch, welche Items im sichtbaren Bereich (plus Buffer) sind —
-// alles dort kann sofort enqueued werden, keine IO-Wartezeit nötig.
+// enqueueRenderedRange() füllt die Queue mit Viewport-Items zuerst, Buffer
+// danach (siehe dortigen Kommentar), keine IO-Wartezeit nötig.
 //
-// observeAllItems() läuft trotzdem: hält die Cache-Pfade konsistent und
-// dient als Backup für den Fallback-Modus ohne Virtualisierung.
+// observeAllItems() läuft hier zusätzlich, hat aber eine engere Rolle als
+// früher: es registriert nur den IO als Backup-Pfad (für Range-Wechsel ohne
+// Watch-Feuer, z.B. nach Reactivity-Tick-Coalescing) und setzt cached Items
+// direkt aus thumbCache, ohne Queue-Roundtrip. Das eigentliche Enqueueing
+// passiert ausschließlich in enqueueRenderedRange().
 watch([renderStartIdx, renderEndIdx], () => {
   if (!virtualEnabled.value) return
   pruneCancelledLoads()  // Slot-Freigabe für aus dem DOM verschwundene Items
@@ -957,23 +1021,8 @@ watch([renderStartIdx, renderEndIdx], () => {
   loadQueue.length = 0
   observeAllItems()
   nextTick(() => {
-    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
-    // Bottom-Up-Order. Mit Reverse landet das oberste Item ganz vorne in der
-    // Queue und drainQueue bedient es zuerst — Viewport-Items haben Vorrang.
-    for (let i = renderEndIdx.value - 1; i >= renderStartIdx.value; i--) {
-      const img = props.images[i]
-      if (!img || img.thumbLoaded || img.thumbLoading) continue
-      if (thumbCache.value[img.id]) {
-        img.thumbUrl    = thumbCache.value[img.id]
-        img.thumbLoaded = true
-      } else {
-        // Alle gerenderten Items sind per Buffer-Definition im sichtbaren
-        // Bereich oder direkt davor/dahinter — als Priority enqueuen, damit
-        // sie vor älteren, bereits gescrollten Resten in der Queue stehen.
-        enqueueThumb(img, true)
-      }
-    }
-    drainQueue()  // Queue treiben, falls pruneCancelledLoads Slots freigegeben hat
+    enqueueRenderedRange()
+    drainQueue()
   })
 }, { immediate: true })
 
@@ -994,6 +1043,17 @@ defineExpose({ clearSelection, selectAll, selectedIds })
   /* max-height unabhängig von der Elternkette – NC-Header 50px + Breadcrumb ~36px + Filterbar ~62px + Puffer */
   max-height: calc(100vh - 160px);
   overflow-y: auto;
+  /* Scroll-Anchoring deaktivieren: Defense-in-Depth gegen Browser-Versuche, scrollTop
+     zu korrigieren, wenn topSpacer / Items im Render-Range neu erscheinen. Im
+     Compression-Mode wandert topSpacer kontinuierlich mit dem Scroll (siehe topSpacer-
+     Formel im JS); manche Mobile-Browser interpretieren auch gewollte Sub-Pixel-
+     Shifts als Layout-Bewegung und schnappen zurück. Auf Spacer + Items als direkte
+     Kinder gesetzt, damit auch tiefer liegende Elemente nicht als Anker gewählt werden. */
+  overflow-anchor: none;
+}
+
+.sr-grid > * {
+  overflow-anchor: none;
 }
 
 /* Android Nav-Bar (|||  O  <): sicherstellen dass letzte Zeile nicht verdeckt wird */
