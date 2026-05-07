@@ -898,10 +898,12 @@ watch(focusedIndex, idx => {
 // wandert der DOM-Fokus beim Loupe-Unmount zur document.body — Cursor-
 // Tasten scrollen dann den Body statt durchs Grid zu navigieren.
 //
-// Außerdem: Errored Thumbs im Render-Range neu enqueuen. Loupe-Visit hat NC
-// gezwungen, Previews zu generieren (mindestens für das fokussierte Bild + ←/→-
-// Nachbarn). Diese Items haben jetzt einen Server-side Cache und liefern beim
-// Retry instant. Items die NC immer noch nicht hat, scheitern halt wieder.
+// Außerdem: Errored Thumbs im Render-Range zurücksetzen, damit
+// enqueueRenderedRange() sie wieder als unloaded sieht und mit Viewport-
+// Priorität re-queued. Loupe-Visit hat NC gezwungen, Previews zu generieren
+// (mindestens für das fokussierte Bild + ←/→-Nachbarn). Diese Items haben
+// jetzt einen Server-side Cache und liefern beim Retry instant. Items die
+// NC immer noch nicht hat, scheitern halt wieder.
 watch(() => props.active, isActive => {
   if (!isActive) return
   const idx = focusedIndex.value >= 0 ? focusedIndex.value : props.currentIndex
@@ -912,16 +914,14 @@ watch(() => props.active, isActive => {
     gridEl.value?.focus({ preventScroll: true })
     const start = virtualEnabled.value ? renderStartIdx.value : 0
     const end   = virtualEnabled.value ? renderEndIdx.value   : props.images.length
-    // Reverse-Iteration: enqueueThumb's unshift kehrt Forward-Iteration zur
-    // Bottom-Up-Order — Items oben (oft im Viewport) würden hinten landen.
-    for (let i = end - 1; i >= start; i--) {
+    for (let i = start; i < end; i++) {
       const img = props.images[i]
       if (!img || !img.thumbError || img.thumbLoading) continue
       img.thumbError   = false
       img.thumbRetries = 0
       img.thumbUrl     = ''
-      enqueueThumb(img, true)
     }
+    enqueueRenderedRange()
     drainQueue()
   })
 })
@@ -1000,10 +1000,14 @@ onUnmounted(() => {
 // Sprung-Scroll nie luden, bis der Nutzer den Viewport durch erneutes
 // hoch/runter scrollen "anstößt". Bei aktiver Virtualisierung wissen wir
 // deterministisch, welche Items im sichtbaren Bereich (plus Buffer) sind —
-// alles dort kann sofort enqueued werden, keine IO-Wartezeit nötig.
+// enqueueRenderedRange() füllt die Queue mit Viewport-Items zuerst, Buffer
+// danach (siehe dortigen Kommentar), keine IO-Wartezeit nötig.
 //
-// observeAllItems() läuft trotzdem: hält die Cache-Pfade konsistent und
-// dient als Backup für den Fallback-Modus ohne Virtualisierung.
+// observeAllItems() läuft hier zusätzlich, hat aber eine engere Rolle als
+// früher: es registriert nur den IO als Backup-Pfad (für Range-Wechsel ohne
+// Watch-Feuer, z.B. nach Reactivity-Tick-Coalescing) und setzt cached Items
+// direkt aus thumbCache, ohne Queue-Roundtrip. Das eigentliche Enqueueing
+// passiert ausschließlich in enqueueRenderedRange().
 watch([renderStartIdx, renderEndIdx], () => {
   if (!virtualEnabled.value) return
   pruneCancelledLoads()  // Slot-Freigabe für aus dem DOM verschwundene Items
