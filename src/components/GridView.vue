@@ -143,6 +143,12 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import RatingStars from './RatingStars.vue'
+import {
+  spacerHeightForRows as _spacerHeightForRows,
+  computeCompressionRatio,
+  computeTopSpacerHeight,
+  iterateViewportFirst,
+} from '../utils/gridLayout.js'
 
 const props = defineProps({
   /** Array von Bild-Objekten (von der API) */
@@ -292,17 +298,13 @@ function onScroll() {
   scrollEndTimer = setTimeout(resyncRenderedThumbs, 200)
 }
 
-// Items im Render-Range mit Viewport-Priorität enqueuen:
-//   1. Viewport-Reihen zuerst (priority=true, unshift) — User sieht die sofort
-//   2. Buffer-unten dahinter (priority=false, push) — was bei Scroll-Down
-//      als nächstes kommt
-//   3. Buffer-oben zuletzt (priority=false, push) — am wenigsten dringend
-// Bereits geladene oder gerade ladende Items werden übersprungen; cached
-// Items kriegen ihre URL direkt zugewiesen ohne Queue-Roundtrip. Die naive
-// "alles priority=true im Reverse" Variante schob die BUFFER Reihen oberhalb
-// des Viewports vor die echten Viewport-Items in die Queue → bei kalter
-// Cache (großes Shooting frisch geöffnet) sah man die ersten ~4 Slots mit
-// Buffer-Above-Items belegt, bevor die sichtbaren Bilder dran waren.
+// Items im Render-Range mit Viewport-Priorität enqueuen. Iterations-
+// Reihenfolge (Viewport → Buffer-unten → Buffer-oben) liegt als Generator
+// in gridLayout.js und ist dort separat unit-getestet. Wir übersetzen
+// jedes [index, priority]-Pair in unshift (priority=true) bzw. push
+// (priority=false) via enqueueThumb. Bereits geladene oder gerade ladende
+// Items werden übersprungen; cached Items kriegen ihre URL direkt
+// zugewiesen ohne Queue-Roundtrip.
 function enqueueRenderedRange() {
   if (!virtualEnabled.value || rowStride.value === 0) return
   const cols = columnsCount.value || 1
@@ -311,23 +313,16 @@ function enqueueRenderedRange() {
   const vpStart = Math.max(renderStartIdx.value, vpTopRow * cols)
   const vpEnd   = Math.min(renderEndIdx.value, (vpTopRow + vpRowCount) * cols)
 
-  const tryEnqueue = (i, priority) => {
+  for (const [i, priority] of iterateViewportFirst(renderStartIdx.value, renderEndIdx.value, vpStart, vpEnd)) {
     const img = props.images[i]
-    if (!img || img.thumbLoaded || img.thumbLoading) return
+    if (!img || img.thumbLoaded || img.thumbLoading) continue
     if (thumbCache.value[img.id]) {
       img.thumbUrl    = thumbCache.value[img.id]
       img.thumbLoaded = true
-      return
+      continue
     }
     enqueueThumb(img, priority)
   }
-
-  // 1. Viewport — Reverse-Iter, damit unshift die Top-of-Viewport vorne lässt
-  for (let i = vpEnd - 1; i >= vpStart; i--) tryEnqueue(i, true)
-  // 2. Buffer unten (next bei Scroll-Down) — push behält Top-Down-Order
-  for (let i = vpEnd; i < renderEndIdx.value; i++) tryEnqueue(i, false)
-  // 3. Buffer oben (least likely) — push ans Ende
-  for (let i = renderStartIdx.value; i < vpStart; i++) tryEnqueue(i, false)
 }
 
 function resyncRenderedThumbs() {
@@ -377,9 +372,10 @@ const virtualEnabled = computed(() => rowStride.value > 0 && viewportHeight.valu
 // Logical-Scroll-Mapping: bei Listen, die rechnerisch über MAX_PHYSICAL_HEIGHT
 // kämen, wird der physische Scrollbereich gekappt und auf den logischen
 // Bereich gemappt. compressionRatio=1 bedeutet kein Mapping (kleine Listen).
+// Pure Math liegt in src/utils/gridLayout.js für Unit-Tests.
 const fullLogicalHeight = computed(() => totalRows.value * rowStride.value)
 const compressionRatio  = computed(() =>
-  Math.max(1, fullLogicalHeight.value / MAX_PHYSICAL_HEIGHT)
+  computeCompressionRatio(fullLogicalHeight.value, MAX_PHYSICAL_HEIGHT)
 )
 const physicalScrollHeight = computed(() => fullLogicalHeight.value / compressionRatio.value)
 const logicalScrollTop = computed(() => scrollTop.value * compressionRatio.value)
@@ -409,29 +405,23 @@ const renderedImages = computed(() => {
 
 // Spacer-Höhen: bei kleinen Listen (compressionRatio=1) klassisch — N Reihen
 // × rowHeight + (N-1) × GRID_GAP, damit Items exakt an Reihen-Grenzen sitzen.
-// Bei Compression: kontinuierliches Sub-Row-Mapping — siehe topSpacer-Formel.
+// Bei Compression: kontinuierliches Sub-Row-Mapping — siehe topSpacer-Formel
+// in gridLayout.js (dort auch Unit-Tests für die Math).
 function spacerHeightForRows(n) {
-  if (n <= 0) return 0
-  return n * rowHeight.value + (n - 1) * GRID_GAP
+  return _spacerHeightForRows(n, rowHeight.value, GRID_GAP)
 }
 
-const topSpacerHeight = computed(() => {
-  if (!virtualEnabled.value) return 0
-  if (compressionRatio.value === 1) {
-    return spacerHeightForRows(visibleStartRow.value)
-  }
-  if (visibleStartRow.value === 0) return 0
-  // Kontinuierliche Compression: die erste sichtbare Reihe (logische Reihe
-  // visibleStartRow+BUFFER) wird so platziert, dass ihre Top-Kante genau
-  // `rowOffset` Pixel über der Viewport-Oberkante liegt — wobei rowOffset =
-  // (logicalScrollTop mod rowStride). Ergebnis: pro 1 px scrollTop bewegt sich
-  // der Inhalt `compressionRatio` px relativ zum Viewport, glatt und linear,
-  // ohne „Festbeißen + Sprung am Row-Tick" wie in der naiven scrollTop-1:1-
-  // Formel. Am Row-Tick verschwindet ein Item oben aus dem DOM und ein neues
-  // taucht unten auf — visuell ohne Diskontinuität.
-  const rowOffset = logicalScrollTop.value % rowStride.value
-  return Math.max(0, scrollTop.value - rowOffset - VIRTUAL_BUFFER_ROWS * rowStride.value)
-})
+const topSpacerHeight = computed(() => computeTopSpacerHeight({
+  virtualEnabled:    virtualEnabled.value,
+  compressionRatio:  compressionRatio.value,
+  visibleStartRow:   visibleStartRow.value,
+  rowHeight:         rowHeight.value,
+  rowStride:         rowStride.value,
+  gap:               GRID_GAP,
+  scrollTop:         scrollTop.value,
+  logicalScrollTop:  logicalScrollTop.value,
+  bufferRows:        VIRTUAL_BUFFER_ROWS,
+}))
 
 const bottomSpacerHeight = computed(() => {
   if (!virtualEnabled.value) return 0
