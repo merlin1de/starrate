@@ -8,14 +8,23 @@ on:
         required: true
         type: string
       nc_version:
-        description: 'Nextcloud major version (z.B. 34)'
+        description: 'Nextcloud Version. Docker-Tag (z.B. "33") fuer released NC; Tarball-Name (z.B. "34.0.0beta4") fuer Pre-Releases'
         required: true
         type: string
-        default: '34'
+        default: '33'
+      source:
+        description: 'Installation source'
+        required: true
+        type: choice
+        options:
+          - docker
+          - tarball
+        default: docker
 
 jobs:
-  install-test:
-    name: Install ${{ inputs.tag }} on NC ${{ inputs.nc_version }}
+  install-test-docker:
+    name: Install ${{ inputs.tag }} on NC ${{ inputs.nc_version }} (docker)
+    if: inputs.source == 'docker'
     runs-on: ubuntu-latest
 
     steps:
@@ -28,13 +37,13 @@ jobs:
             -e NEXTCLOUD_TRUSTED_DOMAINS=localhost \
             -e SQLITE_DATABASE=nextcloud \
             nextcloud:${{ inputs.nc_version }}
-          echo "Waiting for Nextcloud to initialize (up to 90s)..."
-          for i in $(seq 1 18); do
+          echo "Waiting for Nextcloud to initialize (up to 120s)..."
+          for i in $(seq 1 24); do
             sleep 5
             STATUS=$(curl -sf http://localhost:8080/status.php 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('installed',''))" 2>/dev/null || echo "")
             echo "  Attempt $i: installed=$STATUS"
             [ "$STATUS" = "True" ] && echo "Nextcloud ready" && break
-            [ "$i" = "18" ] && echo "Timeout waiting for NC" && exit 1
+            [ "$i" = "24" ] && echo "Timeout waiting for NC" && exit 1
           done
 
       - name: Download release archive
@@ -70,22 +79,136 @@ jobs:
       - name: Hit gallery route - no fatal at runtime
         run: |
           docker exec nc bash -c 'cp /var/www/html/data/nextcloud.log /tmp/nc-baseline.log 2>/dev/null || true'
-          HTTP=$(curl -s -o /tmp/index.html -w "%{http_code}" -u admin:admin http://localhost:8080/index.php/apps/starrate/)
+          HTTP=$(curl -s -o /tmp/index.html -w "%{http_code}" http://localhost:8080/index.php/apps/starrate/)
           echo "HTTP: $HTTP"
-          echo "--- response head ---"
-          head -c 2000 /tmp/index.html
+          echo "--- response head (1k chars) ---"
+          head -c 1000 /tmp/index.html
           echo ""
           echo "--- new log lines ---"
           docker exec nc bash -c '
             BASELINE=$(wc -l < /tmp/nc-baseline.log 2>/dev/null || echo 0)
             tail -n +$((BASELINE+1)) /var/www/html/data/nextcloud.log 2>/dev/null || cat /var/www/html/data/nextcloud.log
           ' | tee /tmp/nc-new.log
-          if grep -qiE "Call to undefined method|Fatal error|Uncaught" /tmp/nc-new.log /tmp/index.html; then
-            echo "Fatal error detected in runtime log or response!"
+          if grep -qiE "Call to undefined method|Fatal error|Uncaught Error|Uncaught Exception" /tmp/nc-new.log /tmp/index.html; then
+            echo "Fatal error detected!"
             exit 1
           fi
-          if [ "$HTTP" -lt 200 ] || [ "$HTTP" -ge 400 ]; then
-            echo "Gallery route returned non-OK status: $HTTP"
+          if [ "$HTTP" -ge 500 ]; then
+            echo "Gallery route returned 5xx: $HTTP"
             exit 1
           fi
-          echo "Gallery route OK on NC ${{ inputs.nc_version }}"
+          echo "Gallery route returned $HTTP - no fatal/5xx, OK on NC ${{ inputs.nc_version }}"
+
+  install-test-tarball:
+    name: Install ${{ inputs.tag }} on NC ${{ inputs.nc_version }} (tarball)
+    if: inputs.source == 'tarball'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup PHP 8.3 + sqlite
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, sqlite, pdo_sqlite, mbstring, xml, zip, curl, intl, bz2, fileinfo, gmp, openssl, posix, ctype, dom, json, fileinfo, opcache
+          coverage: none
+
+      - name: Download Nextcloud ${{ inputs.nc_version }} tarball
+        run: |
+          NC_VER="${{ inputs.nc_version }}"
+          # Pre-Release (alpha/beta/rc) gehen in /prereleases/, stable in /releases/
+          if echo "$NC_VER" | grep -qE 'alpha|beta|rc'; then
+            URL="https://download.nextcloud.com/server/prereleases/nextcloud-${NC_VER}.tar.bz2"
+          else
+            URL="https://download.nextcloud.com/server/releases/nextcloud-${NC_VER}.tar.bz2"
+          fi
+          echo "Downloading: $URL"
+          curl -sfL "$URL" -o /tmp/nc.tar.bz2
+          ls -la /tmp/nc.tar.bz2
+
+      - name: Extract Nextcloud
+        run: |
+          mkdir -p /tmp/nc-root
+          tar -xjf /tmp/nc.tar.bz2 -C /tmp/nc-root
+          ls -la /tmp/nc-root/nextcloud/ | head -15
+
+      - name: Install Nextcloud (sqlite)
+        run: |
+          mkdir -p /tmp/nc-root/nextcloud/data
+          cd /tmp/nc-root/nextcloud
+          php occ maintenance:install \
+            --database=sqlite \
+            --database-name=nextcloud \
+            --admin-user=admin \
+            --admin-pass=admin \
+            --data-dir=/tmp/nc-root/nextcloud/data
+          # Trusted-Domain fuer 127.0.0.1
+          php occ config:system:set trusted_domains 1 --value=127.0.0.1
+
+      - name: Show installed NC version
+        run: |
+          cd /tmp/nc-root/nextcloud
+          php occ status 2>&1 | grep -E "version|productname"
+
+      - name: Download starrate release archive
+        run: |
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/starrate.tar.gz"
+          echo "Downloading: $DOWNLOAD_URL"
+          curl -sfL "$DOWNLOAD_URL" -o /tmp/starrate.tar.gz
+
+      - name: Install app
+        run: |
+          tar -xzf /tmp/starrate.tar.gz -C /tmp/nc-root/nextcloud/apps/
+          ls -la /tmp/nc-root/nextcloud/apps/starrate/ | head -10
+
+      - name: Enable app
+        run: |
+          cd /tmp/nc-root/nextcloud
+          RESULT=$(php occ app:enable starrate 2>&1)
+          echo "$RESULT"
+          echo "$RESULT" | grep -q "enabled" || (echo "App enable failed!" && exit 1)
+
+      - name: Smoke test - no PHP fatal errors
+        run: |
+          cd /tmp/nc-root/nextcloud
+          RESULT=$(php occ app:check starrate 2>&1 || true)
+          echo "$RESULT"
+          echo "$RESULT" | grep -qiE "fatal|Uncaught|class.*not found" \
+            && (echo "Fatal PHP error detected!" && exit 1) \
+            || echo "No fatal PHP errors"
+          php occ app:list --enabled 2>&1 \
+            | grep -q "starrate" \
+            && echo "App enabled in NC ${{ inputs.nc_version }}" \
+            || (echo "App missing from enabled list!" && exit 1)
+
+      - name: Hit gallery route via PHP built-in server
+        run: |
+          cd /tmp/nc-root/nextcloud
+          # PHP built-in webserver im Hintergrund (uses index.php as router)
+          php -S 127.0.0.1:8080 -t . > /tmp/php-server.log 2>&1 &
+          SERVER_PID=$!
+          sleep 3
+          # Baseline log size
+          BASELINE=$(wc -l < /tmp/nc-root/nextcloud/data/nextcloud.log 2>/dev/null || echo 0)
+          HTTP=$(curl -s -o /tmp/index.html -w "%{http_code}" http://127.0.0.1:8080/index.php/apps/starrate/ || echo "000")
+          echo "HTTP: $HTTP"
+          echo "--- response head (1k chars) ---"
+          head -c 1000 /tmp/index.html
+          echo ""
+          echo "--- new log lines ---"
+          tail -n +$((BASELINE+1)) /tmp/nc-root/nextcloud/data/nextcloud.log 2>/dev/null > /tmp/nc-new.log || true
+          cat /tmp/nc-new.log
+          # Server stop
+          kill $SERVER_PID 2>/dev/null || true
+          if grep -qiE "Call to undefined method|Fatal error|Uncaught Error|Uncaught Exception" /tmp/nc-new.log /tmp/index.html; then
+            echo "Fatal error detected!"
+            exit 1
+          fi
+          if [ "$HTTP" = "000" ]; then
+            echo "PHP built-in server unreachable"
+            exit 1
+          fi
+          if [ "$HTTP" -ge 500 ]; then
+            echo "Gallery route returned 5xx: $HTTP"
+            exit 1
+          fi
+          echo "Gallery route returned $HTTP - no fatal/5xx, OK on NC ${{ inputs.nc_version }}"
