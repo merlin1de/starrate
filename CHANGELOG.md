@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.5
+
+### EN
+
+**Bug fixes**
+- **Nextcloud 34 compatibility: `Call to undefined method OC\Server::getURLGenerator()`** (#75) — `OC\Server::getURLGenerator()` was removed in NC 34, so loading the app on the latest Nextcloud release ended in a fatal error from `templates/index.php` (and the same call was duplicated in `templates/guest.php` for the guest gallery deep-link URL). Both call sites now resolve the URL generator through the supported DI entry point `\OCP\Server::get(\OCP\IURLGenerator::class)`, which has been available since NC 25 — so the fix covers the full declared compatibility range (29–34) without changing behavior on older releases. Thanks @miaulalala for the report and the spot-on suggested fix.
+
+### DE
+
+**Bugfixes**
+- **Nextcloud 34 Kompatibilität: `Call to undefined method OC\Server::getURLGenerator()`** (#75) — `OC\Server::getURLGenerator()` wurde in NC 34 entfernt, sodass die App beim Laden auf der aktuellen Nextcloud-Version mit einem Fatal Error aus `templates/index.php` abstürzte (der gleiche Aufruf war auch in `templates/guest.php` für die Gast-Galerie-Deep-Link-URL doppelt). Beide Stellen holen den URL-Generator jetzt über den unterstützten DI-Entry-Point `\OCP\Server::get(\OCP\IURLGenerator::class)` — der ist seit NC 25 verfügbar, der Fix deckt also die volle deklarierte Kompatibilitätsspanne (29–34) ab, ohne das Verhalten auf älteren Versionen zu ändern. Danke an @miaulalala für die Meldung und den punktgenauen Fix-Vorschlag.
+
 ## 1.3.4
 
 ### EN
