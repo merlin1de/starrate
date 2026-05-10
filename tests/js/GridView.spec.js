@@ -462,4 +462,48 @@ describe('GridView', () => {
     expect(items[0].attributes('data-index')).toBe('0')
     expect(items[19].attributes('data-index')).toBe('19')
   })
+
+  // ── Tastatur-Navigation: columnsEstimate ─────────────────────────────────
+  //
+  // ↑/↓ steppen um eine Reihe = `columnsCount` Items. Vor dem Fix nutzte
+  // columnsEstimate() eine eigene offsetWidth/THUMB_SIZE-Berechnung, die in
+  // jsdom 0 lieferte und auf Mobile (390px / 280) immer 1 ergab — auf
+  // Mobile-2-Spalten navigierte ↓ also nur 1 Item statt 1 Reihe. Mit dem
+  // Fix nutzt columnsEstimate columnsCount.value, das via gridColumns-Prop
+  // deterministisch ohne Layout setzbar ist.
+
+  it('ArrowDown steppt um columnsCount Items (gridColumns=2)', async () => {
+    const w = factory({ images: makeImages(20), gridColumns: '2' })
+    const items = w.findAll('.sr-grid__item:not(.sr-grid__item--skeleton)')
+    await items[0].trigger('click')
+    await w.trigger('keydown', { key: 'ArrowDown' })
+    // Bei 2 Spalten: Reihe-runter = +2 Items
+    expect(w.find('.sr-grid__item--focused').attributes('data-index')).toBe('2')
+  })
+
+  it('ArrowDown steppt um columnsCount Items (gridColumns=4)', async () => {
+    const w = factory({ images: makeImages(20), gridColumns: '4' })
+    const items = w.findAll('.sr-grid__item:not(.sr-grid__item--skeleton)')
+    await items[0].trigger('click')
+    await w.trigger('keydown', { key: 'ArrowDown' })
+    expect(w.find('.sr-grid__item--focused').attributes('data-index')).toBe('4')
+  })
+
+  it('ArrowUp steppt rückwärts um columnsCount Items', async () => {
+    const w = factory({ images: makeImages(20), gridColumns: '3' })
+    const items = w.findAll('.sr-grid__item:not(.sr-grid__item--skeleton)')
+    await items[6].trigger('click')  // Reihe 2 (Items 6, 7, 8)
+    await w.trigger('keydown', { key: 'ArrowUp' })
+    expect(w.find('.sr-grid__item--focused').attributes('data-index')).toBe('3')
+  })
+
+  it('ArrowDown am unteren Rand clampt auf letztes Item', async () => {
+    // 20 Items bei 3 Spalten: letzte volle Reihe ist Items 18,19 in Reihe 6.
+    // Von Item 19 aus ↓: würde Index 22 ergeben, geclampt auf 19.
+    const w = factory({ images: makeImages(20), gridColumns: '3' })
+    const items = w.findAll('.sr-grid__item:not(.sr-grid__item--skeleton)')
+    await items[19].trigger('click')
+    await w.trigger('keydown', { key: 'ArrowDown' })
+    expect(w.find('.sr-grid__item--focused').attributes('data-index')).toBe('19')
+  })
 })
