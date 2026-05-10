@@ -11,7 +11,7 @@ $allowComment = $_['allow_comment'] ?? false;
 $guestName    = $_['guest_name']    ?? '';
 
 // Server-URL für den App Deep Link (starrate://guest?token=...&server=...)
-$serverUrl = \OC::$server->getURLGenerator()->getAbsoluteURL('/');
+$serverUrl = \OCP\Server::get(\OCP\IURLGenerator::class)->getAbsoluteURL('/');
 $serverUrl = rtrim($serverUrl, '/');
 ?>
 <div
