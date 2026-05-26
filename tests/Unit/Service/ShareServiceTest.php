@@ -638,10 +638,13 @@ class ShareServiceTest extends TestCase
             $tag,
         );
 
-        $service->saveGuestRating(
+        $result = $service->saveGuestRating(
             ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID],
             42, null, '', null, 'Anna'
         );
+
+        // API-Antwort liefert den effektiven Wert (null), nicht das interne '' -Sentinel.
+        $this->assertNull($result['color']);
     }
 
     public function testHealGuestXmpClearsColorViaEmptyString(): void
