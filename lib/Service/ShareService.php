@@ -451,6 +451,10 @@ class ShareService
             "StarRate: Gast '{$entry['guest_name']}' hat Datei {$fileId} gesetzt: {$action} (Share {$token})."
         );
 
+        // API-Antwort spiegelt den effektiven Wert: '' (internes Lösch-Sentinel) → null.
+        // Der Log-Eintrag oben behält '' für die Heal-Unterscheidung (clear vs. unverändert).
+        $entry['color'] = $color === '' ? null : $color;
+
         return $entry;
     }
 
