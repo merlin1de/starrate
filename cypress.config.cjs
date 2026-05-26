@@ -15,7 +15,7 @@ module.exports = {
       'tests/e2e/mobile-virtualization.cy.js',
       'tests/e2e/api-security.cy.js',
     ],
-    supportFile:        false,
+    supportFile:        'tests/e2e/support.js',
     screenshotsFolder:  'tests/results/cypress/screenshots',
     videosFolder:       'tests/results/cypress/videos',
     downloadsFolder:    'tests/results/cypress/downloads',
