@@ -96,6 +96,12 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
         <nextcloud min-version="29" max-version="34"/>
     </dependencies>
 
+    <repair-steps>
+        <post-migration>
+            <step>OCA\StarRate\Migration\GuestXmpDriftWarning</step>
+        </post-migration>
+    </repair-steps>
+
     <navigations>
         <navigation>
             <name>StarRate</name>
@@ -107,6 +113,7 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
 
     <commands>
         <command>OCA\StarRate\Command\ImportXmpCommand</command>
+        <command>OCA\StarRate\Command\HealGuestXmpCommand</command>
     </commands>
 
     <settings>
