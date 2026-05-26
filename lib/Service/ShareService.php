@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Service;
 
+use OCA\StarRate\Settings\UserSettings;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -45,6 +46,8 @@ class ShareService
         private readonly TagService      $tagService,
         private readonly LoggerInterface $logger,
         private readonly IDBConnection $db,
+        private readonly ExifService     $exifService,
+        private readonly UserSettings    $userSettings,
     ) {}
 
     // ─── Share erstellen / verwalten ─────────────────────────────────────────
@@ -411,13 +414,16 @@ class ShareService
             $metadata['rating'] = $rating;
         }
         if ($color !== null) {
-            $metadata['color'] = $color;
+            // '' = Gast hat die Farbe gelöscht → null für setMetadata (= Tag entfernen).
+            // writeGuestXmp bekommt $color unverändert ('' = Label im XMP entfernen).
+            $metadata['color'] = $color === '' ? null : $color;
         }
         if ($pick !== null) {
             $metadata['pick'] = $pick;
         }
         if (!empty($metadata)) {
             $this->tagService->setMetadata($fileIdStr, $metadata);
+            $this->writeGuestXmp($ownerId, $fileId, $rating, $color, $pick);
         }
 
         $filename = $this->resolveFilename($ownerId, $fileId);
@@ -674,6 +680,255 @@ class ShareService
             }
         } catch (\Exception) { /* ignore */ }
         return (string) $fileId;
+    }
+
+    /**
+     * Schreibt eine Gast-Bewertung zusätzlich ins JPEG-XMP — analog zum normalen
+     * User-Rating in RatingController::set.
+     *
+     * Maßgeblich ist die write_xmp-Einstellung des Share-Owners (der Gast hat keine
+     * eigene Session/Settings). Ohne diesen Schritt bliebe das JPEG-XMP veraltet,
+     * während nur der NC-Tag aktualisiert würde — das Self-Healing beim Owner
+     * (RatingController::get) würde die Gast-Bewertung beim nächsten Öffnen mit dem
+     * alten XMP-Wert überschreiben.
+     *
+     * $rating/$color/$pick haben bereits die writeMetadata-Semantik:
+     *   null = unverändert, '' = entfernen (Label), 'none' = entfernen (Pick).
+     * Non-fatal: schlägt das Schreiben fehl, bleibt der NC-Tag trotzdem gesetzt.
+     */
+    private function writeGuestXmp(string $ownerId, int $fileId, ?int $rating, ?string $color, ?string $pick): void
+    {
+        $file = $this->getOwnerFile($ownerId, $fileId);
+        if ($file === null || !in_array($file->getMimeType(), ['image/jpeg', 'image/jpg'], true)) {
+            return;
+        }
+
+        $settings = $this->userSettings->getSettings($ownerId);
+        if (!$settings['write_xmp']) {
+            return;
+        }
+
+        try {
+            $this->exifService->writeMetadata($file, $rating, $color, $pick, $settings['xmp_label_language']);
+        } catch (\Exception $e) {
+            $this->logger->warning("StarRate: Gast-XMP-Write übersprungen für {$fileId}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Löst eine file_id in das File-Objekt des Owners auf (null wenn nicht gefunden).
+     */
+    private function getOwnerFile(string $ownerId, int $fileId): ?File
+    {
+        try {
+            $nodes = $this->rootFolder->getUserFolder($ownerId)->getById($fileId);
+            foreach ($nodes as $n) {
+                if ($n instanceof File) {
+                    return $n;
+                }
+            }
+        } catch (\Exception) { /* ignore */ }
+        return null;
+    }
+
+    // ─── Gast-XMP-Heilung (Altbestands-Migration) ─────────────────────────────
+    //
+    // Vor dem Forward-Fix schrieben Gast-Bewertungen nur NC-Tags, nie JPEG-XMP.
+    // Das Self-Healing (RatingController::get) setzt sie dann beim Öffnen auf den
+    // veralteten XMP-Wert zurück. Diese Migration heilt den Altbestand: sie liest
+    // die Gast-Absicht aus dem Gast-Log (nicht der DB — daher auch korrekt, wenn der
+    // Tag bereits gekippt wurde) und schreibt sie zurück in DB + XMP. Konfliktsicher
+    // per Zeitvergleich (Datei-mtime ≤ Log-Zeit), damit ein späterer externer
+    // LR/digiKam-Edit nicht überschrieben wird.
+
+    /**
+     * Liefert alle NC-User-IDs, die mindestens einen StarRate-Share angelegt haben.
+     * Direkte preferences-Abfrage — vermeidet teures Iterieren über alle NC-User.
+     *
+     * @return string[]
+     */
+    public function getAllShareOwners(): array
+    {
+        $qb     = $this->db->getQueryBuilder();
+        $result = $qb->selectDistinct('userid')
+            ->from('preferences')
+            ->where($qb->expr()->eq('appid', $qb->createNamedParameter(self::APP_ID)))
+            ->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter(self::CONFIG_SHARES)))
+            ->executeQuery();
+
+        $owners = [];
+        while ($row = $result->fetch()) {
+            $owners[] = (string) $row['userid'];
+        }
+        $result->closeCursor();
+        return $owners;
+    }
+
+    /**
+     * Faltet alle Gast-Logs eines Owners pro file_id zur kumulativen Gast-Absicht.
+     *
+     * Jeder Log-Eintrag ist ein Delta — nur die im jeweiligen Request gesetzten Felder
+     * sind non-null. Chronologisch gefaltet: letztes non-null je Feld gewinnt, `ts` =
+     * jüngster beteiligter Zeitstempel. rating=0 / color='' / pick='none' sind bewusste
+     * Lösch-Werte (non-null) und überschreiben entsprechend.
+     *
+     * @return array<int, array{rating: int|null, color: string|null, pick: string|null, ts: int}>
+     */
+    public function foldGuestLog(string $ownerId): array
+    {
+        // Erst ALLE Einträge aller Shares einsammeln, dann GLOBAL chronologisch sortieren.
+        // Pro-Token-Sortierung würde bei derselben Datei über zwei Share-Tokens die
+        // Share-Reihenfolge statt des Zeitstempels über den Gewinner entscheiden.
+        $entries = [];
+        foreach (array_keys($this->loadAllShares($ownerId)) as $token) {
+            $raw = $this->config->getUserValue($ownerId, self::APP_ID, self::CONFIG_LOG . '_' . $token, '[]');
+            $log = json_decode($raw, true);
+            if (!is_array($log)) {
+                continue;
+            }
+            foreach ($log as $e) {
+                if (is_array($e)) {
+                    $entries[] = $e;
+                }
+            }
+        }
+        usort($entries, static fn(array $a, array $b): int => ($a['timestamp'] ?? 0) <=> ($b['timestamp'] ?? 0));
+
+        $folded = [];
+        foreach ($entries as $e) {
+            $fileId = (int) ($e['file_id'] ?? 0);
+            if ($fileId <= 0) {
+                continue;
+            }
+            if (!isset($folded[$fileId])) {
+                $folded[$fileId] = ['rating' => null, 'color' => null, 'pick' => null, 'ts' => 0];
+            }
+            if (($e['rating'] ?? null) !== null) $folded[$fileId]['rating'] = (int) $e['rating'];
+            if (($e['color']  ?? null) !== null) $folded[$fileId]['color']  = (string) $e['color'];
+            if (($e['pick']   ?? null) !== null) $folded[$fileId]['pick']   = (string) $e['pick'];
+            $ts = (int) ($e['timestamp'] ?? 0);
+            if ($ts > $folded[$fileId]['ts']) {
+                $folded[$fileId]['ts'] = $ts;
+            }
+        }
+
+        // Phantom-Einträge (Request ohne rating/color/pick) verwerfen — keine Gast-Absicht,
+        // würden sonst Repair-Warnung + Heal-Scan unnötig aufblähen.
+        return array_filter(
+            $folded,
+            static fn(array $f): bool => $f['rating'] !== null || $f['color'] !== null || $f['pick'] !== null
+        );
+    }
+
+    /**
+     * Zählt die gast-bewerteten Dateien eines Owners (obere Schranke, kein Datei-I/O).
+     * Für den Repair-Step-Scan beim Upgrade.
+     */
+    public function countGuestRatedFiles(string $ownerId): int
+    {
+        return count($this->foldGuestLog($ownerId));
+    }
+
+    /**
+     * Analysiert (Dry-Run) oder heilt gast-bewertete JPEGs eines Owners, deren DB/XMP
+     * durch die alte „Gast schreibt kein XMP"-Lücke auseinanderlaufen.
+     *
+     * Nur aktiv wenn der Owner write_xmp aktiviert hat (sonst kein Self-Healing → kein Drift).
+     * Pro Datei: mtime-Guard (extern später bearbeitet → übersprungen), dann XMP-Vergleich
+     * gegen die Gast-Absicht; bei Abweichung Kandidat (Dry-Run) bzw. DB+XMP-Write (--write).
+     *
+     * @param bool $write false = Analyse, true = DB+XMP tatsächlich schreiben.
+     * @return array{write_xmp: bool, stats: array<string,int>, details: array<int, array>}
+     */
+    public function healGuestXmp(string $ownerId, bool $write): array
+    {
+        $stats = [
+            'folded'        => 0,
+            'candidates'    => 0,
+            'healed'        => 0,
+            'skipped_mtime' => 0,
+            'in_sync'       => 0,
+            'non_jpeg'      => 0,
+            'not_found'     => 0,
+            'errors'        => 0,
+        ];
+        $details = [];
+
+        $settings = $this->userSettings->getSettings($ownerId);
+        if (!$settings['write_xmp']) {
+            return ['write_xmp' => false, 'stats' => $stats, 'details' => $details];
+        }
+        $lang = $settings['xmp_label_language'];
+
+        $folded          = $this->foldGuestLog($ownerId);
+        $stats['folded'] = count($folded);
+
+        foreach ($folded as $fileId => $g) {
+            $file = $this->getOwnerFile($ownerId, $fileId);
+            if ($file === null) {
+                $stats['not_found']++;
+                continue;
+            }
+            if (!in_array($file->getMimeType(), ['image/jpeg', 'image/jpg'], true)) {
+                $stats['non_jpeg']++;
+                continue;
+            }
+            // Konflikt-Guard: Datei nach der Gast-Bewertung extern bearbeitet → in Ruhe lassen.
+            if ($file->getMTime() > $g['ts']) {
+                $stats['skipped_mtime']++;
+                continue;
+            }
+
+            try {
+                $xmp = $this->exifService->readMetadata($file);
+            } catch (\Exception $e) {
+                $stats['errors']++;
+                $this->logger->warning("StarRate heal: XMP-Read fehlgeschlagen für {$fileId}: " . $e->getMessage());
+                continue;
+            }
+
+            // Nur die Felder vergleichen, die der Gast tatsächlich gesetzt hat.
+            $targetColor = $g['color'] === '' ? null : $g['color'];
+            $targetPick  = $g['pick']  === '' ? 'none' : $g['pick'];
+            $diff = false;
+            if ($g['rating'] !== null && $xmp['rating'] !== $g['rating'])          $diff = true;
+            if ($g['color']  !== null && ($xmp['label'] ?? null) !== $targetColor) $diff = true;
+            if ($g['pick']   !== null && $xmp['pick'] !== $targetPick)             $diff = true;
+
+            if (!$diff) {
+                $stats['in_sync']++;
+                continue;
+            }
+
+            $stats['candidates']++;
+            $details[] = [
+                'file_id' => $fileId,
+                'name'    => $file->getName(),
+                'guest'   => ['rating' => $g['rating'], 'color' => $g['color'], 'pick' => $g['pick']],
+                'xmp'     => ['rating' => $xmp['rating'], 'color' => $xmp['label'] ?? null, 'pick' => $xmp['pick']],
+            ];
+
+            if (!$write) {
+                continue;
+            }
+
+            try {
+                $dbData = [];
+                if ($g['rating'] !== null) $dbData['rating'] = $g['rating'];
+                if ($g['color']  !== null) $dbData['color']  = $targetColor;
+                if ($g['pick']   !== null) $dbData['pick']   = $targetPick;
+                if (!empty($dbData)) {
+                    $this->tagService->setMetadata((string) $fileId, $dbData);
+                }
+                $this->exifService->writeMetadata($file, $g['rating'], $g['color'], $g['pick'], $lang);
+                $stats['healed']++;
+            } catch (\Exception $e) {
+                $stats['errors']++;
+                $this->logger->warning("StarRate heal: Schreiben fehlgeschlagen für {$fileId}: " . $e->getMessage());
+            }
+        }
+
+        return ['write_xmp' => true, 'stats' => $stats, 'details' => $details];
     }
 
     /**

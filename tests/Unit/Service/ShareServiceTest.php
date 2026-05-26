@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Tests\Unit\Service;
 
+use OCA\StarRate\Service\ExifService;
 use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
+use OCA\StarRate\Settings\UserSettings;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
@@ -53,6 +55,8 @@ class ShareServiceTest extends TestCase
             $this->createMock(TagService::class),
             $this->createMock(LoggerInterface::class),
             $this->db,
+            $this->createMock(ExifService::class),
+            $this->createMock(UserSettings::class),
         );
     }
 
@@ -311,6 +315,428 @@ class ShareServiceTest extends TestCase
         $this->assertCount(1, $saved);
         $this->assertSame('Anna', $saved[0]['guest_name']);
         $this->assertSame(42, $saved[0]['file_id']);
+    }
+
+    // ─── Tests: Gast-Bewertung schreibt JPEG-XMP (Owner-Setting maßgeblich) ─────
+
+    public function testSaveGuestRatingWritesXmpWhenOwnerWriteXmpEnabled(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+        $file  = $this->jpegFileMock();
+
+        $exif = $this->createMock(ExifService::class);
+        // rating=4, color='Green', pick=null, lang aus Owner-Settings
+        $exif->expects($this->once())
+            ->method('writeMetadata')
+            ->with($file, 4, 'Green', null, 'en');
+
+        $service = $this->makeServiceForXmp(
+            $this->rootFolderReturning($file),
+            $exif,
+            $this->settingsMock(true, 'en'),
+        );
+
+        $service->saveGuestRating($share, 42, 4, 'Green', null, 'Anna');
+    }
+
+    public function testSaveGuestRatingSkipsXmpWhenWriteXmpDisabled(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        $exif = $this->createMock(ExifService::class);
+        $exif->expects($this->never())->method('writeMetadata');
+
+        $service = $this->makeServiceForXmp(
+            $this->rootFolderReturning($this->jpegFileMock()),
+            $exif,
+            $this->settingsMock(false),
+        );
+
+        $service->saveGuestRating($share, 42, 4, 'Green', null, 'Anna');
+    }
+
+    public function testSaveGuestRatingSkipsXmpForNonJpeg(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        $png = $this->createMock(File::class);
+        $png->method('getMimeType')->willReturn('image/png');
+        $png->method('getName')->willReturn('photo.png');
+
+        $exif = $this->createMock(ExifService::class);
+        $exif->expects($this->never())->method('writeMetadata');
+
+        $service = $this->makeServiceForXmp(
+            $this->rootFolderReturning($png),
+            $exif,
+            $this->settingsMock(true),
+        );
+
+        $service->saveGuestRating($share, 42, 4, 'Green', null, 'Anna');
+    }
+
+    public function testSaveGuestRatingXmpFailureIsNonFatal(): void
+    {
+        $share = ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID];
+
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('writeMetadata')->willThrowException(new \RuntimeException('disk full'));
+
+        $service = $this->makeServiceForXmp(
+            $this->rootFolderReturning($this->jpegFileMock()),
+            $exif,
+            $this->settingsMock(true),
+        );
+
+        // Trotz XMP-Fehler liefert saveGuestRating ein gültiges Ergebnis (Tag bleibt gesetzt).
+        $result = $service->saveGuestRating($share, 42, 4, 'Green', null, 'Anna');
+        $this->assertSame(4, $result['rating']);
+    }
+
+    private function jpegFileMock(): File
+    {
+        $file = $this->createMock(File::class);
+        $file->method('getMimeType')->willReturn('image/jpeg');
+        $file->method('getName')->willReturn('photo.jpg');
+        return $file;
+    }
+
+    private function rootFolderReturning(?File $file): IRootFolder
+    {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getById')->willReturn($file === null ? [] : [$file]);
+        $rootFolder = $this->createMock(IRootFolder::class);
+        $rootFolder->method('getUserFolder')->willReturn($folder);
+        return $rootFolder;
+    }
+
+    private function settingsMock(bool $writeXmp, string $lang = 'en'): UserSettings
+    {
+        $us = $this->createMock(UserSettings::class);
+        $us->method('getSettings')->willReturn([
+            'write_xmp'          => $writeXmp,
+            'xmp_label_language' => $lang,
+        ]);
+        return $us;
+    }
+
+    // ─── Tests: Altbestands-Heilung (foldGuestLog / healGuestXmp) ─────────────
+
+    public function testFoldGuestLogMergesDeltasPerFile(): void
+    {
+        $service = $this->makeHealService(
+            $this->healConfig([
+                ['file_id' => 42, 'rating' => 4,    'color' => null,  'pick' => null, 'timestamp' => 100],
+                ['file_id' => 42, 'rating' => null, 'color' => 'Red', 'pick' => null, 'timestamp' => 200],
+            ]),
+            $this->rootFolderReturning(null),
+            $this->createMock(ExifService::class),
+            $this->settingsMock(true),
+        );
+
+        $folded = $service->foldGuestLog(self::OWNER_ID);
+
+        $this->assertArrayHasKey(42, $folded);
+        $this->assertSame(4,     $folded[42]['rating']);
+        $this->assertSame('Red', $folded[42]['color']);
+        $this->assertNull($folded[42]['pick']);
+        $this->assertSame(200,   $folded[42]['ts']);  // jüngster beteiligter Zeitstempel
+    }
+
+    public function testHealGuestXmpDryRunFindsCandidateWithoutWriting(): void
+    {
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('readMetadata')->willReturn(['rating' => 2, 'label' => null, 'pick' => 'none']);
+        $exif->expects($this->never())->method('writeMetadata');
+
+        $tag = $this->createMock(TagService::class);
+        $tag->expects($this->never())->method('setMetadata');
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => 4, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true),
+            $tag,
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, false);
+
+        $this->assertTrue($report['write_xmp']);
+        $this->assertSame(1, $report['stats']['candidates']);
+        $this->assertSame(0, $report['stats']['healed']);
+        $this->assertCount(1, $report['details']);
+    }
+
+    public function testHealGuestXmpWriteHealsDbAndXmp(): void
+    {
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('readMetadata')->willReturn(['rating' => 2, 'label' => null, 'pick' => 'none']);
+        $exif->expects($this->once())
+            ->method('writeMetadata')
+            ->with($this->isInstanceOf(File::class), 4, null, null, 'en');
+
+        $tag = $this->createMock(TagService::class);
+        $tag->expects($this->once())
+            ->method('setMetadata')
+            ->with('42', ['rating' => 4]);
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => 4, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true, 'en'),
+            $tag,
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertSame(1, $report['stats']['healed']);
+    }
+
+    public function testHealGuestXmpSkipsFileEditedAfterGuest(): void
+    {
+        $exif = $this->createMock(ExifService::class);
+        $exif->expects($this->never())->method('readMetadata');
+        $exif->expects($this->never())->method('writeMetadata');
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => 4, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(200)),  // mtime 200 > ts 100 → extern später bearbeitet
+            $exif,
+            $this->settingsMock(true),
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertSame(1, $report['stats']['skipped_mtime']);
+        $this->assertSame(0, $report['stats']['candidates']);
+    }
+
+    public function testHealGuestXmpSkipsWhenAlreadyInSync(): void
+    {
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('readMetadata')->willReturn(['rating' => 4, 'label' => null, 'pick' => 'none']);
+        $exif->expects($this->never())->method('writeMetadata');
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => 4, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true),
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertSame(1, $report['stats']['in_sync']);
+        $this->assertSame(0, $report['stats']['candidates']);
+    }
+
+    public function testHealGuestXmpSkipsOwnerWithWriteXmpDisabled(): void
+    {
+        $rootFolder = $this->createMock(IRootFolder::class);
+        $rootFolder->expects($this->never())->method('getUserFolder');
+
+        $report = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => 4, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $rootFolder,
+            $this->createMock(ExifService::class),
+            $this->settingsMock(false),
+        )->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertFalse($report['write_xmp']);
+        $this->assertSame(0, $report['stats']['folded']);
+    }
+
+    public function testFoldGuestLogGlobalOrderAcrossTokens(): void
+    {
+        // Dieselbe Datei über zwei Tokens: neuerer Wert (ts 100) steht im zuerst
+        // gelisteten Token, älterer (ts 50) im zweiten. Globale Sortierung muss den
+        // jüngsten gewinnen lassen — unabhängig von der Token-Reihenfolge.
+        $configMap = [
+            'starrate_shares' => json_encode([
+                'TOKA' => ['token' => 'TOKA', 'owner_id' => self::OWNER_ID],
+                'TOKB' => ['token' => 'TOKB', 'owner_id' => self::OWNER_ID],
+            ]),
+            'starrate_guest_log_TOKA' => json_encode([
+                ['file_id' => 42, 'rating' => 5, 'color' => null, 'pick' => null, 'timestamp' => 100],
+            ]),
+            'starrate_guest_log_TOKB' => json_encode([
+                ['file_id' => 42, 'rating' => 2, 'color' => null, 'pick' => null, 'timestamp' => 50],
+            ]),
+        ];
+
+        $folded = $this->makeHealService(
+            $configMap,
+            $this->rootFolderReturning(null),
+            $this->createMock(ExifService::class),
+            $this->settingsMock(true),
+        )->foldGuestLog(self::OWNER_ID);
+
+        $this->assertSame(5,   $folded[42]['rating']);  // jüngster gewinnt, nicht der Token-Reihenfolge nach
+        $this->assertSame(100, $folded[42]['ts']);
+    }
+
+    public function testFoldGuestLogDropsPhantomEntries(): void
+    {
+        // Request nur mit file_id (keine Bewertung) → kein Gast-Intent → kein Eintrag.
+        $folded = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => null, 'color' => null, 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning(null),
+            $this->createMock(ExifService::class),
+            $this->settingsMock(true),
+        )->foldGuestLog(self::OWNER_ID);
+
+        $this->assertSame([], $folded);
+    }
+
+    public function testHealGuestXmpClearsPickViaNormalizedValue(): void
+    {
+        // Gast hat Pick zurückgenommen (pick='none'); XMP trägt noch 'pick'.
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('readMetadata')->willReturn(['rating' => 0, 'label' => null, 'pick' => 'pick']);
+        $exif->expects($this->once())
+            ->method('writeMetadata')
+            ->with($this->isInstanceOf(File::class), null, null, 'none', 'en');
+
+        $tag = $this->createMock(TagService::class);
+        $tag->expects($this->once())
+            ->method('setMetadata')
+            ->with('42', ['pick' => 'none']);   // normalisiert, kein '' → keine Validierungs-Exception
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => null, 'color' => null, 'pick' => 'none', 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true, 'en'),
+            $tag,
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertSame(1, $report['stats']['healed']);
+    }
+
+    public function testSaveGuestRatingColorClearRemovesFromDbAndXmp(): void
+    {
+        // Gast entfernt die Farbe → color='' erreicht saveGuestRating.
+        $exif = $this->createMock(ExifService::class);
+        $exif->expects($this->once())
+            ->method('writeMetadata')
+            ->with($this->isInstanceOf(File::class), null, '', null, 'en');  // '' = Label entfernen
+
+        $tag = $this->createMock(TagService::class);
+        $tag->expects($this->once())
+            ->method('setMetadata')
+            ->with('42', ['color' => null]);  // '' → null = Tag entfernen
+
+        $service = $this->makeHealService(
+            [],
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true, 'en'),
+            $tag,
+        );
+
+        $service->saveGuestRating(
+            ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID],
+            42, null, '', null, 'Anna'
+        );
+    }
+
+    public function testHealGuestXmpClearsColorViaEmptyString(): void
+    {
+        // Gast-Log trägt color='' (gelöscht); XMP hat noch ein Label 'Red'.
+        $exif = $this->createMock(ExifService::class);
+        $exif->method('readMetadata')->willReturn(['rating' => 0, 'label' => 'Red', 'pick' => 'none']);
+        $exif->expects($this->once())
+            ->method('writeMetadata')
+            ->with($this->isInstanceOf(File::class), null, '', null, 'en');
+
+        $tag = $this->createMock(TagService::class);
+        $tag->expects($this->once())
+            ->method('setMetadata')
+            ->with('42', ['color' => null]);
+
+        $service = $this->makeHealService(
+            $this->healConfig([['file_id' => 42, 'rating' => null, 'color' => '', 'pick' => null, 'timestamp' => 100]]),
+            $this->rootFolderReturning($this->healFile(50)),
+            $exif,
+            $this->settingsMock(true, 'en'),
+            $tag,
+        );
+
+        $report = $service->healGuestXmp(self::OWNER_ID, true);
+
+        $this->assertSame(1, $report['stats']['healed']);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $logEntries
+     * @return array<string, string>  configkey => stored JSON
+     */
+    private function healConfig(array $logEntries, string $token = 'TOK'): array
+    {
+        return [
+            'starrate_shares'                => json_encode([$token => ['token' => $token, 'owner_id' => self::OWNER_ID]]),
+            "starrate_guest_log_{$token}"    => json_encode($logEntries),
+        ];
+    }
+
+    private function healFile(int $mtime, string $mime = 'image/jpeg'): File
+    {
+        $file = $this->createMock(File::class);
+        $file->method('getMimeType')->willReturn($mime);
+        $file->method('getMTime')->willReturn($mtime);
+        $file->method('getName')->willReturn('photo.jpg');
+        return $file;
+    }
+
+    /**
+     * @param array<string, string> $configMap configkey => stored value
+     */
+    private function makeHealService(
+        array $configMap,
+        IRootFolder $rootFolder,
+        ExifService $exif,
+        UserSettings $userSettings,
+        ?TagService $tag = null,
+    ): ShareService {
+        $config = $this->createMock(IConfig::class);
+        $config->method('getUserValue')->willReturnCallback(
+            static fn(string $uid, string $app, string $key, $default = '') => $configMap[$key] ?? $default
+        );
+
+        return new ShareService(
+            $config,
+            $rootFolder,
+            $this->createMock(IPreviewManager::class),
+            $this->createMock(ISecureRandom::class),
+            $tag ?? $this->createMock(TagService::class),
+            $this->createMock(LoggerInterface::class),
+            $this->createMock(IDBConnection::class),
+            $exif,
+            $userSettings,
+        );
+    }
+
+    private function makeServiceForXmp(IRootFolder $rootFolder, ExifService $exif, UserSettings $userSettings): ShareService
+    {
+        $config = $this->createMock(IConfig::class);
+        $config->method('getUserValue')->willReturn('[]');
+        $config->method('setUserValue');
+
+        return new ShareService(
+            $config,
+            $rootFolder,
+            $this->createMock(IPreviewManager::class),
+            $this->createMock(ISecureRandom::class),
+            $this->createMock(TagService::class),
+            $this->createMock(LoggerInterface::class),
+            $this->createMock(IDBConnection::class),
+            $exif,
+            $userSettings,
+        );
     }
 
     public function testSaveGuestRatingPersistsPickField(): void

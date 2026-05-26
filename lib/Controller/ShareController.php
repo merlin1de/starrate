@@ -396,7 +396,17 @@ class ShareController extends Controller
         }
 
         $rating    = isset($body['rating']) ? (int) $body['rating'] : null;
-        $color     = isset($body['color']) && $body['color'] !== null ? ucfirst(strtolower($body['color'])) : null;
+        // color: Key vorhanden + null/'' = löschen (''), Key vorhanden + Wert = setzen,
+        // Key fehlt = unverändert (null). array_key_exists statt isset, sonst würde ein
+        // explizites null (Gast entfernt die Farbe) als „unverändert" verschluckt.
+        if (array_key_exists('color', $body)) {
+            $rawColor = $body['color'];
+            $color    = ($rawColor === null || $rawColor === '')
+                ? ''
+                : ucfirst(strtolower((string) $rawColor));
+        } else {
+            $color = null;
+        }
         $pick      = !empty($share['allow_pick']) ? ($body['pick'] ?? null) : null;
         $guestName = trim($body['guest_name'] ?? 'Gast');
 
