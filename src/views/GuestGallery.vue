@@ -6,7 +6,7 @@
       <!-- Branding -->
       <div class="sr-guest-pw__brand">
         <div class="sr-guest-pw__brand-name">StarRate <span class="sr-guest-pw__brand-version">v{{ appVersion }}</span></div>
-        <div class="sr-guest-pw__brand-by">by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Merlin1.De</a></div>
+        <div class="sr-guest-pw__brand-by">by <a href="https://whitespace.de" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Whitespace</a></div>
       </div>
 
       <h2 class="sr-guest-pw__title">{{ t('starrate', 'Passwortgeschützte Galerie') }}</h2>

@@ -62,6 +62,15 @@ Good to know:
 - Depth = 0 is usually the right pick for chronological sorting ("everything from this weekend, no matter which folder").
 - Depth ≥ 1 helps when you want to keep folder context as you scroll (Preparation before Ceremony before Reception).
 
+## Which storages are covered
+
+Recursive view walks everything that lives in the **same storage** as the folder you opened. In practice that covers the cases that matter:
+
+- **Your own files** (home storage) — fully.
+- **Group folders** and **shared folders** — fully. If an admin shares a group folder with you, opening it recursively shows every image beneath it.
+
+**Not covered:** an **External Storage** mount, or another mount nested *inside* the folder you opened. Those live in a separate storage with its own index, and StarRate deliberately does not follow across that boundary — doing so would make the view slow, non-deterministic and dependent on whether the external storage happens to be fully indexed. If you need to cull files on an external storage, open that storage's folder directly and use recursive view from there.
+
 ## Folder cache
 
 StarRate remembers per folder, in your browser's `localStorage`, whether you opened it recursively and at which depth.
