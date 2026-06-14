@@ -62,6 +62,15 @@ Gut zu wissen:
 - Tiefe = 0 ist meist die richtige Wahl bei chronologischer Sortierung („alles vom Wochenende, egal aus welchem Ordner").
 - Tiefe ≥ 1 hilft, wenn du beim Scrollen in den Ordner-Kontext zurückfinden willst (Vorbereitung vor Trauung vor Empfang).
 
+## Welche Speicher erfasst werden
+
+Die rekursive Ansicht durchläuft alles, was im **selben Speicher** liegt wie der geöffnete Ordner. In der Praxis deckt das die relevanten Fälle ab:
+
+- **Eigene Dateien** (Home-Storage) — vollständig.
+- **Group Folders** und **geteilte Ordner** — vollständig. Teilt ein Admin dir einen Group Folder, zeigt das rekursive Öffnen jedes Bild darunter.
+
+**Nicht erfasst:** ein **External-Storage**-Mount oder ein anderer Mount, der *innerhalb* des geöffneten Ordners eingehängt ist. Diese liegen in einem eigenen Speicher mit eigenem Index, und StarRate folgt dieser Grenze bewusst nicht — sonst würde die Ansicht langsam, nicht-deterministisch und davon abhängig, ob der External Storage gerade vollständig indiziert ist. Wenn du Dateien auf einem External Storage cullen willst, öffne dessen Ordner direkt und nutze die rekursive Ansicht von dort.
+
 ## Folder-Cache
 
 Pro Ordner merkt sich StarRate im Browser-`localStorage`, ob du ihn rekursiv geöffnet hast und mit welcher Tiefe.

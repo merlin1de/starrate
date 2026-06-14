@@ -379,9 +379,23 @@ class GalleryController extends Controller
      */
     private function listImagesRecursiveFromDb(Folder $folder, string $userBase, int $depth): array
     {
-        $storageId    = $folder->getStorage()->getCache()->getNumericStorageId();
-        $internalPath = $folder->getInternalPath();
-        $pathPrefix   = ($internalPath === '' ? '' : $internalPath . '/') . '%';
+        // Echte (storage, internalPath) des Recursion-Roots direkt aus dem
+        // Filecache holen — NICHT aus der gewrappten Node-Sicht. Bei Group
+        // Folders / Shares liefert getInternalPath() einen jail-relativen,
+        // gekürzten Pfad (z.B. 'Bench' statt 'files/Bench'), der nicht zu den
+        // roh in oc_filecache gespeicherten Pfaden passt → sonst 0 Treffer.
+        // Der fileid-Lookup gibt die echte, jail-/mount-unabhängige Koordinate.
+        $real = $this->resolveCacheLocation($folder->getId());
+        if ($real === null) {
+            return [];
+        }
+        [$storageId, $rootInternalPath] = $real;
+        // LIKE-Metazeichen (% und _) im Ordnerpfad escapen, damit ein Ordner
+        // wie 'My_Folder' nicht versehentlich Geschwister wie 'MyXFolder'
+        // mitmatcht. Der angehängte '/%'-Wildcard bleibt bewusst unescaped.
+        $pathPrefix = ($rootInternalPath === ''
+            ? ''
+            : $this->db->escapeLikeParameter($rootInternalPath) . '/') . '%';
 
         $qb = $this->db->getQueryBuilder();
         $qb->select('fc.fileid', 'fc.name', 'fc.path', 'fc.size', 'fc.mtime', 'mt.mimetype')
@@ -401,31 +415,65 @@ class GalleryController extends Controller
         $rows = $result->fetchAll();
         $result->closeCursor();
 
-        // userBase + 'files' als Trim-Basis: oc_filecache.path startet mit
-        // 'files/...' für die Home-Storage; absoluter Display-Pfad braucht das
-        // userBase-Präfix. relPath wird relativ zum Recursion-Root gebildet.
-        $rootInternalPrefix = $internalPath === '' ? 'files' : $internalPath;
+        // Anzeige-Pfade aus dem User-Pfad des Recursion-Roots + relativem Rest
+        // bauen — NICHT hart 'files/' strippen. $folder->getPath() enthält den
+        // vollen, mount-korrekten User-Pfad inkl. evtl. Group-Folder-Mountpunkt
+        // (z.B. '/BenchGF/Bench'); würde man stattdessen den rohen Storage-Pfad
+        // ('files/Bench/...') ab 'files/' kürzen, ginge das Mount-Präfix
+        // verloren und die Bilder wären nicht mehr auffindbar.
+        $rootUserPath = rtrim(substr($folder->getPath(), strlen($userBase)), '/');
+        $rootLen = strlen($rootInternalPath);
 
         $images = [];
         foreach ($rows as $row) {
-            $internalRelative = ltrim(substr($row['path'], strlen($rootInternalPrefix)), '/');
+            // Pfad relativ zum Recursion-Root, ohne führenden Slash.
+            $relPath = ltrim(substr($row['path'], $rootLen), '/');
 
             $images[] = [
                 'id'       => (int) $row['fileid'],
                 'name'     => $row['name'],
                 // User-folder-relativer Pfad mit führendem Slash, wie
                 // buildImageEntry(): '/Photos/IMG.jpg' statt absolut.
-                'path'     => '/' . substr($row['path'], strlen('files/')),
-                'relPath'  => $internalRelative,
+                'path'     => $rootUserPath . '/' . $relPath,
+                'relPath'  => $relPath,
                 'size'     => (int) $row['size'],
                 'mtime'    => (int) $row['mtime'],
                 'mimetype' => $row['mimetype'],
-                'groupKey' => $depth > 0 ? self::pathPrefix($internalRelative, $depth) : '',
+                'groupKey' => $depth > 0 ? self::pathPrefix($relPath, $depth) : '',
                 'width'    => null,
                 'height'   => null,
             ];
         }
         return $images;
+    }
+
+    /**
+     * Liefert die echte (numeric storage id, storage-interner Pfad) eines
+     * Knotens anhand seiner fileid — direkt aus oc_filecache, unabhängig von
+     * Jail-/Mount-Wrappern. Group Folders und Shares zeigen über
+     * getInternalPath() eine gejailte, gekürzte Pfad-Sicht, die nicht zu den
+     * roh gespeicherten Filecache-Pfaden passt; der fileid-Lookup umgeht das.
+     *
+     * Bewusst NUR dieser eine Storage: verschachtelte Fremd-Mounts (External
+     * Storage etc.) unterhalb des Ordners werden nicht verfolgt — siehe
+     * docs/recursive-folders.*.md (Limitations). Das hält die Suche auf einem
+     * einzigen indizierten Range-Scan und damit deterministisch und schnell.
+     *
+     * @return array{0: int, 1: string}|null [storageId, internalPath] oder null
+     */
+    private function resolveCacheLocation(int $fileId): ?array
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('storage', 'path')
+            ->from('filecache')
+            ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+        $result = $qb->executeQuery();
+        $row = $result->fetch();
+        $result->closeCursor();
+        if ($row === false) {
+            return null;
+        }
+        return [(int) $row['storage'], (string) $row['path']];
     }
 
     /**
