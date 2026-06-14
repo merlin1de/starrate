@@ -67,7 +67,7 @@
 
           <span class="sr-breadcrumb__version">
             StarRate v{{ appVersion }}<br/>
-            by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
+            by <a href="https://whitespace.de" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Whitespace</a>
           </span>
         </div>
       </div>
