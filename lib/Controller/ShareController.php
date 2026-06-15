@@ -359,6 +359,28 @@ class ShareController extends Controller
     }
 
     /**
+     * Gemeinsamer Guard für Download-Endpoints: Share gültig, Passwort ok,
+     * allow_download gesetzt. Liefert den Share oder eine Fehler-Response —
+     * eine Stelle für die (sicherheitsrelevante) Download-Freigabe-Logik.
+     *
+     * @return array|DataResponse
+     */
+    private function requireDownloadableShare(string $token): array|DataResponse
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
+        }
+        if (empty($share['allow_download'])) {
+            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        }
+        return $share;
+    }
+
+    /**
      * GET /api/guest/{token}/download/{fileId} — Gast lädt die Original-Datei
      * herunter, sofern der Share das erlaubt (allow_download).
      */
@@ -367,17 +389,9 @@ class ShareController extends Controller
     #[AnonRateLimit(limit: 120, period: 60)]
     public function guestDownload(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
     {
-        $share = $this->getValidShare($token);
-        if ($share === null) {
-            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
-        }
-
-        if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
-        }
-
-        if (empty($share['allow_download'])) {
-            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        $share = $this->requireDownloadableShare($token);
+        if ($share instanceof DataResponse) {
+            return $share;
         }
 
         try {
@@ -398,17 +412,9 @@ class ShareController extends Controller
     #[AnonRateLimit(limit: 30, period: 60)]
     public function guestDownloadZip(string $token): DataResponse|\OCP\AppFramework\Http\Response
     {
-        $share = $this->getValidShare($token);
-        if ($share === null) {
-            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
-        }
-
-        if (!$this->checkGuestPassword($token, $share)) {
-            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
-        }
-
-        if (empty($share['allow_download'])) {
-            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        $share = $this->requireDownloadableShare($token);
+        if ($share instanceof DataResponse) {
+            return $share;
         }
 
         $ids = $this->parseFileIds((string) $this->request->getParam('ids', ''));

@@ -95,27 +95,6 @@
           </div>
         </template>
 
-        <!-- Download als ZIP — abgesetzt von den "ändere"-Aktionen, weil das
-             "nimm diese" ist. Nur Desktop (CSS): mobil deckt der Einzel-
-             Download den Camera-Roll-Fall ab, ein ZIP wäre dort nur Reibung. -->
-        <template v-if="canDownload">
-          <div class="sr-selbar__sep sr-selbar__sep--zip" />
-          <div class="sr-selbar__section sr-selbar__section--zip">
-            <button
-              class="sr-selbar__btn sr-selbar__btn--zip"
-              type="button"
-              :title="t('starrate', 'Auswahl als ZIP herunterladen')"
-              @click="$emit('download-zip')"
-            >
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span class="sr-selbar__zip-label">{{ t('starrate', 'ZIP') }}</span>
-            </button>
-          </div>
-        </template>
-
       </div>
     </Transition>
   </Teleport>
@@ -149,15 +128,9 @@ defineProps({
     type: Boolean,
     default: false,
   },
-  // Download-ZIP-Button anzeigen (eingeloggt immer; Gast nur wenn Share erlaubt).
-  // Zusätzlich blendet CSS ihn auf Touch-Geräten aus (siehe --zip-Styles).
-  canDownload: {
-    type: Boolean,
-    default: false,
-  },
 })
 
-const emit = defineEmits(['rate', 'clear', 'download-zip'])
+const emit = defineEmits(['rate', 'clear'])
 
 function applyRating(star) {
   emit('rate', star, undefined, undefined)
@@ -279,23 +252,6 @@ function applyPick(pickValue) {
   color: #fff !important;
 }
 
-/* Download-ZIP: Icon + Label, grüner Hover (positive "take"-Aktion, klar von
-   den roten/pinken Rating-Aktionen abgesetzt). */
-.sr-selbar__btn--zip {
-  gap: 5px;
-  padding: 0 10px;
-}
-.sr-selbar__btn--zip svg { width: 15px; height: 15px; }
-.sr-selbar__zip-label { font-size: 12px; font-weight: 500; }
-
-@media (pointer: fine) {
-  .sr-selbar__btn--zip:hover {
-    background: #2e7d52 !important;
-    border-color: #2e7d52 !important;
-    color: #fff !important;
-  }
-}
-
 .sr-selbar__btn--star {
   letter-spacing: -1px;
   font-size: 11px;
@@ -361,13 +317,6 @@ function applyPick(pickValue) {
 @media (pointer: coarse) {
   .sr-selbar {
     bottom: max(80px, env(safe-area-inset-bottom));
-  }
-  /* ZIP-Download nur auf Desktop — auf Touch-Geräten ist ein ZIP nur Reibung
-     (landet als Archiv im Downloads-Ordner statt in der Galerie). Der Einzel-
-     Download in der Loupe bleibt mobil verfügbar. */
-  .sr-selbar__section--zip,
-  .sr-selbar__sep--zip {
-    display: none;
   }
 }
 
