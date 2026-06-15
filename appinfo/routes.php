@@ -32,6 +32,16 @@ return [
             'url'  => '/api/preview/{fileId}',
             'verb' => 'GET',
         ],
+        [
+            'name' => 'gallery#download',
+            'url'  => '/api/download/{fileId}',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'gallery#downloadZip',
+            'url'  => '/api/download-zip',
+            'verb' => 'GET',
+        ],
 
         // ─── Rating ───────────────────────────────────────────────────────────
         [
@@ -112,6 +122,16 @@ return [
         [
             'name' => 'share#guestPreview',
             'url'  => '/api/guest/{token}/preview/{fileId}',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'share#guestDownload',
+            'url'  => '/api/guest/{token}/download/{fileId}',
+            'verb' => 'GET',
+        ],
+        [
+            'name' => 'share#guestDownloadZip',
+            'url'  => '/api/guest/{token}/download-zip',
             'verb' => 'GET',
         ],
         [

@@ -67,7 +67,7 @@
 
           <span class="sr-breadcrumb__version">
             StarRate v{{ appVersion }}<br/>
-            by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Merlin1.De</a>
+            by <a href="https://whitespace.de" target="_blank" rel="noopener noreferrer" class="sr-breadcrumb__version-link">Whitespace</a>
           </span>
         </div>
       </div>
@@ -96,12 +96,15 @@
       :allow-share="!guestMode"
       :allow-export="!guestMode || allowExport"
       :can-export="filteredImages.length > 0"
+      :can-download="canDownload"
+      :selected-count="selectedIds.size"
       :allow-recursive="recursionAvailable"
       :recursive="recursive"
       :depth="depth"
       @toggle-mode="toggleMode"
       @open-share-list="showShareList = true"
       @open-export-modal="showExportModal = true"
+      @download-zip="triggerZipDownload"
       @update:recursive="setRecursive"
       @update:depth="setDepth"
     />
@@ -143,9 +146,11 @@
         :comments-enabled-owner="settings.comments_enabled"
         :slideshow-interval="settings.slideshow_interval ?? 4"
         :guest-mode="guestMode"
+        :can-download="canDownload"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
+        @download="triggerDownload"
       />
     </div>
 
@@ -302,6 +307,12 @@ const props = defineProps({
   allowComment: { type: Boolean, default: false },
   /** Kommentar-API (Gast) — { save, load, remove } */
   commentApi: { type: Object, default: null },
+  /** Gast-Modus: Download erlaubt (per-Share Einstellung, default: false) */
+  allowDownload: { type: Boolean, default: false },
+  /** Ersetzt /api/download/{id} — fn(fileId) → URL (Gast, mit pw_token) */
+  downloadUrlFn: { type: Function, default: null },
+  /** Ersetzt /api/download-zip — fn(ids[]) → URL (Gast, mit pw_token) */
+  downloadZipUrlFn: { type: Function, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -375,6 +386,65 @@ const currentPath = computed(() => {
 //
 // Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
 const recursionAvailable = computed(() => !props.guestMode && !!settings.value.recursion_enabled)
+
+// Download: eingeloggte User dürfen immer (NC-Recht des Eigentümers); im
+// Gast-Modus nur, wenn der Share-Ersteller es erlaubt hat (allow_download).
+const canDownload = computed(() => !props.guestMode || props.allowDownload)
+
+// Browser-Download per programmatischem <a>-Klick anstoßen. Da die Response
+// Content-Disposition: attachment liefert, lädt der Klick die Datei herunter,
+// ohne die Galerie zu verlassen.
+function clickDownloadLink(url, filename = '') {
+  const a = document.createElement('a')
+  a.href = url
+  if (filename) a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
+// Einzel-Download der Originaldatei. Eingeloggt → /api/download/{id};
+// Gast → downloadUrlFn (enthält Token + pw_token).
+function triggerDownload(image) {
+  if (!image || !canDownload.value) return
+  const url = props.downloadUrlFn
+    ? props.downloadUrlFn(image.id)
+    : generateUrl(`/apps/starrate/api/download/${image.id}`)
+  clickDownloadLink(url, image.name || '')
+}
+
+// Soft-Schwellen für den ZIP-Download. ZIP_MAX MUSS mit der Server-Hartgrenze
+// ShareService::MAX_ZIP_FILES übereinstimmen (Backend gibt sonst 422) —
+// bei Änderung beide Stellen anpassen. ZIP_WARN_COUNT ist nur die Vorab-Warnung.
+const ZIP_WARN_COUNT = 100
+const ZIP_MAX = 500
+
+// Lädt die aktuelle Auswahl als ZIP. Eingeloggt → /api/download-zip?ids=…;
+// Gast → downloadZipUrlFn (Token + pw_token). Ein <a>-Klick streamt das ZIP.
+function triggerZipDownload() {
+  if (!canDownload.value) return
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) return
+
+  if (ids.length > ZIP_MAX) {
+    window.alert(t('starrate', 'Maximal {max} Bilder pro ZIP. Bitte die Auswahl verkleinern.', { max: ZIP_MAX }))
+    return
+  }
+
+  const selected   = filteredImages.value.filter(img => selectedIds.value.has(img.id))
+  const totalBytes = selected.reduce((sum, img) => sum + (img.size || 0), 0)
+  if (ids.length > ZIP_WARN_COUNT || totalBytes > 1024 * 1024 * 1024) {
+    const mb = Math.round(totalBytes / (1024 * 1024))
+    if (!window.confirm(t('starrate', '{n} Bilder ({mb} MB) als ZIP herunterladen?', { n: ids.length, mb }))) {
+      return
+    }
+  }
+
+  const url = props.downloadZipUrlFn
+    ? props.downloadZipUrlFn(ids)
+    : generateUrl(`/apps/starrate/api/download-zip?ids=${ids.join(',')}`)
+  clickDownloadLink(url)
+}
 
 const recursive = computed(() => {
   if (!recursionAvailable.value) return false

@@ -75,6 +75,7 @@ class ShareController extends Controller
                 !empty($body['allow_comment']),
                 !empty($body['recursive']),
                 isset($body['depth']) ? (int) $body['depth'] : 0,
+                !empty($body['allow_download']),
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -260,6 +261,7 @@ class ShareController extends Controller
             'allow_pick'      => !empty($share['allow_pick']),
             'allow_export'    => !empty($share['allow_export']),
             'allow_comment'   => !empty($share['allow_comment']),
+            'allow_download'  => !empty($share['allow_download']),
             'guest_name'      => $share['guest_name'] ?? '',
             'show_app_banner' => $showBanner,
         ], 'public');
@@ -354,6 +356,87 @@ class ShareController extends Controller
         } catch (\Exception $e) {
             return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
         }
+    }
+
+    /**
+     * Gemeinsamer Guard für Download-Endpoints: Share gültig, Passwort ok,
+     * allow_download gesetzt. Liefert den Share oder eine Fehler-Response —
+     * eine Stelle für die (sicherheitsrelevante) Download-Freigabe-Logik.
+     *
+     * @return array|DataResponse
+     */
+    private function requireDownloadableShare(string $token): array|DataResponse
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
+        }
+        if (empty($share['allow_download'])) {
+            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        }
+        return $share;
+    }
+
+    /**
+     * GET /api/guest/{token}/download/{fileId} — Gast lädt die Original-Datei
+     * herunter, sofern der Share das erlaubt (allow_download).
+     */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 120, period: 60)]
+    public function guestDownload(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
+    {
+        $share = $this->requireDownloadableShare($token);
+        if ($share instanceof DataResponse) {
+            return $share;
+        }
+
+        try {
+            $file = $this->shareService->getFileForDownload($share, $fileId);
+            return $this->fileDownloadResponse($file);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
+        }
+    }
+
+    /**
+     * GET /api/guest/{token}/download-zip?ids=1,2,3 — Gast lädt mehrere Bilder
+     * als ZIP, sofern der Share allow_download erlaubt. Gleicher
+     * ZIP-Mechanismus wie der eingeloggte Pfad (buildZipResponse).
+     */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function guestDownloadZip(string $token): DataResponse|\OCP\AppFramework\Http\Response
+    {
+        $share = $this->requireDownloadableShare($token);
+        if ($share instanceof DataResponse) {
+            return $share;
+        }
+
+        $ids = $this->parseFileIds((string) $this->request->getParam('ids', ''));
+        if ($ids === []) {
+            return new DataResponse(['error' => 'No files'], Http::STATUS_BAD_REQUEST);
+        }
+        if (count($ids) > ShareService::MAX_ZIP_FILES) {
+            return new DataResponse(['error' => 'Too many files'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        $files = [];
+        foreach ($ids as $id) {
+            try {
+                $files[] = $this->shareService->getFileForDownload($share, $id);
+            } catch (\Exception $e) {
+                // Datei ausserhalb des Shares / nicht gefunden → still überspringen
+            }
+        }
+        if ($files === []) {
+            return new DataResponse(['error' => 'No files found'], Http::STATUS_NOT_FOUND);
+        }
+        return $this->buildZipResponse($files, 'starrate-export');
     }
 
     /**

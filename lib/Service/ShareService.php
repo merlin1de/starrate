@@ -29,6 +29,12 @@ class ShareService
     public const PERM_VIEW = 'view';
     public const PERM_RATE = 'rate';
 
+    // Hartgrenze für Bilder pro ZIP-Download. Schützt Server (RAM/Zeit) und hält
+    // zugleich die GET-fileId-Liste innerhalb der URL-Längengrenze. Notbremse
+    // (gibt 422); das Frontend warnt schon darunter. MUSS mit ZIP_MAX in
+    // src/views/Gallery.vue übereinstimmen — bei Änderung beide anpassen.
+    public const MAX_ZIP_FILES = 500;
+
     private const APP_ID               = 'starrate';
     private const CONFIG_SHARES        = 'starrate_shares';
     private const CONFIG_LOG           = 'starrate_guest_log';  // key: CONFIG_LOG_<token>
@@ -70,6 +76,7 @@ class ShareService
         bool    $allowComment = false,
         bool    $recursive = false,
         int     $depth = 0,
+        bool    $allowDownload = false,
     ): array {
         $this->validatePermissions($permissions);
 
@@ -90,6 +97,7 @@ class ShareService
             'allow_pick'    => $allowPick,
             'allow_export'  => $allowExport,
             'allow_comment' => $allowComment,
+            'allow_download' => $allowDownload,
             'recursive'     => $recursive,
             'depth'         => max(0, min(4, $depth)),
             'created_at'    => time(),
@@ -123,8 +131,9 @@ class ShareService
         while ($row = $result->fetch()) {
             $shares = json_decode($row['configvalue'], true);
             if (is_array($shares) && isset($shares[$token])) {
-                $share                = $shares[$token];
+                $share                 = $shares[$token];
                 $share['has_password'] = !empty($share['password_hash']);
+                $share['allow_download'] = $share['allow_download'] ?? false;
                 return $share;
             }
         }
@@ -142,6 +151,7 @@ class ShareService
         $shares = $this->loadAllShares($ownerId);
         return array_values(array_map(function (array $s): array {
             $s['has_password'] = !empty($s['password_hash']);
+            $s['allow_download'] = $s['allow_download'] ?? false;
             unset($s['password_hash']);
             return $s;
         }, $shares));
@@ -186,6 +196,9 @@ class ShareService
         }
         if (isset($data['allow_comment'])) {
             $all[$token]['allow_comment'] = (bool) $data['allow_comment'];
+        }
+        if (isset($data['allow_download'])) {
+            $all[$token]['allow_download'] = (bool) $data['allow_download'];
         }
         if (isset($data['recursive'])) {
             $all[$token]['recursive'] = (bool) $data['recursive'];
@@ -386,6 +399,43 @@ class ShareService
         // private (Default), nicht immutable → bei mtime-Änderung neu geladen.
         $response->cacheFor(60 * 60 * 24 * 7);
         return $response;
+    }
+
+    /**
+     * Liefert die Original-Datei eines Shares für den Download — mit derselben
+     * "Datei liegt im freigegebenen Ordner"-Sicherheitsprüfung wie
+     * getThumbnailForShare. Der Aufrufer prüft vorher das allow_download-Flag.
+     *
+     * @throws \RuntimeException wenn die Datei nicht existiert oder ausserhalb
+     *                           des Shares liegt.
+     */
+    public function getFileForDownload(array $share, int $fileId): File
+    {
+        $ownerId    = $share['owner_id'];
+        $userFolder = $this->rootFolder->getUserFolder($ownerId);
+        $nodes      = $userFolder->getById($fileId);
+
+        $file = null;
+        foreach ($nodes as $node) {
+            if ($node instanceof File) {
+                $file = $node;
+                break;
+            }
+        }
+
+        if ($file === null) {
+            throw new \RuntimeException("Datei nicht gefunden: {$fileId}");
+        }
+
+        // Sicherheit: Datei muss im freigegebenen Ordner liegen (gleiche Prüfung
+        // wie getThumbnailForShare — ein Gast kann nur Dateien im Share-Ordner
+        // anfassen, nicht beliebige fileIds des Owners).
+        $sharePath = rtrim($share['nc_path'], '/');
+        if (!str_starts_with($file->getPath(), $userFolder->getPath() . '/' . ltrim($sharePath, '/'))) {
+            throw new \RuntimeException("File is not in the shared folder.");
+        }
+
+        return $file;
     }
 
     // ─── Gast-Bewertungen ─────────────────────────────────────────────────────

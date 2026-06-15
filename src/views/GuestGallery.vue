@@ -6,7 +6,7 @@
       <!-- Branding -->
       <div class="sr-guest-pw__brand">
         <div class="sr-guest-pw__brand-name">StarRate <span class="sr-guest-pw__brand-version">v{{ appVersion }}</span></div>
-        <div class="sr-guest-pw__brand-by">by <a href="https://www.instagram.com/merlin1.de/" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Merlin1.De</a></div>
+        <div class="sr-guest-pw__brand-by">by <a href="https://whitespace.de" target="_blank" rel="noopener noreferrer" class="sr-guest-pw__brand-link">Whitespace</a></div>
       </div>
 
       <h2 class="sr-guest-pw__title">{{ t('starrate', 'Passwortgeschützte Galerie') }}</h2>
@@ -42,6 +42,9 @@
     :batch-rate-fn="batchRateFn"
     :thumbnail-url-fn="thumbnailUrlFn"
     :preview-url-fn="previewUrlFn"
+    :allow-download="props.allowDownload"
+    :download-url-fn="downloadUrlFn"
+    :download-zip-url-fn="downloadZipUrlFn"
   />
 </template>
 
@@ -63,6 +66,7 @@ const props = defineProps({
   allowPick:    { type: Boolean, default: false },
   allowExport:  { type: Boolean, default: false },
   allowComment: { type: Boolean, default: false },
+  allowDownload: { type: Boolean, default: false },
   guestName:    { type: String,  default: '' },
 })
 
@@ -136,6 +140,17 @@ function thumbnailUrlFn(fileId, sz) {
 
 function previewUrlFn(fileId) {
   const base = generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  return appendPwToken(base)
+}
+
+function downloadUrlFn(fileId) {
+  // Direkter GET (Browser-Download) → pw_token muss in die URL, nicht in einen Header.
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/download/${fileId}`)
+  return appendPwToken(base)
+}
+
+function downloadZipUrlFn(ids) {
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/download-zip?ids=${ids.join(',')}`)
   return appendPwToken(base)
 }
 
