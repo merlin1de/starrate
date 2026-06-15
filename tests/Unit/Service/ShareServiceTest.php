@@ -113,6 +113,34 @@ class ShareServiceTest extends TestCase
         $this->assertSame(3, $share['min_rating']);
     }
 
+    public function testCreateShareDefaultsAllowDownloadFalse(): void
+    {
+        $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue');
+
+        $share = $this->service->createShare(
+            self::OWNER_ID, '/Fotos', null, null, 0, ShareService::PERM_VIEW
+        );
+
+        $this->assertFalse($share['allow_download']);
+    }
+
+    public function testCreateShareWithAllowDownloadTrue(): void
+    {
+        $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);
+        $this->config->method('getUserValue')->willReturn('{}');
+        $this->config->method('setUserValue');
+
+        // Positionell: …, allowPick, allowExport, allowComment, recursive, depth, allowDownload
+        $share = $this->service->createShare(
+            self::OWNER_ID, '/Fotos', null, null, 0, ShareService::PERM_VIEW,
+            null, false, false, false, false, 0, true
+        );
+
+        $this->assertTrue($share['allow_download']);
+    }
+
     public function testCreateShareWithInvalidPermissionsThrows(): void
     {
         $this->secureRandom->method('generate')->willReturn(self::SAMPLE_TOKEN);

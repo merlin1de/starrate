@@ -56,8 +56,23 @@
       <svg viewBox="0 0 24 24" fill="none"><polyline points="15 18 9 12 15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
 
-    <!-- Zoom-Anzeige + Schließen (oben rechts) -->
+    <!-- Download + Zoom-Anzeige + Schließen (oben rechts) -->
     <div class="sr-loupe__top-right">
+      <!-- Download getrennt links, mit Abstand zum Schließen-Button: beim Cullen
+           ist man unten im Dauerklick, oben drohen keine Fehl-Taps. -->
+      <button
+        v-if="canDownload"
+        class="sr-loupe__download"
+        type="button"
+        :title="t('starrate', 'Bild herunterladen')"
+        :aria-label="t('starrate', 'Bild herunterladen')"
+        @click="$emit('download', currentImage)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
       <div class="sr-loupe__zoom-level" aria-live="polite">{{ zoomLabel }}</div>
       <button
         class="sr-loupe__close"
@@ -318,9 +333,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /** Download-Button anzeigen (eingeloggt immer; Gast nur wenn Share erlaubt). */
+  canDownload: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['rate', 'close', 'index-change'])
+const emit = defineEmits(['rate', 'close', 'index-change', 'download'])
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
 
@@ -1211,6 +1231,32 @@ watch(() => props.initialIndex, idx => {
 @media (pointer: fine) {
   .sr-loupe__close:hover {
     background: rgba(233,69,96,0.7);
+    color: #fff;
+  }
+}
+
+.sr-loupe__download {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #aaa;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 4px;            /* Extra-Abstand zur Zoom/Close-Gruppe gegen Fehl-Taps */
+  transition: background 150ms, color 150ms;
+  backdrop-filter: blur(4px);
+}
+
+.sr-loupe__download svg { width: 18px; height: 18px; }
+
+@media (pointer: fine) {
+  .sr-loupe__download:hover {
+    background: rgba(255,255,255,0.15);
     color: #fff;
   }
 }

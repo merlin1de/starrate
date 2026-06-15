@@ -75,6 +75,7 @@ class ShareController extends Controller
                 !empty($body['allow_comment']),
                 !empty($body['recursive']),
                 isset($body['depth']) ? (int) $body['depth'] : 0,
+                !empty($body['allow_download']),
             );
             return new DataResponse(['share' => $share], Http::STATUS_CREATED);
         } catch (\InvalidArgumentException $e) {
@@ -260,6 +261,7 @@ class ShareController extends Controller
             'allow_pick'      => !empty($share['allow_pick']),
             'allow_export'    => !empty($share['allow_export']),
             'allow_comment'   => !empty($share['allow_comment']),
+            'allow_download'  => !empty($share['allow_download']),
             'guest_name'      => $share['guest_name'] ?? '',
             'show_app_banner' => $showBanner,
         ], 'public');
@@ -353,6 +355,36 @@ class ShareController extends Controller
             return $this->shareService->getThumbnailForShare($share, $fileId, 1920, 1200);
         } catch (\Exception $e) {
             return new DataResponse(['error' => 'Preview not available'], Http::STATUS_NOT_FOUND);
+        }
+    }
+
+    /**
+     * GET /api/guest/{token}/download/{fileId} — Gast lädt die Original-Datei
+     * herunter, sofern der Share das erlaubt (allow_download).
+     */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 120, period: 60)]
+    public function guestDownload(string $token, int $fileId): DataResponse|\OCP\AppFramework\Http\Response
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        if (empty($share['allow_download'])) {
+            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        }
+
+        try {
+            $file = $this->shareService->getFileForDownload($share, $fileId);
+            return $this->fileDownloadResponse($file);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
         }
     }
 

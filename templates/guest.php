@@ -8,6 +8,7 @@ $canRate      = $_['can_rate']      ?? false;
 $allowPick    = $_['allow_pick']    ?? false;
 $allowExport  = $_['allow_export']  ?? false;
 $allowComment = $_['allow_comment'] ?? false;
+$allowDownload = $_['allow_download'] ?? false;
 $guestName    = $_['guest_name']    ?? '';
 
 // Server-URL für den App Deep Link (starrate://guest?token=...&server=...)
@@ -21,6 +22,7 @@ $serverUrl = rtrim($serverUrl, '/');
   data-allow-pick="<?= $allowPick ? 'true' : 'false' ?>"
   data-allow-export="<?= $allowExport ? 'true' : 'false' ?>"
   data-allow-comment="<?= $allowComment ? 'true' : 'false' ?>"
+  data-allow-download="<?= $allowDownload ? 'true' : 'false' ?>"
   data-guest-name="<?= htmlspecialchars($guestName, ENT_QUOTES) ?>"
 ></div>
 
