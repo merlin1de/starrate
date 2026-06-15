@@ -362,4 +362,29 @@ describe('FilterBar', () => {
     const select = w.find('.sr-filterbar__depth')
     expect(select.element.value).toBe('2')
   })
+
+  // ── Download-Button (Auswahl als ZIP) ──────────────────────────────────────
+
+  it('zeigt keinen Download-Button ohne Auswahl', () => {
+    const w = factory({ canDownload: true, selectedCount: 0 })
+    expect(w.find('.sr-filterbar__action--download').exists()).toBe(false)
+  })
+
+  it('zeigt keinen Download-Button wenn canDownload=false', () => {
+    const w = factory({ canDownload: false, selectedCount: 5 })
+    expect(w.find('.sr-filterbar__action--download').exists()).toBe(false)
+  })
+
+  it('zeigt Download-Button mit Anzahl bei Auswahl + canDownload', () => {
+    const w = factory({ canDownload: true, selectedCount: 7 })
+    const btn = w.find('.sr-filterbar__action--download')
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toContain('7')
+  })
+
+  it('emittiert download-zip beim Klick', async () => {
+    const w = factory({ canDownload: true, selectedCount: 3 })
+    await w.find('.sr-filterbar__action--download').trigger('click')
+    expect(w.emitted('download-zip')).toBeTruthy()
+  })
 })

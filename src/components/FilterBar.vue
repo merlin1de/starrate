@@ -137,9 +137,11 @@
         >{{ t('starrate', 'Alle anzeigen') }}</button>
       </div>
 
-      <!-- Desktop: Teilen + Export (rechts vom Filter-Count, statisch sichtbar) -->
+      <!-- Desktop: Teilen + Export + Download (rechts vom Filter-Count, statisch
+           sichtbar). Download nur bei Auswahl — oben rechts, wo der Nutzer ihn
+           analog zur Loupe erwartet, NICHT im Rating-Bar (das ist "ändern"). -->
       <div
-        v-if="allowShare || allowExport"
+        v-if="allowShare || allowExport || (canDownload && selectedCount > 0)"
         class="sr-filterbar__actions sr-filterbar__actions--desktop"
       >
         <button
@@ -157,6 +159,13 @@
           :title="t('starrate', 'Bewertungsliste exportieren')"
           @click="$emit('open-export-modal')"
         >{{ t('starrate', 'Export') }}</button>
+        <button
+          v-if="canDownload && selectedCount > 0"
+          class="sr-filterbar__action sr-filterbar__action--download"
+          type="button"
+          :title="t('starrate', 'Auswahl als ZIP herunterladen')"
+          @click="$emit('download-zip')"
+        >{{ t('starrate', 'Download') }} ({{ selectedCount }})</button>
       </div>
 
       <!-- Recursive-Toggle + Tiefen-Selector. Nur wenn allowRecursive (= nicht
@@ -288,6 +297,16 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // Download-Button (Auswahl als ZIP): canDownload gated (eingeloggt/Share),
+  // selectedCount > 0 macht ihn sichtbar. Sitzt im Desktop-Cluster (mobil aus).
+  canDownload: {
+    type: Boolean,
+    default: false,
+  },
+  selectedCount: {
+    type: Number,
+    default: 0,
+  },
   // Recursive-View-Controls (V1: aus, sobald Gallery sie reicht)
   allowRecursive: { type: Boolean, default: false },
   recursive:      { type: Boolean, default: false },
@@ -296,7 +315,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:filter', 'toggle-mode', 'open-share-list', 'open-export-modal',
-  'update:recursive', 'update:depth',
+  'update:recursive', 'update:depth', 'download-zip',
 ])
 
 const colorOptions = COLOR_OPTIONS
