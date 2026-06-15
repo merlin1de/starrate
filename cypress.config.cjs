@@ -13,6 +13,7 @@ module.exports = {
       'tests/e2e/pick-reject.cy.js',
       'tests/e2e/comments.cy.js',
       'tests/e2e/mobile-virtualization.cy.js',
+      'tests/e2e/download.cy.js',
       'tests/e2e/api-security.cy.js',
     ],
     supportFile:        'tests/e2e/support.js',
