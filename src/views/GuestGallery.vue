@@ -42,6 +42,8 @@
     :batch-rate-fn="batchRateFn"
     :thumbnail-url-fn="thumbnailUrlFn"
     :preview-url-fn="previewUrlFn"
+    :allow-download="props.allowDownload"
+    :download-url-fn="downloadUrlFn"
   />
 </template>
 
@@ -63,6 +65,7 @@ const props = defineProps({
   allowPick:    { type: Boolean, default: false },
   allowExport:  { type: Boolean, default: false },
   allowComment: { type: Boolean, default: false },
+  allowDownload: { type: Boolean, default: false },
   guestName:    { type: String,  default: '' },
 })
 
@@ -136,6 +139,12 @@ function thumbnailUrlFn(fileId, sz) {
 
 function previewUrlFn(fileId) {
   const base = generateUrl(`/apps/starrate/api/guest/${props.token}/preview/${fileId}`)
+  return appendPwToken(base)
+}
+
+function downloadUrlFn(fileId) {
+  // Direkter GET (Browser-Download) → pw_token muss in die URL, nicht in einen Header.
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/download/${fileId}`)
   return appendPwToken(base)
 }
 

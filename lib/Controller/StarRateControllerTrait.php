@@ -6,6 +6,8 @@ namespace OCA\StarRate\Controller;
 
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\StreamResponse;
 use OCP\Files\File;
 
 /**
@@ -59,6 +61,33 @@ trait StarRateControllerTrait
             }
         }
         return null;
+    }
+
+    /**
+     * Baut eine Streaming-Download-Antwort für eine Original-Datei
+     * (Content-Disposition: attachment). Gestreamt statt getContent(), damit
+     * grosse Originale (TIFF u.a.) nicht komplett in den RAM geladen werden.
+     *
+     * Dateiname nach RFC 6266: ASCII-Fallback + UTF-8-Variante für Umlaute etc.
+     */
+    private function fileDownloadResponse(File $file): Response
+    {
+        $stream = $file->fopen('rb');
+        if ($stream === false) {
+            return new DataResponse(['error' => 'File not readable'], Http::STATUS_NOT_FOUND);
+        }
+
+        $name     = $file->getName();
+        $fallback = str_replace('"', '', (string) preg_replace('/[^\x20-\x7e]/', '_', $name));
+
+        $response = new StreamResponse($stream);
+        $response->addHeader(
+            'Content-Disposition',
+            'attachment; filename="' . $fallback . "\"; filename*=UTF-8''" . rawurlencode($name)
+        );
+        $response->addHeader('Content-Type', $file->getMimeType());
+        $response->addHeader('Content-Length', (string) $file->getSize());
+        return $response;
     }
 
     /**

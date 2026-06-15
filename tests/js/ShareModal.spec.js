@@ -178,6 +178,20 @@ describe('ShareModal', () => {
     expect(body.min_rating).toBe(3)
     expect(body.password).toBe('geheim')
     expect(body.expires_at).toBeGreaterThan(0)
+    expect(body.allow_download).toBe(false)
+  })
+
+  it('sendet allow_download=true wenn aktiviert', async () => {
+    axios.post.mockResolvedValueOnce({ data: { share: { token: 'x' } } })
+    const w = factory()
+
+    await w.findAll('.sr-share-modal__toggle')[0].trigger('click') // view → kein Gast-Name nötig
+    await w.find('[data-testid="allow-download"]').setValue(true)
+    await w.find('.sr-share-modal__form').trigger('submit')
+    await flushPromises()
+
+    const body = axios.post.mock.calls[0][1]
+    expect(body.allow_download).toBe(true)
   })
 
   it('sendet allow_pick=false bei permissions=view auch wenn Checkbox war true', async () => {
