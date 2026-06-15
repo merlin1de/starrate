@@ -389,6 +389,51 @@ class ShareController extends Controller
     }
 
     /**
+     * GET /api/guest/{token}/download-zip?ids=1,2,3 — Gast lädt mehrere Bilder
+     * als ZIP, sofern der Share allow_download erlaubt. Gleicher
+     * ZIP-Mechanismus wie der eingeloggte Pfad (buildZipResponse).
+     */
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function guestDownloadZip(string $token): DataResponse|\OCP\AppFramework\Http\Response
+    {
+        $share = $this->getValidShare($token);
+        if ($share === null) {
+            return new DataResponse(['error' => 'Invalid link'], Http::STATUS_FORBIDDEN);
+        }
+
+        if (!$this->checkGuestPassword($token, $share)) {
+            return new DataResponse(['error' => 'Password required'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        if (empty($share['allow_download'])) {
+            return new DataResponse(['error' => 'Download not allowed'], Http::STATUS_FORBIDDEN);
+        }
+
+        $ids = $this->parseFileIds((string) $this->request->getParam('ids', ''));
+        if ($ids === []) {
+            return new DataResponse(['error' => 'No files'], Http::STATUS_BAD_REQUEST);
+        }
+        if (count($ids) > ShareService::MAX_ZIP_FILES) {
+            return new DataResponse(['error' => 'Too many files'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        $files = [];
+        foreach ($ids as $id) {
+            try {
+                $files[] = $this->shareService->getFileForDownload($share, $id);
+            } catch (\Exception $e) {
+                // Datei ausserhalb des Shares / nicht gefunden → still überspringen
+            }
+        }
+        if ($files === []) {
+            return new DataResponse(['error' => 'No files found'], Http::STATUS_NOT_FOUND);
+        }
+        return $this->buildZipResponse($files, 'starrate-export');
+    }
+
+    /**
      * POST /api/guest/{token}/rate — Gast bewertet ein Bild.
      *
      * Body (JSON): {

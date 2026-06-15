@@ -43,6 +43,24 @@ describe('SelectionBar', () => {
     expect(w.find('.sr-selbar__clear').exists()).toBe(true)
   })
 
+  // ── ZIP-Download ──────────────────────────────────────────────────────────
+
+  it('zeigt keinen ZIP-Button wenn canDownload=false (Default)', () => {
+    const w = factory()
+    expect(w.find('.sr-selbar__btn--zip').exists()).toBe(false)
+  })
+
+  it('zeigt ZIP-Button wenn canDownload=true', () => {
+    const w = factory({ canDownload: true })
+    expect(w.find('.sr-selbar__btn--zip').exists()).toBe(true)
+  })
+
+  it('emittiert download-zip beim Klick auf ZIP', async () => {
+    const w = factory({ canDownload: true })
+    await w.find('.sr-selbar__btn--zip').trigger('click')
+    expect(w.emitted('download-zip')).toBeTruthy()
+  })
+
   // ── Bewertung setzen ──────────────────────────────────────────────────────
 
   it('emittiert rate mit Rating 4 beim Klick auf ★★★★', async () => {
