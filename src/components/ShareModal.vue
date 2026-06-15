@@ -108,6 +108,13 @@
           </div>
 
           <div class="sr-share-modal__field">
+            <label class="sr-share-modal__checkbox-label">
+              <input type="checkbox" v-model="form.allowDownload" class="sr-share-modal__checkbox" data-testid="allow-download" />
+              {{ t('starrate', 'Download der Bilder erlauben') }}
+            </label>
+          </div>
+
+          <div class="sr-share-modal__field">
             <label class="sr-share-modal__checkbox-label" :class="{ 'sr-share-modal__checkbox-label--disabled': !commentsGloballyEnabled }">
               <input type="checkbox" v-model="form.allowComment" class="sr-share-modal__checkbox"
                      :disabled="!commentsGloballyEnabled" />
@@ -265,6 +272,7 @@ function buildInitialForm() {
       allowPick:     !!e.allow_pick,
       allowExport:   !!e.allow_export,
       allowComment:  !!e.allow_comment,
+      allowDownload: !!e.allow_download,
       minRating:     e.min_rating ?? 0,
       recursive:     !!e.recursive,
       depth:         e.depth ?? 0,
@@ -285,6 +293,7 @@ function buildInitialForm() {
     allowPick:     false,
     allowExport:   false,
     allowComment:  false,
+    allowDownload: false,
     minRating:     0,
     recursive:     rec.recursive,
     depth:         rec.depth,
@@ -360,6 +369,7 @@ async function create() {
     allow_pick:    form.value.permissions === 'rate' && form.value.allowPick,
     allow_export:  form.value.allowExport,
     allow_comment: form.value.allowComment && props.commentsGloballyEnabled,
+    allow_download: form.value.allowDownload,
     min_rating:   form.value.minRating,
     recursive:    !!form.value.recursive,
     depth:        Number(form.value.depth) || 0,

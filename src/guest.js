@@ -22,6 +22,7 @@ if (el) {
   const allowPick    = el.dataset.allowPick    === 'true'
   const allowExport  = el.dataset.allowExport  === 'true'
   const allowComment = el.dataset.allowComment === 'true'
+  const allowDownload = el.dataset.allowDownload === 'true'
   const guestName    = el.dataset.guestName    ?? ''
 
   // Memory-Router: dieselben Routen wie main.js, aber ohne URL-Seiteneffekte
@@ -33,7 +34,7 @@ if (el) {
     ],
   })
 
-  const app = createApp(GuestGallery, { token, canRate, allowPick, allowExport, allowComment, guestName })
+  const app = createApp(GuestGallery, { token, canRate, allowPick, allowExport, allowComment, allowDownload, guestName })
   app.use(router)
   router.isReady().then(() => app.mount(el))
 }

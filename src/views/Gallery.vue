@@ -143,9 +143,11 @@
         :comments-enabled-owner="settings.comments_enabled"
         :slideshow-interval="settings.slideshow_interval ?? 4"
         :guest-mode="guestMode"
+        :can-download="canDownload"
         @rate="onRate"
         @close="mode = 'grid'"
         @index-change="currentIndex = $event"
+        @download="triggerDownload"
       />
     </div>
 
@@ -302,6 +304,10 @@ const props = defineProps({
   allowComment: { type: Boolean, default: false },
   /** Kommentar-API (Gast) — { save, load, remove } */
   commentApi: { type: Object, default: null },
+  /** Gast-Modus: Download erlaubt (per-Share Einstellung, default: false) */
+  allowDownload: { type: Boolean, default: false },
+  /** Ersetzt /api/download/{id} — fn(fileId) → URL (Gast, mit pw_token) */
+  downloadUrlFn: { type: Function, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -375,6 +381,27 @@ const currentPath = computed(() => {
 //
 // Im Gast-Modus immer aus — Guest-API unterstützt Recursive aktuell nicht.
 const recursionAvailable = computed(() => !props.guestMode && !!settings.value.recursion_enabled)
+
+// Download: eingeloggte User dürfen immer (NC-Recht des Eigentümers); im
+// Gast-Modus nur, wenn der Share-Ersteller es erlaubt hat (allow_download).
+const canDownload = computed(() => !props.guestMode || props.allowDownload)
+
+// Stößt den Browser-Download der Originaldatei an. Eingeloggt → /api/download/{id};
+// Gast → downloadUrlFn (enthält Token + pw_token). Da die Response
+// Content-Disposition: attachment liefert, lädt der <a download>-Klick die Datei
+// herunter, ohne die Galerie zu verlassen.
+function triggerDownload(image) {
+  if (!image || !canDownload.value) return
+  const url = props.downloadUrlFn
+    ? props.downloadUrlFn(image.id)
+    : generateUrl(`/apps/starrate/api/download/${image.id}`)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = image.name || ''
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
 
 const recursive = computed(() => {
   if (!recursionAvailable.value) return false

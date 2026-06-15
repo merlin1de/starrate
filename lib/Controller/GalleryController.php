@@ -273,6 +273,27 @@ class GalleryController extends Controller
         }
     }
 
+    /**
+     * GET /api/download/{fileId} — Original-Datei des eingeloggten Users als
+     * Download (Content-Disposition: attachment). Der eingeloggte User ist
+     * Eigentümer und hat ohnehin das NC-Recht, seine Dateien herunterzuladen;
+     * daher keine zusätzliche Beschränkung (anders als im Guest-Pfad).
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function download(int $fileId): Response
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $file = $this->getFileById($userId, $fileId);
+        if ($file === null) {
+            return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
+        }
+        return $this->fileDownloadResponse($file);
+    }
+
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────
 
     /**
