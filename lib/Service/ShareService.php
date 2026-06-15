@@ -30,8 +30,9 @@ class ShareService
     public const PERM_RATE = 'rate';
 
     // Hartgrenze für Bilder pro ZIP-Download. Schützt Server (RAM/Zeit) und hält
-    // zugleich die GET-fileId-Liste innerhalb der URL-Längengrenze. Das Frontend
-    // warnt schon darunter (Soft-Schwelle); hier ist die Notbremse.
+    // zugleich die GET-fileId-Liste innerhalb der URL-Längengrenze. Notbremse
+    // (gibt 422); das Frontend warnt schon darunter. MUSS mit ZIP_MAX in
+    // src/views/Gallery.vue übereinstimmen — bei Änderung beide anpassen.
     public const MAX_ZIP_FILES = 500;
 
     private const APP_ID               = 'starrate';

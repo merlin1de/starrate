@@ -96,12 +96,15 @@
       :allow-share="!guestMode"
       :allow-export="!guestMode || allowExport"
       :can-export="filteredImages.length > 0"
+      :can-download="canDownload"
+      :selected-count="selectedIds.size"
       :allow-recursive="recursionAvailable"
       :recursive="recursive"
       :depth="depth"
       @toggle-mode="toggleMode"
       @open-share-list="showShareList = true"
       @open-export-modal="showExportModal = true"
+      @download-zip="triggerZipDownload"
       @update:recursive="setRecursive"
       @update:depth="setDepth"
     />
@@ -159,10 +162,8 @@
       :active-color="batchActiveColor"
       :active-pick="batchActivePick"
       :enable-pick-ui="settings.enable_pick_ui"
-      :can-download="canDownload"
       @rate="onBatchRate"
       @clear="gridRef?.clearSelection()"
-      @download-zip="triggerZipDownload"
     />
 
     <!-- Share-Liste -->
@@ -390,25 +391,31 @@ const recursionAvailable = computed(() => !props.guestMode && !!settings.value.r
 // Gast-Modus nur, wenn der Share-Ersteller es erlaubt hat (allow_download).
 const canDownload = computed(() => !props.guestMode || props.allowDownload)
 
-// Stößt den Browser-Download der Originaldatei an. Eingeloggt → /api/download/{id};
-// Gast → downloadUrlFn (enthält Token + pw_token). Da die Response
-// Content-Disposition: attachment liefert, lädt der <a download>-Klick die Datei
-// herunter, ohne die Galerie zu verlassen.
-function triggerDownload(image) {
-  if (!image || !canDownload.value) return
-  const url = props.downloadUrlFn
-    ? props.downloadUrlFn(image.id)
-    : generateUrl(`/apps/starrate/api/download/${image.id}`)
+// Browser-Download per programmatischem <a>-Klick anstoßen. Da die Response
+// Content-Disposition: attachment liefert, lädt der Klick die Datei herunter,
+// ohne die Galerie zu verlassen.
+function clickDownloadLink(url, filename = '') {
   const a = document.createElement('a')
   a.href = url
-  a.download = image.name || ''
+  if (filename) a.download = filename
   document.body.appendChild(a)
   a.click()
   a.remove()
 }
 
-// Soft-Schwellen für den ZIP-Download. Harte Grenze (ZIP_MAX) setzt auch der
-// Server (ShareService::MAX_ZIP_FILES) — hier nur die freundliche Vorab-Warnung.
+// Einzel-Download der Originaldatei. Eingeloggt → /api/download/{id};
+// Gast → downloadUrlFn (enthält Token + pw_token).
+function triggerDownload(image) {
+  if (!image || !canDownload.value) return
+  const url = props.downloadUrlFn
+    ? props.downloadUrlFn(image.id)
+    : generateUrl(`/apps/starrate/api/download/${image.id}`)
+  clickDownloadLink(url, image.name || '')
+}
+
+// Soft-Schwellen für den ZIP-Download. ZIP_MAX MUSS mit der Server-Hartgrenze
+// ShareService::MAX_ZIP_FILES übereinstimmen (Backend gibt sonst 422) —
+// bei Änderung beide Stellen anpassen. ZIP_WARN_COUNT ist nur die Vorab-Warnung.
 const ZIP_WARN_COUNT = 100
 const ZIP_MAX = 500
 
@@ -436,11 +443,7 @@ function triggerZipDownload() {
   const url = props.downloadZipUrlFn
     ? props.downloadZipUrlFn(ids)
     : generateUrl(`/apps/starrate/api/download-zip?ids=${ids.join(',')}`)
-  const a = document.createElement('a')
-  a.href = url
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+  clickDownloadLink(url)
 }
 
 const recursive = computed(() => {
