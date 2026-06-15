@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\StarRate\Controller;
 
+use OCA\StarRate\Service\ShareService;
 use OCA\StarRate\Service\TagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -292,6 +293,41 @@ class GalleryController extends Controller
             return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
         }
         return $this->fileDownloadResponse($file);
+    }
+
+    /**
+     * GET /api/download-zip?ids=1,2,3 — mehrere Original-Dateien des
+     * eingeloggten Users als ZIP. NoCSRFRequired wie download() (per <a>-Klick
+     * / Formular ausgelöst, kein requesttoken). Owner-Recht, daher keine
+     * weitere Beschränkung ausser dem Mengen-Cap.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function downloadZip(): Response
+    {
+        $auth = $this->requireAuth();
+        if ($auth instanceof DataResponse) return $auth;
+        $userId = $auth;
+
+        $ids = $this->parseFileIds((string) $this->request->getParam('ids', ''));
+        if ($ids === []) {
+            return new DataResponse(['error' => 'No files'], Http::STATUS_BAD_REQUEST);
+        }
+        if (count($ids) > ShareService::MAX_ZIP_FILES) {
+            return new DataResponse(['error' => 'Too many files'], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
+        $files = [];
+        foreach ($ids as $id) {
+            $file = $this->getFileById($userId, $id);
+            if ($file !== null) {
+                $files[] = $file;
+            }
+        }
+        if ($files === []) {
+            return new DataResponse(['error' => 'No files found'], Http::STATUS_NOT_FOUND);
+        }
+        return $this->buildZipResponse($files, 'starrate-export');
     }
 
     // ─── Hilfsmethoden ────────────────────────────────────────────────────────

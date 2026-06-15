@@ -8,6 +8,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\StreamResponse;
+use OCP\AppFramework\Http\ZipResponse;
 use OCP\Files\File;
 
 /**
@@ -87,6 +88,57 @@ trait StarRateControllerTrait
         );
         $response->addHeader('Content-Type', $file->getMimeType());
         $response->addHeader('Content-Length', (string) $file->getSize());
+        return $response;
+    }
+
+    /**
+     * Parst eine kommagetrennte fileId-Liste ("1,2,3") zu eindeutigen ints.
+     *
+     * @return int[]
+     */
+    private function parseFileIds(string $raw): array
+    {
+        $ids = [];
+        foreach (explode(',', $raw) as $part) {
+            $part = trim($part);
+            if ($part !== '' && ctype_digit($part)) {
+                $ids[] = (int) $part;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Baut eine gestreamte ZIP-Antwort aus mehreren Original-Dateien — über
+     * NCs ZipResponse (intern OC\Streamer, datei-für-datei gestreamt, kein
+     * Puffern). Ein gemeinsamer Mechanismus für eingeloggt UND Guest.
+     *
+     * Namens-Kollisionen bei ordnerübergreifender Auswahl (z.B. img001.jpg in
+     * zwei Unterordnern) werden mit " (n)" entschärft.
+     *
+     * @param File[] $files
+     */
+    private function buildZipResponse(array $files, string $zipName): ZipResponse
+    {
+        $response = new ZipResponse($this->request, $zipName);
+        $used = [];
+        foreach ($files as $file) {
+            $stream = $file->fopen('rb');
+            if ($stream === false) {
+                continue;
+            }
+            $name = $file->getName();
+            if (isset($used[$name])) {
+                $n   = ++$used[$name];
+                $dot = strrpos($name, '.');
+                $name = $dot === false
+                    ? $name . " ($n)"
+                    : substr($name, 0, $dot) . " ($n)" . substr($name, $dot);
+            } else {
+                $used[$name] = 1;
+            }
+            $response->addResource($stream, $name, $file->getSize(), $file->getMTime());
+        }
         return $response;
     }
 

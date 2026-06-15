@@ -29,6 +29,11 @@ class ShareService
     public const PERM_VIEW = 'view';
     public const PERM_RATE = 'rate';
 
+    // Hartgrenze für Bilder pro ZIP-Download. Schützt Server (RAM/Zeit) und hält
+    // zugleich die GET-fileId-Liste innerhalb der URL-Längengrenze. Das Frontend
+    // warnt schon darunter (Soft-Schwelle); hier ist die Notbremse.
+    public const MAX_ZIP_FILES = 500;
+
     private const APP_ID               = 'starrate';
     private const CONFIG_SHARES        = 'starrate_shares';
     private const CONFIG_LOG           = 'starrate_guest_log';  // key: CONFIG_LOG_<token>

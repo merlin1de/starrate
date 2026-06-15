@@ -44,6 +44,7 @@
     :preview-url-fn="previewUrlFn"
     :allow-download="props.allowDownload"
     :download-url-fn="downloadUrlFn"
+    :download-zip-url-fn="downloadZipUrlFn"
   />
 </template>
 
@@ -145,6 +146,11 @@ function previewUrlFn(fileId) {
 function downloadUrlFn(fileId) {
   // Direkter GET (Browser-Download) → pw_token muss in die URL, nicht in einen Header.
   const base = generateUrl(`/apps/starrate/api/guest/${props.token}/download/${fileId}`)
+  return appendPwToken(base)
+}
+
+function downloadZipUrlFn(ids) {
+  const base = generateUrl(`/apps/starrate/api/guest/${props.token}/download-zip?ids=${ids.join(',')}`)
   return appendPwToken(base)
 }
 
