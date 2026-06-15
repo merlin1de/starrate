@@ -159,8 +159,10 @@
       :active-color="batchActiveColor"
       :active-pick="batchActivePick"
       :enable-pick-ui="settings.enable_pick_ui"
+      :can-download="canDownload"
       @rate="onBatchRate"
       @clear="gridRef?.clearSelection()"
+      @download-zip="triggerZipDownload"
     />
 
     <!-- Share-Liste -->
@@ -308,6 +310,8 @@ const props = defineProps({
   allowDownload: { type: Boolean, default: false },
   /** Ersetzt /api/download/{id} — fn(fileId) → URL (Gast, mit pw_token) */
   downloadUrlFn: { type: Function, default: null },
+  /** Ersetzt /api/download-zip — fn(ids[]) → URL (Gast, mit pw_token) */
+  downloadZipUrlFn: { type: Function, default: null },
 })
 
 // ─── Zustand ──────────────────────────────────────────────────────────────────
@@ -398,6 +402,42 @@ function triggerDownload(image) {
   const a = document.createElement('a')
   a.href = url
   a.download = image.name || ''
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
+// Soft-Schwellen für den ZIP-Download. Harte Grenze (ZIP_MAX) setzt auch der
+// Server (ShareService::MAX_ZIP_FILES) — hier nur die freundliche Vorab-Warnung.
+const ZIP_WARN_COUNT = 100
+const ZIP_MAX = 500
+
+// Lädt die aktuelle Auswahl als ZIP. Eingeloggt → /api/download-zip?ids=…;
+// Gast → downloadZipUrlFn (Token + pw_token). Ein <a>-Klick streamt das ZIP.
+function triggerZipDownload() {
+  if (!canDownload.value) return
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) return
+
+  if (ids.length > ZIP_MAX) {
+    window.alert(t('starrate', 'Maximal {max} Bilder pro ZIP. Bitte die Auswahl verkleinern.', { max: ZIP_MAX }))
+    return
+  }
+
+  const selected   = filteredImages.value.filter(img => selectedIds.value.has(img.id))
+  const totalBytes = selected.reduce((sum, img) => sum + (img.size || 0), 0)
+  if (ids.length > ZIP_WARN_COUNT || totalBytes > 1024 * 1024 * 1024) {
+    const mb = Math.round(totalBytes / (1024 * 1024))
+    if (!window.confirm(t('starrate', '{n} Bilder ({mb} MB) als ZIP herunterladen?', { n: ids.length, mb }))) {
+      return
+    }
+  }
+
+  const url = props.downloadZipUrlFn
+    ? props.downloadZipUrlFn(ids)
+    : generateUrl(`/apps/starrate/api/download-zip?ids=${ids.join(',')}`)
+  const a = document.createElement('a')
+  a.href = url
   document.body.appendChild(a)
   a.click()
   a.remove()
