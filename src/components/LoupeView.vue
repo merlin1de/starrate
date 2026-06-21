@@ -368,7 +368,10 @@ const panStart  = ref({ x: 0, y: 0, panX: 0, panY: 0 })
 // Touch-Pinch
 const touches = ref([])
 let   lastPinchDist = 0
-let   touchStartedAsSingle = false
+// Gesten-Modus: einmal festgelegt, gilt für die ganze Geste (bis alle Finger weg).
+// 'pinch' sobald je 2 Finger unten waren — kein Zurückwechseln, damit ein kurz
+// vorausgewanderter Finger den Zoom nicht abwürgt (war der alte 30px-Abbruch-Bug).
+let   gestureMode = 'none'   // 'none' | 'single' | 'pinch'
 let   swipeOrigin = null
 let   lastTouchEnd = 0
 
@@ -546,6 +549,7 @@ function setZoom(newZoom, pivot = null) {
 
   zoom.value = newZoom
   constrainPan()
+  resetControlsTimer()   // jeder Zoom-Wechsel (Wheel, Pinch, Tastatur) armiert frisch
 }
 
 function resetZoom() {
@@ -553,8 +557,7 @@ function resetZoom() {
   zoom.value  = 1.0
   panX.value  = 0
   panY.value  = 0
-  showControls.value = true
-  clearTimeout(hideControlsTimer)
+  resetControlsTimer()   // Fit → sichtbar, kein Hide-Timer (siehe resetControlsTimer)
 }
 
 function zoomTo100() {
@@ -562,6 +565,7 @@ function zoomTo100() {
   zoom.value  = 1.0   // Pixel-für-Pixel
   panX.value  = 0
   panY.value  = 0
+  resetControlsTimer()   // zoomed-in → Hide-Timer armieren
 
   // Tatsächliche Pixel-Zoom: Bild-Originalbreite / Containerbreite
   nextTick(() => {
@@ -648,24 +652,17 @@ function onMouseUp() {
 
 function onTouchStart(e) {
   touches.value = Array.from(e.touches)
+  resetControlsTimer()   // jede Berührung holt die Leiste zurück (Touch-Parität zur Maus)
 
-  if (touches.value.length === 2) {
-    // Allow pinch if gesture started with 2 fingers OR if the first finger
-    // hasn't moved much (user is stationary, intentionally adding 2nd finger).
-    // Block only when mid-swipe (first finger already moved significantly).
-    if (touchStartedAsSingle && swipeOrigin) {
-      const dx = touches.value[0].clientX - swipeOrigin.x
-      const dy = touches.value[0].clientY - swipeOrigin.y
-      if (Math.sqrt(dx * dx + dy * dy) > 30) {
-        // Mid-swipe — ignore accidental second finger
-        return
-      }
-      // Finger was stationary — allow intentional pinch
-      touchStartedAsSingle = false
-    }
-    lastPinchDist = getPinchDist(touches.value)
-  } else if (touches.value.length === 1) {
-    touchStartedAsSingle = true
+  if (touches.value.length >= 2) {
+    // Zwei Finger unten → für den Rest der Geste Pinch-Modus. Kein Distanz-Check:
+    // wer einen zweiten Finger aufsetzt, will zoomen. Ein versehentlicher Zoom ist
+    // jederzeit zurückzoombar — das ist robuster als die alte Abbruch-Heuristik.
+    gestureMode    = 'pinch'
+    isPanning.value = false
+    lastPinchDist  = getPinchDist(touches.value)
+  } else if (touches.value.length === 1 && gestureMode !== 'pinch') {
+    gestureMode = 'single'
     swipeOrigin = { x: touches.value[0].clientX, y: touches.value[0].clientY }
     if (!isFit.value) {
       isPanning.value = true
@@ -682,19 +679,21 @@ function onTouchStart(e) {
 function onTouchMove(e) {
   const currentTouches = Array.from(e.touches)
 
-  if (currentTouches.length === 2 && !touchStartedAsSingle) {
-    // Pinch-to-Zoom — only when gesture started with 2 fingers
+  if (gestureMode === 'pinch' && currentTouches.length >= 2) {
+    // Pinch-to-Zoom — auf den Finger-Mittelpunkt als Pivot, damit das Bild dort
+    // wächst, wo die Finger sind (nicht um die Bildmitte).
     isPanning.value = false
     const dist  = getPinchDist(currentTouches)
     const ratio = dist / lastPinchDist
-    if (Math.abs(ratio - 1) > 0.03) {
-      setZoom(zoom.value * ratio)
+    if (Math.abs(ratio - 1) > 0.01) {
+      setZoom(zoom.value * ratio, pinchMidpoint(currentTouches))
+      lastPinchDist = dist
     }
-    lastPinchDist = dist
-  } else if (currentTouches.length === 1 && isPanning.value) {
+  } else if (gestureMode === 'single' && currentTouches.length === 1 && isPanning.value) {
     panX.value = panStart.value.panX + (currentTouches[0].clientX - panStart.value.x)
     panY.value = panStart.value.panY + (currentTouches[0].clientY - panStart.value.y)
     constrainPan()
+    resetControlsTimer()   // Pan hält die Leiste sichtbar und re-armt den Hide-Timer
   }
 }
 
@@ -702,23 +701,23 @@ function onTouchEnd(e) {
   const remaining = Array.from(e.touches)
 
   if (remaining.length === 0) {
-    // Alle Finger weg — Swipe-Erkennung + State-Reset
-    if (touchStartedAsSingle && isFit.value && touches.value.length >= 1) {
-      const t0  = touches.value[0]
+    // Alle Finger weg — Swipe nur werten, wenn die Geste durchgehend Ein-Finger war.
+    if (gestureMode === 'single' && isFit.value && swipeOrigin) {
       const t1  = e.changedTouches[0]
-      const dx  = t1.clientX - t0.clientX
-      const dy  = Math.abs(t1.clientY - t0.clientY)
+      const dx  = t1.clientX - swipeOrigin.x
+      const dy  = Math.abs(t1.clientY - swipeOrigin.y)
 
       if (Math.abs(dx) > 60 && dy < 80) {
         navigate(dx < 0 ? 1 : -1)
       }
     }
     isPanning.value = false
-    touchStartedAsSingle = false
-    swipeOrigin = null
-    lastTouchEnd = Date.now()
-  } else if (remaining.length === 1) {
-    // Ein Finger übrig nach Pinch — kein Swipe-Reset, nur Panning stoppen
+    gestureMode     = 'none'
+    swipeOrigin     = null
+    lastTouchEnd    = Date.now()
+  } else {
+    // Noch Finger übrig (z.B. ein Finger nach Pinch) — Pinch-Modus bleibt bis 0,
+    // damit kein Swipe/Pan dazwischenfunkt. Nur Panning stoppen.
     isPanning.value = false
   }
 
@@ -729,6 +728,13 @@ function getPinchDist(ts) {
   const dx = ts[0].clientX - ts[1].clientX
   const dy = ts[0].clientY - ts[1].clientY
   return Math.sqrt(dx * dx + dy * dy)
+}
+
+function pinchMidpoint(ts) {
+  return {
+    x: (ts[0].clientX + ts[1].clientX) / 2,
+    y: (ts[0].clientY + ts[1].clientY) / 2,
+  }
 }
 
 // ─── Tastatur ────────────────────────────────────────────────────────────────
@@ -847,8 +853,13 @@ function onKeydown(e) {
 function resetControlsTimer() {
   showControls.value = true
   clearTimeout(hideControlsTimer)
+  // Im Fit-Modus bleibt die Leiste immer sichtbar — gar kein Hide-Timer.
+  // Nur wenn reingezoomt ist, nach 3s ausblenden (Bild nicht verdecken).
+  // Wird aus jedem Zoom-Wechsel und jeder Touch-Interaktion neu armiert, daher
+  // ist die Sichtbarkeit eine reine Funktion des Zustands — kein One-Shot-Race.
+  if (isFit.value) return
   hideControlsTimer = setTimeout(() => {
-    if (isPanning.value || isFit.value) return  // im Fit-Modus immer sichtbar
+    if (isPanning.value) return  // mitten im Pan: sichtbar lassen, re-armt beim nächsten Move
     showControls.value = false
   }, 3000)
 }
