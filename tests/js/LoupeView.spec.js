@@ -126,3 +126,23 @@ describe('LoupeView Touch-Gesten', () => {
     expect(footerHidden()).toBe(false)
   })
 })
+
+describe('LoupeView Doppelklick-Zoom', () => {
+  let wrapper
+  afterEach(() => wrapper?.unmount())
+
+  it('over-zoomt auf einen festen Faktor (formatunabhängig) und toggelt zurück auf Fit', async () => {
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('Eingepasst')
+
+    // Fester Over-Zoom — unabhängig von Bildmaßen (jsdom hat keine), also gleicher
+    // Wert für Hoch- wie Querformat. Vorher rechnete naturalWidth/cw → formatabhängig.
+    await el.trigger('dblclick')
+    expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('300%')
+
+    // Zweiter Doppelklick → zurück auf Fit
+    await el.trigger('dblclick')
+    expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('Eingepasst')
+  })
+})
