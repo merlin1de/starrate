@@ -275,7 +275,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from 'vue'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
@@ -356,9 +356,13 @@ const showControls   = ref(true)
 let   hideControlsTimer = null
 
 // Zoom + Pan
-const MIN_ZOOM  = 0.25
-const MAX_ZOOM  = 4.0
-const zoom      = ref(1.0)  // 1.0 = fit
+const MIN_ZOOM    = 0.25
+const MAX_ZOOM    = 4.0
+// Doppelklick-Over-Zoom: fester Faktor relativ zum Fit. Formatunabhängig (Hoch/Quer
+// gleich) und auf jedem Display gleich (FHD/Tablet/4K), weil relativ zur Fit-Größe.
+// Bewusst > 1 ("over zoom"): 1:1 wäre auf großen Displays oft ein Schrumpfen.
+const DETAIL_ZOOM = 3.0
+const zoom        = ref(1.0)  // 1.0 = fit
 const isFit     = ref(true)
 const panX      = ref(0)
 const panY      = ref(0)
@@ -536,15 +540,17 @@ function setZoom(newZoom, pivot = null) {
   isFit.value  = false
 
   if (pivot && loupeEl.value) {
-    // Zoom auf Mauszeiger-Position (Pivot)
+    // Zoom auf die Pivot-Position: der Punkt unter dem Cursor bleibt fix.
+    // Das Transform ist translate(pan) ∘ scale(zoom) um die Container-Mitte,
+    // also rein im Screen-Space — die Formel braucht KEINE echten Bildmaße.
+    // d = Cursor relativ zur Container-Mitte. Festpunkt-Bedingung d = pan + z·q
+    // (q = Bildpunkt) führt auf: pan' = d − ratio·(d − pan).
     const rect    = loupeEl.value.getBoundingClientRect()
-    const cx      = rect.width  / 2
-    const cy      = rect.height / 2
-    const dx      = pivot.x - rect.left - cx
-    const dy      = pivot.y - rect.top  - cy
+    const dx      = pivot.x - rect.left - rect.width  / 2
+    const dy      = pivot.y - rect.top  - rect.height / 2
     const ratio   = newZoom / zoom.value
-    panX.value    = panX.value - (dx - panX.value) * (1 - 1 / ratio)
-    panY.value    = panY.value - (dy - panY.value) * (1 - 1 / ratio)
+    panX.value    = dx - ratio * (dx - panX.value)
+    panY.value    = dy - ratio * (dy - panY.value)
   }
 
   zoom.value = newZoom
@@ -560,24 +566,10 @@ function resetZoom() {
   resetControlsTimer()   // Fit → sichtbar, kein Hide-Timer (siehe resetControlsTimer)
 }
 
-function zoomTo100() {
-  isFit.value = false
-  zoom.value  = 1.0   // Pixel-für-Pixel
-  panX.value  = 0
-  panY.value  = 0
-  resetControlsTimer()   // zoomed-in → Hide-Timer armieren
-
-  // Tatsächliche Pixel-Zoom: Bild-Originalbreite / Containerbreite
-  nextTick(() => {
-    if (imgEl.value && loupeEl.value) {
-      const nw = imgEl.value.naturalWidth
-      const cw = loupeEl.value.offsetWidth
-      if (nw > 0 && cw > 0) {
-        zoom.value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nw / cw))
-      }
-      // else: keep zoom = 1.0 (already set above; avoids NaN in test environments)
-    }
-  })
+function zoomToDetail(pivot = null) {
+  // Fester Over-Zoom relativ zum Fit — identisch für Hoch- und Querformat und
+  // über alle Displays. setZoom erledigt Clamp, Pivot, Pan-Constrain und Controls.
+  setZoom(DETAIL_ZOOM, pivot)
 }
 
 function constrainPan() {
@@ -585,8 +577,15 @@ function constrainPan() {
 
   const containerW = loupeEl.value.offsetWidth
   const containerH = loupeEl.value.offsetHeight
-  const imgW       = (imgEl.value.naturalWidth  || containerW) * zoom.value
-  const imgH       = (imgEl.value.naturalHeight || containerH) * zoom.value
+  const nw         = imgEl.value.naturalWidth  || containerW
+  const nh         = imgEl.value.naturalHeight || containerH
+
+  // Im Fit ist das Bild via object-fit:contain skaliert; angezeigt wird
+  // nw·fitScale × nh·fitScale. Pan-Grenzen gegen DIESE Größe rechnen (× zoom),
+  // nicht gegen die rohen Naturalmaße — sonst driftet Pan, v.a. beim Rauszoomen.
+  const fitScale = Math.min(containerW / nw, containerH / nh)
+  const imgW     = nw * fitScale * zoom.value
+  const imgH     = nh * fitScale * zoom.value
 
   const maxPanX = Math.max(0, (imgW - containerW) / 2)
   const maxPanY = Math.max(0, (imgH - containerH) / 2)
@@ -616,12 +615,11 @@ function onDblClick(e) {
   // Ignore dblclick from touch — fast swiping can trigger accidental double-taps
   if (Date.now() - lastTouchEnd < 500) return
 
+  // Toggle: Fit → Over-Zoom auf die Klickposition, sonst zurück auf Fit.
   if (isFit.value) {
-    zoomTo100()
-  } else if (zoom.value < 1.0 || Math.abs(zoom.value - 1.0) < 0.05 || zoom.value > 1.5) {
-    resetZoom()
+    zoomToDetail({ x: e.clientX, y: e.clientY })
   } else {
-    zoomTo100()
+    resetZoom()
   }
 }
 
