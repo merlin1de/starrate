@@ -356,7 +356,6 @@ const showControls   = ref(true)
 let   hideControlsTimer = null
 
 // Zoom + Pan
-const MIN_ZOOM    = 0.25
 const MAX_ZOOM    = 4.0
 // Doppelklick-Over-Zoom: fester Faktor relativ zum Fit. Formatunabhängig (Hoch/Quer
 // gleich) und auf jedem Display gleich (FHD/Tablet/4K), weil relativ zur Fit-Größe.
@@ -536,8 +535,15 @@ function preloadAdjacent(idx) {
 // ─── Zoom ─────────────────────────────────────────────────────────────────────
 
 function setZoom(newZoom, pivot = null) {
-  newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom))
-  isFit.value  = false
+  newZoom = Math.min(MAX_ZOOM, newZoom)
+  // Fit (zoom = 1.0) ist die Untergrenze: kleiner als eingepasst gibt es nicht.
+  // Jedes Rauszoomen, das darunter ginge, schnappt auf Fit — zentral für Wheel,
+  // Tastatur und Pinch, damit Rein-/Rauszoomen symmetrisch an derselben Grenze endet.
+  if (newZoom <= 1.0) {
+    resetZoom()
+    return
+  }
+  isFit.value = false
 
   if (pivot && loupeEl.value) {
     // Zoom auf die Pivot-Position: der Punkt unter dem Cursor bleibt fix.
@@ -597,17 +603,9 @@ function constrainPan() {
 // ─── Events: Maus ────────────────────────────────────────────────────────────
 
 function onWheel(e) {
-  // Im Fit-Modus: nur Reinzoomen erlaubt, Rauszoomen ignorieren
-  if (isFit.value && e.deltaY > 0) return
-
-  const delta   = e.deltaY > 0 ? 0.85 : 1 / 0.85
-  const newZoom = zoom.value * delta
-
-  // Bei MIN_ZOOM angekommen → nicht weiter rauszoomen
-  if (newZoom <= MIN_ZOOM && e.deltaY > 0) return
-
-  isFit.value = false
-  setZoom(newZoom, { x: e.clientX, y: e.clientY })
+  // Floor (Fit) und Ceiling (MAX_ZOOM) regelt setZoom zentral.
+  const delta = e.deltaY > 0 ? 0.85 : 1 / 0.85
+  setZoom(zoom.value * delta, { x: e.clientX, y: e.clientY })
 }
 
 function onDblClick(e) {
@@ -781,15 +779,12 @@ function onKeydown(e) {
     case '+':
     case '=':
       e.preventDefault()
-      isFit.value = false
       setZoom(zoom.value * 1.25)
       break
     case '-':
     case '_':
       e.preventDefault()
-      if (isFit.value) break
-      if (zoom.value * 0.8 <= MIN_ZOOM) break
-      setZoom(zoom.value * 0.8)
+      setZoom(zoom.value * 0.8)   // floort zentral auf Fit
       break
     case ' ':
       e.preventDefault()

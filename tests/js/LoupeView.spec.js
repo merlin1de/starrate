@@ -145,4 +145,22 @@ describe('LoupeView Doppelklick-Zoom', () => {
     await el.trigger('dblclick')
     expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('Eingepasst')
   })
+
+  it('Fit ist die Untergrenze: Rauszoomen unter Fit schnappt auf Eingepasst zurück', async () => {
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    const label = () => wrapper.find('.sr-loupe__zoom-level').text()
+
+    // Aus dem Fit heraus rauszoomen (deltaY > 0) bleibt Fit
+    await el.trigger('wheel', { deltaY: 100 })
+    expect(label()).toBe('Eingepasst')
+
+    // Reinzoomen funktioniert
+    await el.trigger('wheel', { deltaY: -100 })
+    expect(label()).toMatch(/%/)
+
+    // Mehrfach rauszoomen → schnappt auf Fit, nicht unter Fit
+    for (let i = 0; i < 12; i++) await el.trigger('wheel', { deltaY: 100 })
+    expect(label()).toBe('Eingepasst')
+  })
 })
