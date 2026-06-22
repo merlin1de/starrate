@@ -362,7 +362,7 @@ describe('LoupeView – Zoom & Navigation', () => {
 
   // ── Doppelklick ───────────────────────────────────────────────────────────
 
-  it('Doppelklick wechselt von Fit zu 100%', async () => {
+  it('Doppelklick wechselt von Fit zu Over-Zoom', async () => {
     const w = factory()
     await w.find('.sr-loupe').trigger('dblclick')
     const label = w.find('.sr-loupe__zoom-level').text()
@@ -553,11 +553,17 @@ describe('LoupeView – Zoom & Navigation', () => {
     await w.find('.sr-loupe').trigger('touchmove', {
       touches: [{ clientX: 150, clientY: 200 }, { clientX: 250, clientY: 200 }],
     })
-    const after = parseInt(w.find('.sr-loupe__zoom-level').text())
-    expect(after).toBeLessThan(before)
+    // Rauszoomen unter Fit schnappt auf Fit zurück (Fit ist die Untergrenze) —
+    // das ist gültiges Herauszoomen.
+    const after = w.find('.sr-loupe__zoom-level').text()
+    if (after.includes('Eingepasst')) {
+      expect(true).toBe(true)
+    } else {
+      expect(parseInt(after)).toBeLessThan(before)
+    }
   })
 
-  it('Zoom bleibt bei MIN_ZOOM (25%) gedeckelt', async () => {
+  it('Zoom-Untergrenze ist Fit — Rauszoomen geht nicht unter Eingepasst', async () => {
     const w = factory()
     // Erst reinzoomen, dann viele Male raus
     await w.find('.sr-loupe').trigger('wheel', { deltaY: -120 })
@@ -565,11 +571,8 @@ describe('LoupeView – Zoom & Navigation', () => {
     for (let i = 0; i < 30; i++) {
       await w.find('.sr-loupe').trigger('wheel', { deltaY: 120 })
     }
-    const label = w.find('.sr-loupe__zoom-level').text()
-    // Entweder Fit (Reset bei MIN_ZOOM-Nähe) oder >= 25%
-    if (!label.includes('Eingepasst')) {
-      expect(parseInt(label)).toBeGreaterThanOrEqual(25)
-    }
+    // Floor ist Fit: kein Sub-Fit-Zoom mehr, landet sauber auf Eingepasst
+    expect(w.find('.sr-loupe__zoom-level').text()).toContain('Eingepasst')
   })
 
   it('Rauszoomen im Fit-Modus per Mausrad wird ignoriert', async () => {
