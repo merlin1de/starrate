@@ -78,6 +78,30 @@ describe('LoupeView Touch-Gesten', () => {
     expect(wrapper.find('.sr-loupe__zoom-level').text()).toMatch(/%/)
   })
 
+  it('Pinch zoomt auf den Finger-Mittelpunkt (Pivot), nicht um die Bildmitte', async () => {
+    wrapper = factory()
+    const loupeEl = wrapper.find('.sr-loupe').element
+    const imgEl   = wrapper.find('.sr-loupe__img').element
+    // jsdom hat keine Layout-Maße → für die Pivot-Rechnung mocken.
+    loupeEl.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 })
+    Object.defineProperty(loupeEl, 'offsetWidth',  { value: 800, configurable: true })
+    Object.defineProperty(loupeEl, 'offsetHeight', { value: 600, configurable: true })
+    Object.defineProperty(imgEl,   'naturalWidth',  { value: 4000, configurable: true })
+    Object.defineProperty(imgEl,   'naturalHeight', { value: 3000, configurable: true })
+
+    // Pinch um Mittelpunkt (400,200) — horizontal mittig, oberhalb der Mitte (400,300).
+    const el = wrapper.find('.sr-loupe')
+    await el.trigger('touchstart', { touches: [pt(300, 200), pt(500, 200)] })
+    await el.trigger('touchmove',  { touches: [pt(200, 200), pt(600, 200)] })
+
+    const style = wrapper.find('.sr-loupe__img').attributes('style') || ''
+    const m = style.match(/translate\(calc\(-50% \+ ([-\d.]+)px\), calc\(-50% \+ ([-\d.]+)px\)/)
+    expect(m).toBeTruthy()
+    // Pivot oberhalb der Mitte → Bild rückt nach unten → panY > 0, panX ≈ 0
+    expect(parseFloat(m[2])).toBeGreaterThan(0)
+    expect(Math.abs(parseFloat(m[1]))).toBeLessThan(1)
+  })
+
   it('Ein-Finger-Swipe im Fit navigiert weiter', async () => {
     wrapper = factory()
     const el = wrapper.find('.sr-loupe')
