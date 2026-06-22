@@ -553,14 +553,9 @@ describe('LoupeView – Zoom & Navigation', () => {
     await w.find('.sr-loupe').trigger('touchmove', {
       touches: [{ clientX: 150, clientY: 200 }, { clientX: 250, clientY: 200 }],
     })
-    // Rauszoomen unter Fit schnappt auf Fit zurück (Fit ist die Untergrenze) —
-    // das ist gültiges Herauszoomen.
-    const after = w.find('.sr-loupe__zoom-level').text()
-    if (after.includes('Eingepasst')) {
-      expect(true).toBe(true)
-    } else {
-      expect(parseInt(after)).toBeLessThan(before)
-    }
+    // ratio 0.5 aus ~156% landet unter Fit → schnappt auf Fit (die Untergrenze).
+    expect(before).toBeGreaterThan(100)
+    expect(w.find('.sr-loupe__zoom-level').text()).toContain('Eingepasst')
   })
 
   it('Zoom-Untergrenze ist Fit — Rauszoomen geht nicht unter Eingepasst', async () => {

@@ -102,6 +102,34 @@ describe('LoupeView Touch-Gesten', () => {
     expect(Math.abs(parseFloat(m[1]))).toBeLessThan(1)
   })
 
+  it('nach Pinch mit verbleibendem Finger weiter pannen (kein Freeze)', async () => {
+    wrapper = factory()
+    const loupeEl = wrapper.find('.sr-loupe').element
+    const imgEl   = wrapper.find('.sr-loupe__img').element
+    loupeEl.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 })
+    Object.defineProperty(loupeEl, 'offsetWidth',  { value: 800, configurable: true })
+    Object.defineProperty(loupeEl, 'offsetHeight', { value: 600, configurable: true })
+    Object.defineProperty(imgEl,   'naturalWidth',  { value: 4000, configurable: true })
+    Object.defineProperty(imgEl,   'naturalHeight', { value: 3000, configurable: true })
+
+    const panX = () => {
+      const m = (wrapper.find('.sr-loupe__img').attributes('style') || '')
+        .match(/translate\(calc\(-50% \+ ([-\d.]+)px\)/)
+      return m ? parseFloat(m[1]) : NaN
+    }
+
+    const el = wrapper.find('.sr-loupe')
+    // Pinch reinzoomen
+    await el.trigger('touchstart', { touches: [pt(300, 200), pt(500, 200)] })
+    await el.trigger('touchmove',  { touches: [pt(200, 200), pt(600, 200)] })
+    // Einen Finger heben → ein Finger bleibt
+    await el.trigger('touchend', { touches: [pt(400, 300)], changedTouches: [pt(600, 200)] })
+    const before = panX()
+    // Verbleibenden Finger ziehen → muss pannen (vorher: eingefroren)
+    await el.trigger('touchmove', { touches: [pt(460, 300)] })
+    expect(panX()).not.toBe(before)
+  })
+
   it('Ein-Finger-Swipe im Fit navigiert weiter', async () => {
     wrapper = factory()
     const el = wrapper.find('.sr-loupe')
