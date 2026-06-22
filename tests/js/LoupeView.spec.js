@@ -228,6 +228,16 @@ describe('LoupeView Doppeltipp (Touch)', () => {
     await tap(el)
     expect(label()).toBe('Eingepasst')
   })
+
+  it('Doppeltipp auf den Nav-Pfeil navigiert nur, zoomt NICHT', async () => {
+    wrapper = factory()
+    const next = wrapper.find('.sr-loupe__nav--next')
+    for (let i = 0; i < 2; i++) {
+      await next.trigger('touchstart', { touches: [pt(700, 300)] })
+      await next.trigger('touchend', { touches: [], changedTouches: [pt(700, 300)] })
+    }
+    expect(label()).toBe('Eingepasst')   // kein versehentlicher Zoom
+  })
 })
 
 describe('LoupeView Doppelklick-Zoom', () => {
@@ -246,6 +256,12 @@ describe('LoupeView Doppelklick-Zoom', () => {
 
     // Zweiter Doppelklick → zurück auf Fit
     await el.trigger('dblclick')
+    expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('Eingepasst')
+  })
+
+  it('Doppelklick auf den Nav-Pfeil zoomt NICHT (nur Navigation)', async () => {
+    wrapper = factory()
+    await wrapper.find('.sr-loupe__nav--next').trigger('dblclick')
     expect(wrapper.find('.sr-loupe__zoom-level').text()).toBe('Eingepasst')
   })
 

@@ -618,6 +618,9 @@ function onDblClick(e) {
   e.preventDefault()
   // Ignore dblclick from touch — fast swiping can trigger accidental double-taps
   if (Date.now() - lastTouchEnd < 500) return
+  // Nur auf dem Bild zoomen, nicht auf Controls: schnelles Doppelklicken der
+  // Nav-Pfeile (@click.stop stoppt nur click, nicht dblclick) löste sonst Zoom aus.
+  if (e.target.closest('button')) return
 
   // Toggle: Fit → Over-Zoom auf die Klickposition, sonst zurück auf Fit.
   if (isFit.value) {
@@ -710,8 +713,9 @@ function onTouchEnd(e) {
       const dy    = t1.clientY - swipeOrigin.y
       const moved = Math.hypot(dx, dy)
 
-      if (!gestureWasPinch && moved < TAP_MAX_MOVE) {
-        // Stehender Tap → Doppeltipp-Erkennung (ortsfrei, bewegungs-gated).
+      if (!gestureWasPinch && moved < TAP_MAX_MOVE && !e.target.closest('button')) {
+        // Stehender Tap auf dem Bild (nicht auf einem Control wie dem Nav-Pfeil)
+        // → Doppeltipp-Erkennung (ortsfrei, bewegungs-gated).
         const now  = Date.now()
         const near = Math.hypot(t1.clientX - lastTapPos.x, t1.clientY - lastTapPos.y) < DOUBLE_TAP_DIST
         if (now - lastTapTime < DOUBLE_TAP_MS && near) {
