@@ -374,8 +374,17 @@ let   lastPinchDist = 0
 // 'pinch' sobald je 2 Finger unten waren — kein Zurückwechseln, damit ein kurz
 // vorausgewanderter Finger den Zoom nicht abwürgt (war der alte 30px-Abbruch-Bug).
 let   gestureMode = 'none'   // 'none' | 'single' | 'pinch'
+let   gestureWasPinch = false  // war die Geste je ein Pinch? → kein Tap am Ende werten
 let   swipeOrigin = null
 let   lastTouchEnd = 0
+
+// Doppeltipp = zwei stehende Taps kurz hintereinander (bewegungs-gated, ortsfrei):
+// ein Swipe wandert >60px und kann so nie als Tap zählen → keine Kollision.
+const TAP_MAX_MOVE    = 10    // px — darüber ist es Swipe/Pan, kein Tap
+const DOUBLE_TAP_MS   = 300
+const DOUBLE_TAP_DIST = 40    // px Abstand der zwei Taps
+let   lastTapTime = 0
+let   lastTapPos  = { x: 0, y: 0 }
 
 // Bildübergang
 const transitionName = ref('slide-right')
@@ -659,10 +668,12 @@ function onTouchStart(e) {
     // wer einen zweiten Finger aufsetzt, will zoomen. Ein versehentlicher Zoom ist
     // jederzeit zurückzoombar — das ist robuster als die alte Abbruch-Heuristik.
     gestureMode    = 'pinch'
+    gestureWasPinch = true
     isPanning.value = false
     lastPinchDist  = getPinchDist(cur)
   } else if (cur.length === 1 && gestureMode !== 'pinch') {
     gestureMode = 'single'
+    gestureWasPinch = false
     swipeOrigin = { x: cur[0].clientX, y: cur[0].clientY }
     if (!isFit.value) startPan(cur[0].clientX, cur[0].clientY)
   }
@@ -692,13 +703,27 @@ function onTouchEnd(e) {
   const remaining = Array.from(e.touches)
 
   if (remaining.length === 0) {
-    // Alle Finger weg — Swipe nur werten, wenn die Geste durchgehend Ein-Finger war.
-    if (gestureMode === 'single' && isFit.value && swipeOrigin) {
-      const t1  = e.changedTouches[0]
-      const dx  = t1.clientX - swipeOrigin.x
-      const dy  = Math.abs(t1.clientY - swipeOrigin.y)
+    // Alle Finger weg — Geste auswerten (Tap/Doppeltipp vs. Swipe).
+    const t1 = e.changedTouches[0]
+    if (gestureMode === 'single' && swipeOrigin && t1) {
+      const dx    = t1.clientX - swipeOrigin.x
+      const dy    = t1.clientY - swipeOrigin.y
+      const moved = Math.hypot(dx, dy)
 
-      if (Math.abs(dx) > 60 && dy < 80) {
+      if (!gestureWasPinch && moved < TAP_MAX_MOVE) {
+        // Stehender Tap → Doppeltipp-Erkennung (ortsfrei, bewegungs-gated).
+        const now  = Date.now()
+        const near = Math.hypot(t1.clientX - lastTapPos.x, t1.clientY - lastTapPos.y) < DOUBLE_TAP_DIST
+        if (now - lastTapTime < DOUBLE_TAP_MS && near) {
+          // Wie Desktop-Doppelklick: Fit ⇄ Over-Zoom auf den Tipppunkt.
+          if (isFit.value) zoomToDetail({ x: t1.clientX, y: t1.clientY })
+          else resetZoom()
+          lastTapTime = 0   // verbraucht, kein Triple-Tap-Doppelauslösen
+        } else {
+          lastTapTime = now
+          lastTapPos  = { x: t1.clientX, y: t1.clientY }
+        }
+      } else if (isFit.value && Math.abs(dx) > 60 && Math.abs(dy) < 80) {
         navigate(dx < 0 ? 1 : -1)
       }
     }

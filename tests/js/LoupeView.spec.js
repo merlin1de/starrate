@@ -179,6 +179,57 @@ describe('LoupeView Touch-Gesten', () => {
   })
 })
 
+describe('LoupeView Doppeltipp (Touch)', () => {
+  let wrapper
+  afterEach(() => { wrapper?.unmount(); vi.useRealTimers() })
+
+  const label = () => wrapper.find('.sr-loupe__zoom-level').text()
+
+  // Ein stehender Tap an (x,y): touchstart + touchend ohne Bewegung.
+  async function tap(el, x = 400, y = 300) {
+    await el.trigger('touchstart', { touches: [pt(x, y)] })
+    await el.trigger('touchend', { touches: [], changedTouches: [pt(x, y)] })
+  }
+
+  it('zwei stehende Taps over-zoomen wie Doppelklick (Fit → 300%)', async () => {
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    expect(label()).toBe('Eingepasst')
+    await tap(el, 400, 300)
+    await tap(el, 402, 301)   // gleiche Stelle, sofort
+    expect(label()).toBe('300%')
+  })
+
+  it('Doppeltipp bei Zoom kehrt zu Fit zurück', async () => {
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    await tap(el); await tap(el)            // rein → 300%
+    expect(label()).toBe('300%')
+    await tap(el); await tap(el)            // raus → Fit
+    expect(label()).toBe('Eingepasst')
+  })
+
+  it('zwei schnelle Swipes lösen KEINEN Doppeltipp-Zoom aus', async () => {
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    for (let i = 0; i < 2; i++) {
+      await el.trigger('touchstart', { touches: [pt(300, 300)] })
+      await el.trigger('touchend', { touches: [], changedTouches: [pt(210, 300)] }) // dx=-90 → Swipe
+    }
+    expect(label()).toBe('Eingepasst')   // bleibt Fit, kein Zoom
+  })
+
+  it('zwei Taps mit >300ms Abstand zoomen NICHT (nur Einzeltaps)', async () => {
+    vi.useFakeTimers()
+    wrapper = factory()
+    const el = wrapper.find('.sr-loupe')
+    await tap(el)
+    vi.advanceTimersByTime(400)
+    await tap(el)
+    expect(label()).toBe('Eingepasst')
+  })
+})
+
 describe('LoupeView Doppelklick-Zoom', () => {
   let wrapper
   afterEach(() => wrapper?.unmount())
