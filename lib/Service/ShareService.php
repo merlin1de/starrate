@@ -121,7 +121,7 @@ class ShareService
      */
     public function getShare(string $token): ?array
     {
-        $qb     = \OC::$server->getDatabaseConnection()->getQueryBuilder();
+        $qb     = $this->db->getQueryBuilder();
         $result = $qb->select('userid', 'configvalue')
             ->from('preferences')
             ->where($qb->expr()->eq('appid', $qb->createNamedParameter(self::APP_ID)))

@@ -38,7 +38,7 @@ $appUrl = 'starrate://guest?token=' . urlencode($token)
         . '&server=' . urlencode($serverUrl);
 ?>
 <!-- ─── Auto-Redirect: App öffnen wenn installiert (immer aktiv) ──────── -->
-<script nonce="<?= \OC::$server->getContentSecurityPolicyNonceManager()->getNonce() ?>">
+<script nonce="<?= \OC::$server->get(\OC\Security\CSP\ContentSecurityPolicyNonceManager::class)->getNonce() ?>">
 (function() {
     var ua = navigator.userAgent;
     // Nur Android-Mobile, nicht im eigenen WebView
@@ -66,7 +66,7 @@ $appUrl = 'starrate://guest?token=' . urlencode($token)
     transition:transform .3s ease,opacity .3s ease">
     ⭐ In StarRate App öffnen
 </div>
-<script nonce="<?= \OC::$server->getContentSecurityPolicyNonceManager()->getNonce() ?>">
+<script nonce="<?= \OC::$server->get(\OC\Security\CSP\ContentSecurityPolicyNonceManager::class)->getNonce() ?>">
 (function() {
     var ua = navigator.userAgent;
     if (!/Android|iPhone|iPad/i.test(ua) || ua.indexOf('StarRateApp') !== -1) return;
