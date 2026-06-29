@@ -285,7 +285,7 @@ class ShareController extends Controller
         }
 
         // Login-Event: einmal pro Session loggen (deckt pw-Shares UND offene Shares ab)
-        $session = \OC::$server->getSession();
+        $session = \OC::$server->get(\OCP\ISession::class);
         $sessionKey = "starrate_share_{$token}_logged";
         if (!$session->get($sessionKey)) {
             $this->shareService->appendLoginToLog($share);
@@ -538,7 +538,7 @@ class ShareController extends Controller
         $password = $body['password'] ?? '';
 
         if ($this->shareService->verifyPassword($share, $password)) {
-            $session = \OC::$server->getSession();
+            $session = \OC::$server->get(\OCP\ISession::class);
             $session->set("starrate_share_{$token}", true);
             // pw_token: persistenter Nachweis für mobile Browser (localStorage)
             $pwToken = hash_hmac('sha256', $token, $share['password_hash']);
@@ -656,7 +656,7 @@ class ShareController extends Controller
         }
 
         // 1. PHP-Session (Desktop-Browser, kurze Sitzungen)
-        $session = \OC::$server->getSession();
+        $session = \OC::$server->get(\OCP\ISession::class);
         if ($session->get("starrate_share_{$token}") === true) {
             return true;
         }

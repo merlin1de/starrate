@@ -296,8 +296,6 @@ class ShareServiceTest extends TestCase
 
     public function testDeleteShareRemovesFromConfig(): void
     {
-        $this->markTestSkipped('deleteShare() uses getShare() which requires \OC::$server DB — integration test only.');
-
         $existing = [self::SAMPLE_TOKEN => [
             'token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID,
             'nc_path' => '/Fotos', 'password_hash' => null,
@@ -306,6 +304,11 @@ class ShareServiceTest extends TestCase
             'created_at' => time(),
         ]];
 
+        // getShare() findet den Token über die preferences-Tabelle
+        $this->db->method('getQueryBuilder')
+            ->willReturn($this->makeGetShareQb([self::OWNER_ID => $existing]));
+
+        // loadAllShares()/saveShares() laufen über config
         $saved = null;
         $this->config->method('getUserValue')->willReturn(json_encode($existing));
         $this->config->method('setUserValue')
@@ -848,8 +851,13 @@ class ShareServiceTest extends TestCase
 
     public function testGetGuestLogReturnsEmpty(): void
     {
-        // getGuestLog requires getShare() which uses \OC::$server DB — skip
-        $this->markTestSkipped('getGuestLog() calls getShare() which requires \OC::$server — integration test only.');
+        $share = [self::SAMPLE_TOKEN => ['token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID]];
+        $this->db->method('getQueryBuilder')
+            ->willReturn($this->makeGetShareQb([self::OWNER_ID => $share]));
+        // Kein Log gespeichert → leeres Array
+        $this->config->method('getUserValue')->willReturn('[]');
+
+        $this->assertSame([], $this->service->getGuestLog(self::SAMPLE_TOKEN));
     }
 
     // ─── Tests: getSharesByOwner ──────────────────────────────────────────────
@@ -1116,5 +1124,34 @@ class ShareServiceTest extends TestCase
         $this->assertCount(1, $shares);
         $this->assertArrayNotHasKey('password_hash', $shares[0]);
         $this->assertTrue($shares[0]['has_password']);
+    }
+
+    // ─── Helper ───────────────────────────────────────────────────────────────
+
+    /**
+     * Mockt die getShare()-DB-Abfrage (SELECT über die preferences-Tabelle):
+     * liefert pro Owner eine Zeile mit dem JSON-Share-Blob.
+     *
+     * @param array<string, array<string, array>> $sharesByUser  uid => [token => shareData]
+     */
+    private function makeGetShareQb(array $sharesByUser): \OCP\DB\QueryBuilder\IQueryBuilder
+    {
+        $rows = [];
+        foreach ($sharesByUser as $uid => $shares) {
+            $rows[] = ['userid' => $uid, 'configvalue' => json_encode($shares)];
+        }
+
+        $result = $this->createMock(\OCP\DB\IResult::class);
+        $result->method('fetch')->willReturnOnConsecutiveCalls(...[...$rows, false]);
+
+        $qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
+        $qb->method('createNamedParameter')->willReturn('?');
+        $qb->method('executeQuery')->willReturn($result);
+        return $qb;
     }
 }
