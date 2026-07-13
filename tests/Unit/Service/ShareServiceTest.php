@@ -754,6 +754,106 @@ class ShareServiceTest extends TestCase
         );
     }
 
+    // ─── Tests: getImagesForShare Sortierung (Issue #90) ───────────────────────
+
+    public function testGetImagesForShareSortsByOwnerNameAsc(): void
+    {
+        $service = $this->makeServiceForImages(
+            $this->folderWithImages(['c.jpg' => [30, 300], 'a.jpg' => [10, 100], 'b.jpg' => [20, 200]]),
+            $this->sortSettings('name', 'asc'),
+        );
+        $share  = ['owner_id' => self::OWNER_ID, 'nc_path' => '/Fotos', 'min_rating' => 0];
+        $result = $service->getImagesForShare($share, '');
+        $this->assertSame(['a.jpg', 'b.jpg', 'c.jpg'], array_column($result['images'], 'name'));
+    }
+
+    public function testGetImagesForShareSortsByOwnerMtimeDesc(): void
+    {
+        $service = $this->makeServiceForImages(
+            $this->folderWithImages(['a.jpg' => [10, 100], 'b.jpg' => [30, 200], 'c.jpg' => [20, 300]]),
+            $this->sortSettings('mtime', 'desc'),
+        );
+        $share  = ['owner_id' => self::OWNER_ID, 'nc_path' => '/Fotos', 'min_rating' => 0];
+        $result = $service->getImagesForShare($share, '');
+        // mtime: b=30, c=20, a=10  → desc = b, c, a
+        $this->assertSame(['b.jpg', 'c.jpg', 'a.jpg'], array_column($result['images'], 'name'));
+    }
+
+    public function testGetImagesForShareDefaultsToNameWhenSettingsMissing(): void
+    {
+        // getSettings liefert leeres Array (keine Sort-Keys) → Fallback name/asc
+        $us = $this->createMock(UserSettings::class);
+        $us->method('getSettings')->willReturn([]);
+        $service = $this->makeServiceForImages(
+            $this->folderWithImages(['b.jpg' => [20, 200], 'a.jpg' => [10, 100]]),
+            $us,
+        );
+        $share  = ['owner_id' => self::OWNER_ID, 'nc_path' => '/Fotos', 'min_rating' => 0];
+        $result = $service->getImagesForShare($share, '');
+        $this->assertSame(['a.jpg', 'b.jpg'], array_column($result['images'], 'name'));
+    }
+
+    /**
+     * Baut eine IRootFolder, deren User-Folder->get() einen Ordner mit den
+     * gegebenen Bildern (name => [mtime, size]) in genau dieser Reihenfolge liefert.
+     *
+     * @param array<string, array{0:int,1:int}> $files
+     */
+    private function folderWithImages(array $files): IRootFolder
+    {
+        $nodes = [];
+        $id    = 1;
+        foreach ($files as $name => [$mtime, $size]) {
+            $file = $this->createMock(File::class);
+            $file->method('getId')->willReturn($id++);
+            $file->method('getName')->willReturn($name);
+            $file->method('getMtime')->willReturn($mtime);
+            $file->method('getSize')->willReturn($size);
+            $file->method('getMimeType')->willReturn('image/jpeg');
+            $nodes[] = $file;
+        }
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getDirectoryListing')->willReturn($nodes);
+
+        $userFolder = $this->createMock(Folder::class);
+        $userFolder->method('get')->willReturn($folder);
+
+        $rootFolder = $this->createMock(IRootFolder::class);
+        $rootFolder->method('getUserFolder')->willReturn($userFolder);
+        return $rootFolder;
+    }
+
+    private function sortSettings(string $sort, string $order): UserSettings
+    {
+        $us = $this->createMock(UserSettings::class);
+        $us->method('getSettings')->willReturn([
+            'default_sort'       => $sort,
+            'default_sort_order' => $order,
+        ]);
+        return $us;
+    }
+
+    private function makeServiceForImages(IRootFolder $rootFolder, UserSettings $userSettings): ShareService
+    {
+        $tag = $this->createMock(TagService::class);
+        $tag->method('getMetadataBatch')->willReturn([]);
+
+        $config = $this->createMock(IConfig::class);
+        $config->method('getUserValue')->willReturn('[]');
+
+        return new ShareService(
+            $config,
+            $rootFolder,
+            $this->createMock(IPreviewManager::class),
+            $this->createMock(ISecureRandom::class),
+            $tag,
+            $this->createMock(LoggerInterface::class),
+            $this->createMock(IDBConnection::class),
+            $this->createMock(ExifService::class),
+            $userSettings,
+        );
+    }
+
     private function makeServiceForXmp(IRootFolder $rootFolder, ExifService $exif, UserSettings $userSettings): ShareService
     {
         $config = $this->createMock(IConfig::class);

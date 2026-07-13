@@ -277,6 +277,13 @@ class ShareService
         $recursive = (bool) ($share['recursive'] ?? false);
         $depth     = max(0, min(4, (int) ($share['depth'] ?? 0)));
 
+        // Gäste erben die Sortier-Präferenz des Owners (analog eingeloggte Ansicht,
+        // GalleryController::listImages). Ohne das kämen die Bilder in Storage-
+        // Reihenfolge zurück (Issue #90).
+        $settings = $this->userSettings->getSettings($ownerId);
+        $sort     = $settings['default_sort']       ?? 'name';
+        $order    = $settings['default_sort_order'] ?? 'asc';
+
         $userFolder = $this->rootFolder->getUserFolder($ownerId);
 
         if ($recursive) {
@@ -334,6 +341,10 @@ class ShareService
                 ];
             }
         }
+
+        // Zentrale Sortierung nach Owner-Präferenz — deckt beide Zweige ab
+        // (rekursiv behält den groupKey-Primärschlüssel für die Ordner-Gruppierung).
+        $this->sortImages($images, $sort, $order);
 
         if (!empty($images)) {
             // Aktuelle NC-Tag-Bewertungen laden
@@ -1110,16 +1121,35 @@ class ShareService
             ];
         }
 
-        // Sortierung: groupKey + name (analog Owner-Ansicht)
-        usort($images, function (array $a, array $b): int {
-            $cmp = $a['groupKey'] !== '' || $b['groupKey'] !== ''
-                ? strcasecmp($a['groupKey'], $b['groupKey'])
-                : 0;
-            if ($cmp !== 0) return $cmp;
-            return strcasecmp($a['name'], $b['name']);
-        });
-
+        // Sortierung erfolgt zentral in getImagesForShare (Owner-Präferenz,
+        // groupKey als Primärschlüssel) — siehe sortImages().
         return array_values($images);
+    }
+
+    /**
+     * Sortiert Bild-Arrays nach der Owner-Einstellung (name|mtime|size, asc|desc).
+     * Ein vorhandener `groupKey` (Pfad-Präfix bei rekursiven Shares mit depth>=1)
+     * bleibt Primärschlüssel, damit Items desselben Ordners zusammenbleiben —
+     * spiegelt GalleryController::listImages.
+     *
+     * @param list<array{name: string, mtime: int, size: int, groupKey?: string}> $images
+     */
+    private function sortImages(array &$images, string $sort, string $order): void
+    {
+        usort($images, static function (array $a, array $b) use ($sort, $order): int {
+            $ga = $a['groupKey'] ?? '';
+            $gb = $b['groupKey'] ?? '';
+            $cmp = ($ga !== '' || $gb !== '') ? strcasecmp($ga, $gb) : 0;
+            if ($cmp !== 0) return $cmp;
+
+            $cmp = match ($sort) {
+                'mtime' => $a['mtime'] <=> $b['mtime'],
+                'size'  => $a['size']  <=> $b['size'],
+                default => strcasecmp($a['name'], $b['name']),
+            };
+            return $order === 'desc' ? -$cmp : $cmp;
+        });
+        $images = array_values($images);
     }
 
     /**
