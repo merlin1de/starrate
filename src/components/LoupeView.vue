@@ -164,12 +164,12 @@
         <div class="sr-loupe__footer-center">
           <RatingStars
             :model-value="currentImage?.rating ?? 0"
-            :interactive="true"
+            :interactive="canRate"
             @change="(r) => $emit('rate', currentImage, r, undefined)"
           />
           <ColorLabel
             :model-value="currentImage?.color ?? null"
-            :interactive="true"
+            :interactive="canRate"
             @change="(c) => $emit('rate', currentImage, undefined, c)"
           />
         </div>
@@ -337,6 +337,12 @@ const props = defineProps({
   canDownload: {
     type: Boolean,
     default: false,
+  },
+  /** Rating-/Color-Widgets interaktiv? Owner immer; Gast nur bei "View + Rate".
+   *  View-Only-Gast bekommt read-only Sterne statt klickbarer, die nichts speichern. */
+  canRate: {
+    type: Boolean,
+    default: true,
   },
 })
 

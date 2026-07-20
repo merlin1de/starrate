@@ -44,6 +44,32 @@ describe('LoupeView Download-Button', () => {
   })
 })
 
+describe('LoupeView Rating-Interaktivität (View-Only, shumak-Feedback)', () => {
+  let wrapper
+
+  afterEach(() => wrapper?.unmount())
+
+  it('Rating-Sterne sind interaktiv wenn canRate=true (Owner/Default)', () => {
+    wrapper = factory()
+    const stars = wrapper.findAll('.sr-loupe__footer-center .sr-stars__star')
+    expect(stars.length).toBeGreaterThan(0)
+    expect(stars.every(s => s.attributes('disabled') === undefined)).toBe(true)
+  })
+
+  it('Rating-Sterne sind read-only (disabled) wenn canRate=false (View-Only-Gast)', () => {
+    wrapper = factory({ canRate: false })
+    const stars = wrapper.findAll('.sr-loupe__footer-center .sr-stars__star')
+    expect(stars.length).toBeGreaterThan(0)
+    expect(stars.every(s => s.attributes('disabled') !== undefined)).toBe(true)
+  })
+
+  it('read-only Sterne emittieren kein "rate" beim Klick', async () => {
+    wrapper = factory({ canRate: false })
+    await wrapper.find('.sr-loupe__footer-center .sr-stars__star').trigger('click')
+    expect(wrapper.emitted('rate')).toBeFalsy()
+  })
+})
+
 describe('LoupeView Touch-Gesten', () => {
   let wrapper
 

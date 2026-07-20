@@ -146,6 +146,7 @@
         :comments-enabled-owner="settings.comments_enabled"
         :slideshow-interval="settings.slideshow_interval ?? 4"
         :guest-mode="guestMode"
+        :can-rate="canRate"
         :can-download="canDownload"
         @rate="onRate"
         @close="mode = 'grid'"
@@ -301,6 +302,9 @@ const props = defineProps({
   previewUrlFn:   { type: Function, default: null },
   /** Überschreibt enable_pick_ui im Gast-Modus (per-Share Einstellung) */
   enablePickOverride: { type: [Boolean, null], default: null },
+  /** Gast-Modus: Bewerten erlaubt (per-Share Einstellung, default: false).
+   *  Owner ist immer erlaubt (siehe canRate-Computed). */
+  allowRate: { type: Boolean, default: false },
   /** Gast-Modus: Export List erlaubt (per-Share Einstellung, default: false) */
   allowExport: { type: Boolean, default: false },
   /** Gast-Modus: Kommentare erlaubt (per-Share Einstellung, default: false) */
@@ -390,6 +394,9 @@ const recursionAvailable = computed(() => !props.guestMode && !!settings.value.r
 // Download: eingeloggte User dürfen immer (NC-Recht des Eigentümers); im
 // Gast-Modus nur, wenn der Share-Ersteller es erlaubt hat (allow_download).
 const canDownload = computed(() => !props.guestMode || props.allowDownload)
+// Bewerten: Owner immer, Gast nur bei "View + Rate"-Share. Steuert die
+// Interaktivität der Rating-Widgets (View-Only zeigt sie read-only).
+const canRate = computed(() => !props.guestMode || props.allowRate)
 
 // Browser-Download per programmatischem <a>-Klick anstoßen. Da die Response
 // Content-Disposition: attachment liefert, lädt der Klick die Datei herunter,

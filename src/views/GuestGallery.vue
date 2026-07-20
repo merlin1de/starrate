@@ -33,6 +33,7 @@
     v-else
     :guest-mode="true"
     :guest-label="props.guestName"
+    :allow-rate="props.canRate"
     :enable-pick-override="props.allowPick"
     :allow-export="props.allowExport"
     :allow-comment="props.allowComment"
