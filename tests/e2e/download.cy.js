@@ -61,6 +61,15 @@ describe('Image Download', () => {
       cy.get('.sr-loupe', { timeout: 5000 }).should('be.visible')
       cy.get('.sr-loupe__download').should('not.exist')
     })
+
+    it('Download-API → 403 wenn allow_download=false (Negativ, API-Ebene)', () => {
+      cy.request({
+        url: `${NC_URL}/index.php/apps/starrate/api/guest/${token}/download/99999`,
+        failOnStatusCode: false,
+      }).then(resp => {
+        expect(resp.status).to.eq(403)
+      })
+    })
   })
 
   describe('Guest mit allow_download', () => {
