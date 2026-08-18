@@ -122,4 +122,27 @@ describe('StarRate Screenshots', () => {
     cy.screenshot('starrate-mobile-loupe', { capture: 'viewport', overwrite: true })
     cy.get('body').type('{esc}')
   })
+
+  // Mobile Gast-Ansicht: „Kunde bewertet am Handy". Weniger Controls als Owner →
+  // untere Leiste sitzt sauberer. Grid + Loupe (Bewertungs-Moment).
+  it('mobile-guest', () => {
+    cy.viewport(620, 1150)
+    cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+    cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 20000 })
+      .should('have.length.greaterThan', 5)
+    cy.wait(3000)
+    cy.screenshot('starrate-mobile-guest', { capture: 'viewport', overwrite: true })
+  })
+
+  it('mobile-guest-loupe', () => {
+    cy.viewport(620, 1150)
+    cy.visit(`${NC_URL}/index.php/apps/starrate/guest/${token}`)
+    cy.get('.sr-grid__item:not(.sr-grid__item--skeleton)', { timeout: 20000 })
+      .should('have.length.greaterThan', 5)
+    cy.wait(2000)
+    cy.contains('.sr-grid__item', LOUPE_FILE, { timeout: 10000 }).dblclick()
+    cy.get('.sr-loupe', { timeout: 8000 }).should('be.visible')
+    cy.wait(2500)
+    cy.screenshot('starrate-mobile-guest-loupe', { capture: 'viewport', overwrite: true })
+  })
 })

@@ -94,7 +94,8 @@ Bilder mit 1–5 Sternen und Farb-Labels bewerten, Picks und Rejects per Tastatu
     <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-newshare.jpg</screenshot>
     <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-guest.jpg</screenshot>
     <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-mobile-grid.jpg</screenshot>
-    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-mobile-loupe.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-mobile-guest.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/merlin1de/starrate/master/screenshots/starrate-mobile-guest-loupe.jpg</screenshot>
 
     <dependencies>
         <php min-version="8.1" max-version="8.4"/>
