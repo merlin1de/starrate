@@ -104,16 +104,17 @@ describe('StarRate Screenshots', () => {
     cy.screenshot('starrate-guest', { capture: 'viewport', overwrite: true })
   })
 
-  // Mobile-Ansichten: schmaler Viewport (< Fenster → kein Crop). Portrait 430x932
-  // (iPhone-Klasse). Responsive Grid fällt auf 2 Spalten + kompakte Filterleiste.
+  // Mobile-Ansichten: Portrait 620x1150 — knapp unter dem 640px-Breakpoint (also
+  // echtes Mobile-Layout: 2 Spalten + kompakte Filterleiste), aber breit/hoch genug,
+  // dass die Filterleiste komplett sichtbar ist und unten nichts umbricht/abschneidet.
   it('mobile-grid', () => {
-    cy.viewport(430, 932)
+    cy.viewport(620, 1150)
     openPortraits()
     cy.screenshot('starrate-mobile-grid', { capture: 'viewport', overwrite: true })
   })
 
   it('mobile-loupe', () => {
-    cy.viewport(430, 932)
+    cy.viewport(620, 1150)
     openPortraits()
     cy.contains('.sr-grid__item', LOUPE_FILE, { timeout: 10000 }).dblclick()
     cy.get('.sr-loupe', { timeout: 8000 }).should('be.visible')
