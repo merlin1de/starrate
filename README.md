@@ -72,8 +72,8 @@ Rate in Nextcloud → open in Lightroom → stars are already there.
 ### Loupe view with zoom and keyboard navigation
 ![Loupe view](screenshots/starrate-loupe.jpg)
 
-### Guest gallery — rate without a Nextcloud account
-![Guest gallery](screenshots/starrate-guest.jpg)
+### Guest gallery on mobile — rate without a Nextcloud account
+![Guest gallery on mobile](screenshots/starrate-mobile-guest.jpg)
 
 ---
 
