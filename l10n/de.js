@@ -11,12 +11,12 @@ OC.L10N.register(
         "Bewertung" : "Bewertung",
         "Bewertung entfernen" : "Bewertung entfernen",
         "Bewertung:" : "Bewertung:",
-        "%n Stern" : ["%n Stern", "%n Sterne"],
-        "%n Ordner" : ["%n Ordner", "%n Ordner"],
+        "_%n Stern_::_%n Sterne_" : ["%n Stern", "%n Sterne"],
+        "_%n Ordner_::_%n Ordner_" : ["%n Ordner", "%n Ordner"],
         "Bewertung konnte nicht gespeichert werden" : "Bewertung konnte nicht gespeichert werden",
         "{name}: {stars}" : "{name}: {stars}",
-        "%n Bild bewertet %s" : ["%n Bild bewertet %s", "%n Bilder bewertet %s"],
-        "%n Bild wird bewertet…\nBitte warten" : ["%n Bild wird bewertet…\nBitte warten", "%n Bilder werden bewertet…\nBitte warten"],
+        "_%n Bild bewertet %s_::_%n Bilder bewertet %s_" : ["%n Bild bewertet %s", "%n Bilder bewertet %s"],
+        "_%n Bild wird bewertet…\nBitte warten_::_%n Bilder werden bewertet…\nBitte warten_" : ["%n Bild wird bewertet…\nBitte warten", "%n Bilder werden bewertet…\nBitte warten"],
         "bewertet" : "bewertet",
         "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen" : "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen",
         "Stapel-Bewertung fehlgeschlagen" : "Stapel-Bewertung fehlgeschlagen",
@@ -43,8 +43,8 @@ OC.L10N.register(
         "Alle Filter zurücksetzen" : "Alle Filter zurücksetzen",
         "Nur Picks anzeigen" : "Nur Picks anzeigen",
         "Nur Ablehnungen anzeigen" : "Nur Ablehnungen anzeigen",
-        "%n Bild" : ["%n Bild", "%n Bilder"],
-        "%n gesamt" : ["%n gesamt", "%n gesamt"],
+        "_%n Bild_::_%n Bilder_" : ["%n Bild", "%n Bilder"],
+        "_%n gesamt_::_%n gesamt_" : ["%n gesamt", "%n gesamt"],
 
         // ── Galerie / Navigation ──────────────────────────────────────────────
         "Bilder konnten nicht geladen werden" : "Bilder konnten nicht geladen werden",
@@ -67,8 +67,8 @@ OC.L10N.register(
         "Stapel-Bewertung" : "Stapel-Bewertung",
         "Bewertung setzen" : "Bewertung setzen",
         "Auswahl aufheben (Esc)" : "Auswahl aufheben (Esc)",
-        "%n Bild ausgewählt" : ["%n Bild ausgewählt", "%n Bilder ausgewählt"],
-        "%n Fehler" : ["%n Fehler", "%n Fehler"],
+        "_%n Bild ausgewählt_::_%n Bilder ausgewählt_" : ["%n Bild ausgewählt", "%n Bilder ausgewählt"],
+        "_%n Fehler_::_%n Fehler_" : ["%n Fehler", "%n Fehler"],
 
         // ── Sync-Panel ────────────────────────────────────────────────────────
         "Lightroom Sync" : "Lightroom Sync",
