@@ -5,7 +5,7 @@
 [![CI](https://github.com/merlin1de/starrate/actions/workflows/ci.yml/badge.svg)](https://github.com/merlin1de/starrate/actions/workflows/ci.yml)
 [![Nextcloud App Store](https://img.shields.io/badge/Nextcloud%20App%20Store-StarRate-blue?logo=nextcloud)](https://apps.nextcloud.com/apps/starrate)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
-[![Nextcloud 29–33](https://img.shields.io/badge/Nextcloud-29–33-0082c9?logo=nextcloud)](https://apps.nextcloud.com/apps/starrate)
+[![Nextcloud 29–34](https://img.shields.io/badge/Nextcloud-29–34-0082c9?logo=nextcloud)](https://apps.nextcloud.com/apps/starrate)
 [![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php)](https://php.net)
 
 > 🌳 **New in v1.3** — Recursive folder view: browse a whole folder tree as one stream, optionally grouped by folder depth. → [How it works](docs/recursive-folders.en.md)
@@ -52,8 +52,10 @@ Rate in Nextcloud → open in Lightroom → stars are already there.
 | 📥 XMP import | `occ starrate:import-xmp` — import existing ratings from Lightroom, digiKam, etc. |
 | 💬 Comments | Per-photo notes in loupe view — owner and guests can comment |
 | 📤 Export | CSV download or clipboard copy of ratings and metadata |
+| ⬇️ Download | Original images — a single shot from the loupe or the whole selection as a ZIP; for logged-in users and, per share, for guests |
 | 🔍 Filter bar | Combinable filters: stars, color, Pick/Reject, unrated |
 | 🌳 Recursive view | Browse a whole folder tree as one stream — flat or grouped by folder depth ([details](docs/recursive-folders.en.md)) |
+| 🎞️ Slideshow | Loupe auto-advances through filtered images at a configurable interval — ideal for client presentations |
 | 🔎 Loupe view | Zoom 25–400 %, pan, pinch-to-zoom, keyboard navigation |
 | 🖱️ Batch rating | `Shift+click` / `Ctrl+click`, `Ctrl+A`, floating selection bar |
 | 🔗 Guest sharing | Public gallery links — clients rate without a Nextcloud account |
@@ -88,7 +90,7 @@ Guests can rate images in their browser — **no Nextcloud account required**. T
 
 ## Requirements
 
-- Nextcloud 29–33
+- Nextcloud 29–34
 - PHP 8.1–8.4
 - Node.js 18+ / npm 9+
 - Composer 2
@@ -146,13 +148,13 @@ make package        # → dist/starrate.tar.gz
 ```bash
 make test          # PHPUnit + Vitest
 make test-php      # PHPUnit only
-make test-js       # Vitest only (325 component tests)
+make test-js       # Vitest only (468 component tests)
 make test-e2e      # Cypress headless (requires a running Nextcloud instance)
 npm run e2e:open   # Cypress GUI with browser selection
 make test-coverage # Reports written to tests/results/
 ```
 
-CI runs on every PR: Vitest (325 component tests) + PHPUnit (~260 tests, PHP 8.1 + 8.3)
+CI runs on every PR: Vitest (468 component tests) + PHPUnit (304 tests, PHP 8.1 + 8.3)
 
 ---
 
