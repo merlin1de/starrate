@@ -103,4 +103,22 @@ describe('StarRate Screenshots', () => {
     cy.wait(3000)
     cy.screenshot('starrate-guest', { capture: 'viewport', overwrite: true })
   })
+
+  // Mobile-Ansichten: schmaler Viewport (< Fenster → kein Crop). Portrait 430x932
+  // (iPhone-Klasse). Responsive Grid fällt auf 2 Spalten + kompakte Filterleiste.
+  it('mobile-grid', () => {
+    cy.viewport(430, 932)
+    openPortraits()
+    cy.screenshot('starrate-mobile-grid', { capture: 'viewport', overwrite: true })
+  })
+
+  it('mobile-loupe', () => {
+    cy.viewport(430, 932)
+    openPortraits()
+    cy.contains('.sr-grid__item', LOUPE_FILE, { timeout: 10000 }).dblclick()
+    cy.get('.sr-loupe', { timeout: 8000 }).should('be.visible')
+    cy.wait(2500)
+    cy.screenshot('starrate-mobile-loupe', { capture: 'viewport', overwrite: true })
+    cy.get('body').type('{esc}')
+  })
 })
