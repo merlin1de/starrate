@@ -431,6 +431,30 @@ describe('ShareModal', () => {
     expect(body.password).toBeNull()
   })
 
+  it('Edit-Submit: geleertes Ablaufdatum → expires_at=null im Body', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const future = Math.floor(Date.now() / 1000) + 86400
+    const w = factory({ editShare: { ...sampleShare, expires_at: future } })
+    // Datum-Feld ist aus dem Share vorbefüllt → jetzt leeren
+    const dateInput = w.find('input[type="date"]')
+    expect(dateInput.element.value).not.toBe('')
+    await dateInput.setValue('')
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    const body = axios.put.mock.calls[0][1]
+    expect(body.expires_at).toBeNull()
+  })
+
+  it('Edit-Submit: unverändertes Ablaufdatum bleibt als Timestamp erhalten', async () => {
+    axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
+    const future = Math.floor(Date.now() / 1000) + 86400
+    const w = factory({ editShare: { ...sampleShare, expires_at: future } })
+    await w.find('form').trigger('submit')
+    await flushPromises()
+    const body = axios.put.mock.calls[0][1]
+    expect(body.expires_at).toBeGreaterThan(Math.floor(Date.now() / 1000))
+  })
+
   it('Edit-Submit emittiert updated und close', async () => {
     axios.put.mockResolvedValueOnce({ data: { share: sampleShare } })
     const w = factory({ editShare: sampleShare })

@@ -400,11 +400,12 @@ async function create() {
     // Datum in Unix-Timestamp (End des Tages, lokale Zeit)
     const d = new Date(form.value.expiresDate + 'T23:59:59')
     body.expires_at = Math.floor(d.getTime() / 1000)
-  } else if (isEditMode.value && props.editShare?.expires_at) {
-    // Edit-Mode: User hat das Datum gelöscht → Backend ignoriert das aktuell
-    // (kein expires_at-Key reicht zum Beibehalten). Falls echte Entfernung
-    // gewünscht: extra Flag wie bei Passwort. Für V1.3.1 lassen wir das aus
-    // Scope — bisher kann man Datum nicht zurücksetzen.
+  } else if (isEditMode.value) {
+    // Edit-Mode + Feld geleert → explizit null senden, damit das Backend
+    // (array_key_exists) das Ablaufdatum entfernt. Ohne den Key bliebe der
+    // alte Wert stehen. Bei Anlage ohne Datum sendet man den Key gar nicht
+    // (Default = kein Ablauf).
+    body.expires_at = null
   }
 
   try {

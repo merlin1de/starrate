@@ -319,6 +319,58 @@ class ShareServiceTest extends TestCase
         $this->assertArrayNotHasKey(self::SAMPLE_TOKEN, $saved ?? []);
     }
 
+    public function testUpdateShareClearsExpiryWhenNull(): void
+    {
+        // Regression: einmal gesetztes Ablaufdatum ließ sich nicht mehr löschen,
+        // weil updateShare() isset() nutzte (null → false). Jetzt via
+        // array_key_exists → explizit gesendetes null entfernt es.
+        $existing = [self::SAMPLE_TOKEN => [
+            'token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID,
+            'nc_path' => '/Fotos', 'password_hash' => null,
+            'expires_at' => time() + 86400, 'min_rating' => 0,
+            'permissions' => ShareService::PERM_VIEW, 'active' => true,
+            'created_at' => time(),
+        ]];
+
+        $this->db->method('getQueryBuilder')
+            ->willReturn($this->makeGetShareQb([self::OWNER_ID => $existing]));
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn(json_encode($existing));
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $updated = $this->service->updateShare(self::SAMPLE_TOKEN, ['expires_at' => null]);
+
+        $this->assertNull($saved[self::SAMPLE_TOKEN]['expires_at']);
+        $this->assertNull($updated['expires_at']);
+    }
+
+    public function testUpdateShareSetsExpiryFromTimestamp(): void
+    {
+        $future   = time() + 86400;
+        $existing = [self::SAMPLE_TOKEN => [
+            'token' => self::SAMPLE_TOKEN, 'owner_id' => self::OWNER_ID,
+            'nc_path' => '/Fotos', 'password_hash' => null,
+            'expires_at' => null, 'min_rating' => 0,
+            'permissions' => ShareService::PERM_VIEW, 'active' => true,
+            'created_at' => time(),
+        ]];
+
+        $this->db->method('getQueryBuilder')
+            ->willReturn($this->makeGetShareQb([self::OWNER_ID => $existing]));
+
+        $saved = null;
+        $this->config->method('getUserValue')->willReturn(json_encode($existing));
+        $this->config->method('setUserValue')
+            ->willReturnCallback(function ($u, $a, $k, $v) use (&$saved) { $saved = json_decode($v, true); });
+
+        $updated = $this->service->updateShare(self::SAMPLE_TOKEN, ['expires_at' => $future]);
+
+        $this->assertSame($future, $saved[self::SAMPLE_TOKEN]['expires_at']);
+        $this->assertSame($future, $updated['expires_at']);
+    }
+
     // ─── Tests: Gast-Bewertungen ──────────────────────────────────────────────
 
     public function testSaveGuestRatingPersistsEntry(): void
