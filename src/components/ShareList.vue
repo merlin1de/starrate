@@ -486,8 +486,12 @@ defineExpose({ loadShares })
   background: #2a2a3e;
   color: #a1a1aa;
 }
+/* Modus-Badges (view/rate) teilen sich die Blau-Familie — eigene Farbkategorie,
+   klar getrennt vom grünen ✓-Cluster der Zusatzrechte. „Bewerten" bekommt das
+   kräftigere Blau (kleine Aufmerksamkeit), „Ansehen" das softe. Kein Rot mehr
+   → keine Fehl-/Alarm-Anmutung (User-Feedback). */
 .sr-share-list__badge--view   { background: #1a2a4a; color: #7eaecf; }
-.sr-share-list__badge--rate   { background: #2a1a1a; color: #e94560; }
+.sr-share-list__badge--rate   { background: #16345f; color: #4d9de6; }
 .sr-share-list__badge--filter { background: #2a2a1a; color: #f5c518; }
 .sr-share-list__badge--pw     { background: #2a2a3e; }
 .sr-share-list__badge--pick-on  { background: #1a2a1a; color: #4caf50; }
