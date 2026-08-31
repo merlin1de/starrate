@@ -113,7 +113,8 @@ XMP;
             $photoshopNs = '';
         }
 
-        if (isset(self::PICK_MAP[$pick])) {
+        // PHP 8.5: null als Array-Offset ist deprecated → vor dem isset auf null prüfen.
+        if ($pick !== null && isset(self::PICK_MAP[$pick])) {
             $pickValues = self::PICK_MAP[$pick];
             $pickAttr   = "\n      xmpDM:pick=\"{$pickValues['pick']}\""
                         . "\n      xmpDM:good=\"{$pickValues['good']}\"";
