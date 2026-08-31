@@ -400,11 +400,12 @@ async function create() {
     // Datum in Unix-Timestamp (End des Tages, lokale Zeit)
     const d = new Date(form.value.expiresDate + 'T23:59:59')
     body.expires_at = Math.floor(d.getTime() / 1000)
-  } else if (isEditMode.value && props.editShare?.expires_at) {
-    // Edit-Mode: User hat das Datum gelöscht → Backend ignoriert das aktuell
-    // (kein expires_at-Key reicht zum Beibehalten). Falls echte Entfernung
-    // gewünscht: extra Flag wie bei Passwort. Für V1.3.1 lassen wir das aus
-    // Scope — bisher kann man Datum nicht zurücksetzen.
+  } else if (isEditMode.value) {
+    // Edit-Mode + Feld geleert → explizit null senden, damit das Backend
+    // (array_key_exists) das Ablaufdatum entfernt. Ohne den Key bliebe der
+    // alte Wert stehen. Bei Anlage ohne Datum sendet man den Key gar nicht
+    // (Default = kein Ablauf).
+    body.expires_at = null
   }
 
   try {
@@ -561,9 +562,45 @@ async function create() {
   transition: background 0.15s, color 0.15s;
 }
 .sr-share-modal__toggle:not(:last-child) { border-right: 1px solid #3f3f5a; }
-.sr-share-modal__toggle--active {
-  background: #e94560;
-  color: #fff;
+
+/* NC setzt globale button:focus/:active-Styles (Hintergrund + box-shadow, teils
+   mit !important). Ohne Gegenwehr „wechselte" der Toggle die Farbe, sobald er
+   nach dem Klick den Fokus behielt und man danach weitere Felder im Dialog
+   bediente. Interaktionszustände hier explizit festnageln — aktiv=rot,
+   inaktiv=transparent, stabil in jedem Zustand. */
+/* NCs box-shadow-Artefakt unterdrücken, aber den Tastatur-Fokus SICHTBAR halten
+   (a11y): outline nur bei Maus/Touch (:focus/:active) weg, per :focus-visible
+   ein klarer Ring. */
+.sr-share-modal__toggle:focus,
+.sr-share-modal__toggle:active {
+  box-shadow: none !important;
+  outline: none;
+}
+.sr-share-modal__toggle:focus-visible {
+  box-shadow: none !important;
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+/* Inaktiv: Ruhezustand transparent, Hover = light grey (Affordanz). Focus/active
+   dürfen NICHT ausgrauen, nur Hover. */
+.sr-share-modal__toggle:not(.sr-share-modal__toggle--active) {
+  background: none !important;
+}
+.sr-share-modal__toggle:not(.sr-share-modal__toggle--active):hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: #d4d4d8;
+}
+/* Aktiv: bleibt IMMER rot (auch mit Fokus nach Klick), Hover nur ein Ticken
+   heller — kein Umschlagen auf NCs Grau. */
+.sr-share-modal__toggle--active,
+.sr-share-modal__toggle--active:focus,
+.sr-share-modal__toggle--active:active {
+  background: #e94560 !important;
+  color: #fff !important;
+}
+.sr-share-modal__toggle--active:hover {
+  background: #f0637c !important;
+  color: #fff !important;
 }
 
 .sr-share-modal__checkbox-label {

@@ -188,6 +188,22 @@ describe('Kommentare', () => {
         deleteShare(share.token)
       })
     })
+
+    it('Comment-API → 403 wenn allow_comment=false (Negativ, API-Ebene)', () => {
+      createShare({ permissions: 'view', guest_name: 'Kein-Kommentar-API', allow_comment: false })
+        .then(share => {
+          cy.request({
+            method: 'POST',
+            url: `${NC_URL}/index.php/apps/starrate/api/guest/${share.token}/comment`,
+            body: { file_id: 99999, comment: 'sollte blockiert werden', guest_name: 'Hacker' },
+            headers: { 'Content-Type': 'application/json' },
+            failOnStatusCode: false,
+          }).then(resp => {
+            expect(resp.status).to.eq(403)
+          })
+          deleteShare(share.token)
+        })
+    })
   })
 
   // ── Passwortgeschützter Share: Kommentare ──────────────────────────────

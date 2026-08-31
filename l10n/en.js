@@ -11,12 +11,12 @@ OC.L10N.register(
         "Bewertung" : "Rating",
         "Bewertung entfernen" : "Remove rating",
         "Bewertung:" : "Rating:",
-        "%n Stern" : ["%n star", "%n stars"],
-        "%n Ordner" : ["%n folder", "%n folders"],
+        "_%n Stern_::_%n Sterne_" : ["%n star", "%n stars"],
+        "_%n Ordner_::_%n Ordner_" : ["%n folder", "%n folders"],
         "Bewertung konnte nicht gespeichert werden" : "Rating could not be saved",
         "{name}: {stars}" : "{name}: {stars}",
-        "%n Bild bewertet %s" : ["%n image rated %s", "%n images rated %s"],
-        "%n Bild wird bewertet…\nBitte warten" : ["%n image is being rated…\nPlease wait", "%n images are being rated…\nPlease wait"],
+        "_%n Bild bewertet %s_::_%n Bilder bewertet %s_" : ["%n image rated %s", "%n images rated %s"],
+        "_%n Bild wird bewertet…\nBitte warten_::_%n Bilder werden bewertet…\nBitte warten_" : ["%n image is being rated…\nPlease wait", "%n images are being rated…\nPlease wait"],
         "bewertet" : "rated",
         "XMP: {written} geschrieben, {skipped} nicht geschrieben\nBitte nochmal setzen" : "XMP: {written} written, {skipped} not written\nPlease set again",
         "Stapel-Bewertung fehlgeschlagen" : "Batch rating failed",
@@ -43,8 +43,8 @@ OC.L10N.register(
         "Alle Filter zurücksetzen" : "Reset all filters",
         "Nur Picks anzeigen" : "Show picks only",
         "Nur Ablehnungen anzeigen" : "Show rejects only",
-        "%n Bild" : ["%n image", "%n images"],
-        "%n gesamt" : ["%n total", "%n total"],
+        "_%n Bild_::_%n Bilder_" : ["%n image", "%n images"],
+        "_%n gesamt_::_%n gesamt_" : ["%n total", "%n total"],
 
         // ── Gallery ───────────────────────────────────────────────────────────
         "Bilder konnten nicht geladen werden" : "Images could not be loaded",
@@ -67,8 +67,8 @@ OC.L10N.register(
         "Stapel-Bewertung" : "Batch rating",
         "Bewertung setzen" : "Set rating",
         "Auswahl aufheben (Esc)" : "Clear selection (Esc)",
-        "%n Bild ausgewählt" : ["%n image selected", "%n images selected"],
-        "%n Fehler" : ["%n error", "%n errors"],
+        "_%n Bild ausgewählt_::_%n Bilder ausgewählt_" : ["%n image selected", "%n images selected"],
+        "_%n Fehler_::_%n Fehler_" : ["%n error", "%n errors"],
 
         // ── Sync panel ────────────────────────────────────────────────────────
         "Lightroom Sync" : "Lightroom Sync",

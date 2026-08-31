@@ -175,8 +175,14 @@ class ShareService
                 ? password_hash($data['password'], PASSWORD_BCRYPT)
                 : null;
         }
-        if (isset($data['expires_at'])) {
-            $all[$token]['expires_at'] = (int) $data['expires_at'];
+        // Wie beim Passwort über array_key_exists: ein explizit gesendetes null
+        // entfernt das Ablaufdatum. isset() würde bei null false liefern → das
+        // Datum ließe sich nach dem Setzen nie wieder löschen. (Ein 0-Timestamp
+        // erreicht diese Stelle nicht — validateShareBody weist ihn vorher als
+        // "Vergangenheit" ab; die > 0-Prüfung ist reine Defensive gegen null.)
+        if (array_key_exists('expires_at', $data)) {
+            $ts = (int) $data['expires_at'];
+            $all[$token]['expires_at'] = $ts > 0 ? $ts : null;
         }
         if (isset($data['min_rating'])) {
             $all[$token]['min_rating'] = max(0, min(5, (int) $data['min_rating']));
