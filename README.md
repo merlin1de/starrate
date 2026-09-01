@@ -91,7 +91,7 @@ Guests can rate images in their browser — **no Nextcloud account required**. T
 ## Requirements
 
 - Nextcloud 29–34
-- PHP 8.1–8.4
+- PHP 8.1–8.5
 - Node.js 18+ / npm 9+
 - Composer 2
 
@@ -154,7 +154,7 @@ npm run e2e:open   # Cypress GUI with browser selection
 make test-coverage # Reports written to tests/results/
 ```
 
-CI runs on every PR: Vitest (468 component tests) + PHPUnit (304 tests, PHP 8.1 + 8.3)
+CI runs on every PR: Vitest (468 component tests) + PHPUnit (304 tests, PHP 8.1 + 8.4 + 8.5)
 
 ---
 
